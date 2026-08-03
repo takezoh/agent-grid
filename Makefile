@@ -90,6 +90,7 @@ build-web-frontend: $(WEB_HOST_DIST)
 # build-web builds the independently versioned Web client host. It loads the
 # shared client configuration and serves server-qualified same-origin routes.
 build-web: $(WEB_HOST_DIST)
+	node clients/config/generate-github-oauth.mjs --check
 	mkdir -p $(BIN_DIR)
 	cd $(WEB_HOST_DIR) && GOWORK=off go build -o ../../$(WEB) ./cmd/web-host
 

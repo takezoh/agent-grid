@@ -115,7 +115,14 @@ func (r *Runtime) runEnsureEnvironment(prep state.RepositoryPreparation) {
 		}
 	}
 	sessionID := state.SessionID("sess-" + string(prep.ID))
-	cmd := "shell"
+	intent, ok := r.state.CreationIntents[prep.IntentID]
+	if !ok || intent.Command == "" {
+		r.enqueuePreparationEvent(state.EvRepository{
+			Kind: "failed", PreparationID: prep.ID, Code: state.PrepFailureInternalCorrupt,
+		})
+		return
+	}
+	cmd := intent.Command
 	if r.prepCtrl != nil {
 		r.prepCtrl.RegisterPendingLaunch(prep.ID, pendingTerminalLaunch{
 			SessionID: sessionID, ClonePath: state.ClonePathID(clonePath),
@@ -123,16 +130,22 @@ func (r *Runtime) runEnsureEnvironment(prep state.RepositoryPreparation) {
 			EnvReused: res.Reused, Generation: prep.LastOwnedWorkerGeneration,
 		})
 	}
-	r.launchPreparationTerminal(prep, sessionID, clonePath, res)
+	r.launchPreparationTerminal(prep, sessionID, clonePath, res, cmd)
 }
 
-func (r *Runtime) launchPreparationTerminal(prep state.RepositoryPreparation, sessionID state.SessionID, clonePath string, envRes RepositoryEnvironmentResult) {
+func (r *Runtime) launchPreparationTerminal(
+	prep state.RepositoryPreparation,
+	sessionID state.SessionID,
+	clonePath string,
+	envRes RepositoryEnvironmentResult,
+	command string,
+) {
 	if r.cfg.Backend == nil {
 		r.failPendingLaunch(prep.ID)
 		return
 	}
 	frameID := string(prep.ID) + "-head"
-	err := r.cfg.Backend.SpawnFrame(frameID, frameID, "shell", clonePath, nil, 80, 24)
+	err := r.cfg.Backend.SpawnFrame(frameID, frameID, command, clonePath, nil, 80, 24)
 	if err != nil {
 		r.failPendingLaunch(prep.ID)
 		return
@@ -143,7 +156,7 @@ func (r *Runtime) launchPreparationTerminal(prep state.RepositoryPreparation, se
 		SessionID:         sessionID,
 		ClonePath:         state.ClonePathID(clonePath),
 		EnvironmentID:     envRes.EnvironmentID,
-		Command:           "shell",
+		Command:           command,
 		CloneDurable:      true,
 		EnvironmentReady:  true,
 		LaunchSucceeded:   true,

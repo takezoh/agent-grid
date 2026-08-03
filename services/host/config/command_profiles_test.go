@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -94,6 +95,24 @@ disabled = true
 	}
 	if profiles[0].ID != "shared" || profiles[0].Executable != "project-shared" {
 		t.Fatalf("project replacement = %#v", profiles[0])
+	}
+}
+
+func TestCommandProfilesResolveBaseProfilesWithoutProjectOverrides(t *testing.T) {
+	session := SessionConfig{CommandProfiles: []CommandProfileConfig{{
+		ID: "shell", Label: "Shell", Executable: "bash", Argv: []string{"-l"},
+	}}}
+
+	profiles := session.ResolveBaseProfiles()
+	if len(profiles) != 1 || profiles[0].ID != "shell" || profiles[0].Revision == "" {
+		t.Fatalf("ResolveBaseProfiles() = %#v", profiles)
+	}
+	raw, err := json.Marshal(profiles[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"parameters":[]`) {
+		t.Fatalf("parameterless profile must use the protocol-3 empty-array shape: %s", raw)
 	}
 }
 

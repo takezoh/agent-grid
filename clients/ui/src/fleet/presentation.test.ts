@@ -6,9 +6,9 @@ describe("fleet presentation", () => {
     expect(
       fleetOutcomeLabel({
         state: "incompatible_protocol",
-        reason: "incompatible protocol: client protocol-2, server protocol-1",
+        reason: "incompatible protocol: client protocol-3, server protocol-1",
       }),
-    ).toBe("Incompatible protocol — incompatible protocol: client protocol-2, server protocol-1");
+    ).toBe("Incompatible protocol — incompatible protocol: client protocol-3, server protocol-1");
   });
 
   it("summarizes mixed non-operable outcomes without hiding healthy peers", () => {

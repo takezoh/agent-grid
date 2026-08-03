@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 )
@@ -37,6 +38,9 @@ func TestFakeVsRealWSLBoundDistribution(t *testing.T) {
 	}
 	if ArgvContainsShutdown(got) || ArgvHasShell(got) {
 		t.Fatalf("forbidden tokens in %v", got)
+	}
+	if !slices.Contains(got, "-no-auth") {
+		t.Fatalf("fake/real launch argv %v omit required -no-auth selector", got)
 	}
 	if err := fake.TerminateDistro(context.Background(), snap.Distribution); err != nil {
 		t.Fatal(err)

@@ -217,6 +217,20 @@ func (s SessionConfig) ResolveProfiles(project string) ([]ResolvedCommandProfile
 	return out, nil
 }
 
+// ResolveBaseProfiles returns only the execution server's user-scoped
+// profiles. Repository sessions use this catalog before the repository is
+// cloned, so project-local settings are deliberately not consulted.
+func (s SessionConfig) ResolveBaseProfiles() []ResolvedCommandProfile {
+	out := make([]ResolvedCommandProfile, 0, len(s.CommandProfiles))
+	for _, profile := range s.CommandProfiles {
+		if profile.Disabled {
+			continue
+		}
+		out = append(out, resolvedProfile(profile))
+	}
+	return out
+}
+
 func profileIndexes(profiles []CommandProfileConfig) map[string]int {
 	index := make(map[string]int, len(profiles))
 	for i, profile := range profiles {
@@ -226,6 +240,9 @@ func profileIndexes(profiles []CommandProfileConfig) map[string]int {
 }
 
 func resolvedProfile(p CommandProfileConfig) ResolvedCommandProfile {
+	if p.Parameters == nil {
+		p.Parameters = []CommandParameterConfig{}
+	}
 	encoded, _ := json.Marshal(p)
 	sum := sha256.Sum256(encoded)
 	return ResolvedCommandProfile{

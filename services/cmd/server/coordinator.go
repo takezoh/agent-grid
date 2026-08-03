@@ -28,6 +28,7 @@ import (
 	"github.com/takezoh/agent-grid/services/platform/logger"
 	sandboxdc "github.com/takezoh/agent-grid/services/platform/sandbox/devcontainer"
 	"github.com/takezoh/agent-grid/services/platform/shellalias"
+	serverapi "github.com/takezoh/agent-grid/services/server/api"
 )
 
 // runDaemon boots the coordinator (event loop, IPC socket, persistence) and,
@@ -76,7 +77,8 @@ func runDaemon(df *daemonFlagSet, stdout io.Writer) error {
 		slog.Warn("shellalias: login shell lookup failed; commands stay literal", "err", err)
 	}
 
-	rt, sockPath, err := buildRuntime(ctx, cfg, dataDir)
+	authority := newRepositoryAuthorityStore()
+	rt, sockPath, err := buildRuntimeWithCloneAuthority(ctx, cfg, dataDir, authority)
 	if err != nil {
 		return err
 	}
@@ -92,7 +94,7 @@ func runDaemon(df *daemonFlagSet, stdout io.Writer) error {
 		return err
 	}
 
-	return runAndWait(ctx, cancel, rt, sockPath, dataDir, df, stdout)
+	return runAndWaitWithAuthority(ctx, cancel, rt, sockPath, dataDir, df, stdout, authority)
 }
 
 // registerDefaultDrivers wires all built-in drivers and worker runners.
@@ -200,6 +202,10 @@ func registerOneHostAgentHook(home, exe, dataDir string, spec agenthook.Spec) {
 // pipeline parses OSC 0/9/133 back into EvFrameOsc/EvFramePrompt — restoring
 // driver run-state detection on top of the pty backend.
 func buildRuntime(ctx context.Context, cfg *config.Config, dataDir string) (*runtime.Runtime, string, error) {
+	return buildRuntimeWithCloneAuthority(ctx, cfg, dataDir, nil)
+}
+
+func buildRuntimeWithCloneAuthority(ctx context.Context, cfg *config.Config, dataDir string, authority runtime.CloneAuthority) (*runtime.Runtime, string, error) {
 	ptyBackend := runtime.NewPtyBackend(cfg.Terminal.ScrollbackLines)
 	ptyTap := runtime.NewPtyFrameTap(ptyBackend)
 	pollInterval := time.Duration(cfg.Monitor.PollIntervalMs) * time.Millisecond
@@ -235,6 +241,7 @@ func buildRuntime(ctx context.Context, cfg *config.Config, dataDir string) (*run
 		RepositorySessionsRoot:     filepath.Join(dataDir, "repository-sessions"),
 		RepositoryDevcontainer:     repoDC,
 		RepositoryConfigGeneration: cfg.ResolveDevcontainerPrefix(),
+		CloneAuthority:             authority,
 	})
 	rt.SetSandboxedProjectResolver(func(project string) bool {
 		return sbResolver.Resolve(project).IsSandboxed()
@@ -364,12 +371,7 @@ func installSignalHandlers(requestShutdown func(time.Duration) runtime.ShutdownR
 	}
 }
 
-// runAndWait starts the event loop, IPC server, and the co-resident HTTP/WS
-// gateway, then blocks until the runtime exits (cancel from signal handler /
-// runtime error). The gateway runs in-process on the daemon ctx — a panic in
-// the gateway's listener or per-conn goroutines is contained by recover() in
-// startGateway so the daemon keeps serving its IPC socket.
-func runAndWait(ctx context.Context, cancel context.CancelFunc, rt *runtime.Runtime, sockPath, dataDir string, df *daemonFlagSet, stdout io.Writer) error {
+func runAndWaitWithAuthority(ctx context.Context, cancel context.CancelFunc, rt *runtime.Runtime, sockPath, dataDir string, df *daemonFlagSet, stdout io.Writer, authority serverapi.RepositoryAuthoritySink) error {
 	stopSignals := installSignalHandlers(rt.RequestShutdown, cancel)
 	defer stopSignals()
 	runErrCh := make(chan error, 1)
@@ -391,7 +393,7 @@ func runAndWait(ctx context.Context, cancel context.CancelFunc, rt *runtime.Runt
 		relay.WatchLog(logger.LogFilePath())
 		rt.SetRelay(relay)
 	}
-	gw, err := startGateway(ctx, cancel, sockPath, dataDir, df, stdout)
+	gw, err := startGatewayWithAuthority(ctx, cancel, sockPath, dataDir, df, stdout, authority)
 	if err != nil {
 		return fmt.Errorf("gateway: %w", err)
 	}

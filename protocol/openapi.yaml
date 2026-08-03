@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: agent-grid native client protocol
-  version: protocol-2
+  version: protocol-3
   description: |
     REST-binding annex (adr-20260724-protocol-message-schema-sot-rest-binding).
 

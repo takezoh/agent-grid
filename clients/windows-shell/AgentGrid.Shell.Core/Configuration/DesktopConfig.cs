@@ -16,6 +16,7 @@ public sealed record ServerConfig(
     string Id,
     string DisplayName,
     bool Enabled,
+    bool DefaultExecution,
     Uri Url,
     ServerAuthConfig Auth);
 
@@ -101,7 +102,24 @@ public static class DesktopConfigLoader
         ValidateVersion(shell.SchemaVersion, "shell.json");
         ValidateVersion(workspace.SchemaVersion, "workspace.json");
 
-        var mappedServers = servers.Servers.Select(MapServer).ToList();
+        var explicitDefaults = servers.Servers
+            .Select((server, index) => (Server: server, Index: index))
+            .Where(item => item.Server.DefaultExecution == true)
+            .ToList();
+        if (explicitDefaults.Count > 1)
+            throw new DesktopConfigException(
+                "servers.json: at most one server can be the default execution server");
+        if (explicitDefaults.Any(item => !item.Server.Enabled))
+            throw new DesktopConfigException(
+                "servers.json: the default execution server must be enabled");
+        var fallbackDefaultIndex = explicitDefaults.Count == 0
+            ? servers.Servers.ToList().FindIndex(server => server.Enabled)
+            : -1;
+        var mappedServers = servers.Servers
+            .Select((server, index) => MapServer(
+                server,
+                server.DefaultExecution == true || index == fallbackDefaultIndex))
+            .ToList();
         if (mappedServers.Count == 0)
             throw new DesktopConfigException("servers.json: at least one server is required");
         if (mappedServers.All(s => !s.Enabled))
@@ -124,7 +142,7 @@ public static class DesktopConfigLoader
             configDirectory);
     }
 
-    private static ServerConfig MapServer(ServerDocument server)
+    private static ServerConfig MapServer(ServerDocument server, bool defaultExecution)
     {
         if (string.IsNullOrWhiteSpace(server.DisplayName))
             throw new DesktopConfigException("servers.json: every server needs display_name");
@@ -138,6 +156,7 @@ public static class DesktopConfigLoader
             ServerIdentifier(canonicalUrl),
             server.DisplayName,
             server.Enabled,
+            defaultExecution,
             new Uri(canonicalUrl),
             auth);
     }
@@ -290,6 +309,7 @@ public static class DesktopConfigLoader
                     new ServerDocument(
                         "Local",
                         true,
+                        true,
                         "http://127.0.0.1:8443",
                         new AuthDocument("none", null))
                 ]),
@@ -309,6 +329,9 @@ public static class DesktopConfigLoader
     private sealed record ServerDocument(
         [property: JsonPropertyName("display_name")] string DisplayName,
         [property: JsonPropertyName("enabled")] bool Enabled,
+        [property: JsonPropertyName("default_execution")]
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        bool? DefaultExecution,
         [property: JsonPropertyName("url")] string Url,
         [property: JsonPropertyName("auth")] AuthDocument Auth,
         // Read-only compatibility for schema v1 files that persisted a

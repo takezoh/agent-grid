@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ServerConfig } from "../src/main/desktop-config.js";
-import { FleetHealthMonitor, probeServerFleet } from "../src/main/server-health.js";
+import {
+  FleetHealthMonitor,
+  connectionFailureReason,
+  probeServerFleet,
+} from "../src/main/server-health.js";
 
 const servers: ServerConfig[] = [
   {
@@ -27,11 +31,21 @@ const servers: ServerConfig[] = [
 ];
 
 describe("probeServerFleet", () => {
+  it("normalizes runtime transport failures without exposing fetch internals", () => {
+    expect(connectionFailureReason(new TypeError("fetch failed"))).toBe(
+      "Could not connect to server",
+    );
+    expect(connectionFailureReason(new Error("The operation was aborted due to timeout"))).toBe(
+      "Connection timed out",
+    );
+    expect(connectionFailureReason(new Error("HTTP 503"))).toBe("HTTP 503");
+  });
+
   it("reports every configured server and never probes disabled entries", async () => {
     const fetchFn = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
       if (url.includes("healthy.test") && url.includes("/api/capabilities")) {
-        return Response.json({ protocolVersion: "protocol-2" });
+        return Response.json({ protocolVersion: "protocol-3" });
       }
       if (url.includes("healthy.test")) {
         return Response.json({ sessions: [] });
@@ -63,7 +77,7 @@ describe("probeServerFleet", () => {
   it("omits Authorization for explicit none auth", async () => {
     const fetchFn = vi.fn(async (input: string | URL | Request) =>
       String(input).includes("/api/capabilities")
-        ? Response.json({ protocolVersion: "protocol-2" })
+        ? Response.json({ protocolVersion: "protocol-3" })
         : Response.json({ sessions: [] })) as unknown as typeof fetch;
     await probeServerFleet([{ ...servers[0]!, auth: { mode: "none" } }], { fetchFn });
 
@@ -81,7 +95,7 @@ describe("probeServerFleet", () => {
       serverId: "healthy",
       displayName: "Healthy",
       state: "incompatible_protocol",
-      reason: "incompatible protocol: client protocol-2, server old",
+      reason: "incompatible protocol: client protocol-3, server old",
     });
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
@@ -91,7 +105,7 @@ describe("FleetHealthMonitor", () => {
   it("coalesces renderer requests and invalidates after config changes", async () => {
     const fetchFn = vi.fn(async (input: string | URL | Request) =>
       String(input).includes("/api/capabilities")
-        ? Response.json({ protocolVersion: "protocol-2" })
+        ? Response.json({ protocolVersion: "protocol-3" })
         : Response.json({ sessions: [] })) as unknown as typeof fetch;
     const monitor = new FleetHealthMonitor(() => servers.slice(0, 1), 60_000, {
       fetchFn,

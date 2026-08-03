@@ -98,6 +98,37 @@ describe("Repository lease preflight / no-transfer", () => {
 });
 
 describe("repository Settings IPC / preload surface", () => {
+  it("exposes a dedicated repository-create bridge instead of falling back to session create", async () => {
+    const { buildPreloadApi } = await import("../src/preload/index.js");
+    const create = vi.fn(async () => ({ id: "session" }));
+    const createRepositorySession = vi.fn(async () => ({ preparation_id: "prep" }));
+    const api = buildPreloadApi({
+      hostedModeInfo: null,
+      windowControls: { minimize() {}, maximize() {}, close() {} },
+      requestJumpBack: async () => {},
+      sessionFleet: {
+        listConfigs: async () => [],
+        subscribe: () => () => {},
+        openChannel: async () => ({ channelId: "channel", send() {}, close() {} }),
+        create,
+        createRepositorySession,
+        request: async () => ({ status: 200, headers: {}, body: "" }),
+      },
+    });
+
+    await api.sessionFleet?.createRepositorySession("srv", {
+      repository_id: "42",
+      owner: "octo",
+      name: "repo",
+      version: 2,
+      profile_id: "codex",
+      profile_revision: "revision-codex",
+      parameters: {},
+    });
+    expect(createRepositorySession).toHaveBeenCalledOnce();
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it("exposes credential-free success/denied/cancel/failure outcomes", async () => {
     const empty = { outcome: "empty" as const, generation: 0, stale: false, repositories: [] };
     const outcomes = [

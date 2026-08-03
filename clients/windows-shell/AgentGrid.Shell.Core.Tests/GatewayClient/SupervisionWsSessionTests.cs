@@ -64,7 +64,7 @@ public class SupervisionWsSessionTests
             hits++;
             var path = req.RequestUri!.AbsolutePath;
             if (path.EndsWith("/api/capabilities", StringComparison.Ordinal))
-                return JsonResponse(200, """{"protocolVersion":"protocol-2"}""");
+                return JsonResponse(200, """{"protocolVersion":"protocol-3"}""");
             if (path.EndsWith("/api/repository/preparations", StringComparison.Ordinal))
                 return JsonResponse(201, """{"ok":true}""");
             throw new InvalidOperationException(path);

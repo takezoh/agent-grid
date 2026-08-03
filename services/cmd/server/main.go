@@ -62,6 +62,7 @@ import (
 	"github.com/takezoh/agent-grid/services/platform/framelaunch"
 	"github.com/takezoh/agent-grid/services/platform/lib/gitclone"
 	"github.com/takezoh/agent-grid/services/platform/logger"
+	"golang.org/x/sys/unix"
 )
 
 var (
@@ -74,7 +75,24 @@ var (
 )
 
 func main() {
-	os.Exit(runMain(os.Args[1:], os.Stdout, os.Stderr))
+	diagnosticStderr, err := duplicateDiagnosticStderr()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: preserve stderr for startup diagnostics: %v\n", appid.ClientBin, err)
+		os.Exit(1)
+	}
+	code := runMain(os.Args[1:], os.Stdout, diagnosticStderr)
+	// main owns the duplicate. Close it explicitly because os.Exit does not run
+	// deferred calls; logger.Close separately owns the server.log descriptor.
+	_ = diagnosticStderr.Close()
+	os.Exit(code)
+}
+
+func duplicateDiagnosticStderr() (*os.File, error) {
+	fd, err := unix.Dup(int(os.Stderr.Fd()))
+	if err != nil {
+		return nil, err
+	}
+	return os.NewFile(uintptr(fd), "server-original-stderr"), nil
 }
 
 func runMain(args []string, stdout, stderr io.Writer) (code int) {

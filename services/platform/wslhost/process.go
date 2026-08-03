@@ -96,6 +96,7 @@ func BuildLaunchSpec(s Snapshot) LaunchSpec {
 	args := []string{
 		"-data-dir", s.DataDir,
 		"-addr", s.Addr,
+		"-no-auth",
 	}
 	if s.TLSMode == TLSModeInsecure {
 		args = append(args, "-insecure")

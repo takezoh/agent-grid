@@ -16,25 +16,24 @@ source_paths:
 - clients/config/github.schema.json
 - clients/workspace/src/main/github-host.ts
 - clients/web-host/internal/githubhost/githubhost.go
-summary: Operate the product GitHub OAuth App registration, inject its public client
-  ID consistently, validate Device Flow before release, and rotate or recover without
-  exposing credentials.
-updated: '2026-07-29'
+summary: Operate the Workspace GitHub OAuth App registration, provide editable public
+  identifiers, validate Device Flow before release, and recover without exposing credentials.
+updated: '2026-08-02'
 ---
 
 ## Summary
 
-Agent Grid の GitHub account と repository catalog は、製品所有の GitHub
-OAuth App と OAuth 2.0 Device Flow を使用する。利用者が client ID や
-client secret を Settings へ入力する方式ではない。製品運用者は OAuth App
-registration、公開 client ID の製品組み込み、release 前の実 API 検証、
-rotation、障害対応を所有する。
+Workspace の GitHub account と repository catalog は GitHub OAuth App と
+OAuth 2.0 Device Flow を使用する。公開 App ID と client ID は Settings の
+GitHub ページで編集できる。client secret は入力も保存もしない。Web Host は
+このクライアント認証経路の対象外である。
 
-2026-07-29 現在、source と配布済み Workspace には
-`Ov23liAgentGridDeviceFlow` が固定されているが、この identity は GitHub の
-device-code endpoint から拒否される。Settings の **Connect** と New Session
-の **Sign in to GitHub** は同じ authority を使用するため、正式な registration
-を設定した build を配布するまでどちらも利用できない。
+2026-07-29 時点では source と配布済み Workspace に拒否される placeholder
+`Ov23liAgentGridDeviceFlow` が固定されていた。2026-08-02 に production OAuth
+App (App ID `4460068`, public client ID `Iv23li471HWU8jxRwlK7`) の Device Flow
+を有効化し、実 device-code endpoint の T3 shape validation を通過した。source
+の release default は `clients/config/github.production.json` を SSOT とする。
+Workspace は初回起動時に `github.json` を作成し、既存設定は上書きしない。
 
 {% adr-ref id="adr-20260728-client-host-github-device-flow" /%}
 
@@ -84,6 +83,7 @@ Canonical contract は [github.schema.json](../../clients/config/github.schema.j
 ```json
 {
   "schema_version": 1,
+  "app_id": "<GitHub App の数値 ID>",
   "client_id": "<GitHub が発行した公開 client ID>",
   "scopes": ["read:user", "repo"]
 }
@@ -93,43 +93,45 @@ Canonical contract は [github.schema.json](../../clients/config/github.schema.j
 必要である。公開 repository のみに機能を縮小する仕様変更なしに scope を
 削除しない。
 
-現行実装には production client ID を外部設定から注入する完成済み経路がない。
-したがって、正式 client ID の取得後は次の実装変更と再配布が必要である。
+production default の canonical release input は
+[`github.production.json`](../../clients/config/github.production.json) とする。
+`generate-github-oauth.mjs` はこの公開設定を TypeScript / Go の compile-time
+生成物へ変換し、`--check` が placeholder、unsupported scope、fixture drift、
+stale generated source を fail closed で拒否する。
 
-1. Workspace と Web Host が読む production OAuth config の SSOT を定める。
-2. build/package 時に client ID を必須入力とし、空値、fixture 値、既知の
-   placeholder を fail closed で拒否する。
-3. Workspace、Web Host、config fixture が同一 identity と scope を使うことを
-   contract test で固定する。
-4. 配布物に組み込まれた client ID を release gate が抽出し、入力値と照合する。
+Workspace の Settings は `github.json` の App ID と Client ID を更新し、保存後に
+main process の Device Flow runtime を差し替える。スコープは UI から拡張できず、
+`read:user` と `repo` に固定する。
 
-手作業で
-[github-host.ts](../../clients/workspace/src/main/github-host.ts) と
-[githubhost.go](../../clients/web-host/internal/githubhost/githubhost.go) の literal
-だけを書き換えて release してはならない。設定の再分散と検証漏れが再発する。
+1. Workspace build/typecheck/test は generator check を必須実行する。
+2. Workspace の fixture parity test は canonical default と生成物の
+   identity / scope 一致を検証する。
+3. Windows package build は `clients/config` を build input に含め、stale sourceを
+   package前に拒否する。
+4. release では canonical client ID を指定した Workspace の T3 と packaged smoke を行う。
+
+引き続き、手作業で
+[github-host.ts](../../clients/workspace/src/main/github-host.ts) の literal だけを
+書き換えて release してはならない。生成元 JSON を更新し、generator を実行、
+全 parity/release gate を通す。
 
 ## Release validation
 
 ### T0–T2: deterministic gates
 
 - config schema が client secret と token fields を拒否する。
-- Web Host と Workspace の account projection が同じ contract を満たす。
+- Workspace の renderer projection が credential-free contract を満たす。
 - fake は GitHub の成功・pending・denied・expired・slow-down・invalid
   responses を再現する。
-- placeholder、空値、Web/Workspace identity 不一致で build または package を
- 失敗させる。
+- placeholder や空値で build または package を失敗させる。
 
 ### T3: real authority gate
 
-正式 client ID を明示して、両 host の既存 FakeVsReal backstop を実行する。
+正式 client ID を明示して Workspace の FakeVsReal backstop を実行する。
 
 ```sh
 AG_E2E_GITHUB_OAUTH_CLIENT_ID=<client-id> \
   npm --prefix clients/workspace test -- github-host.test.ts -t FakeVsRealGitHubAuth
-
-cd clients/web-host
-AG_E2E_GITHUB_OAUTH_CLIENT_ID=<client-id> \
-  go test ./internal/githubhost -run TestFakeVsRealGitHubAuth
 ```
 
 合格条件は、GitHub が non-empty `device_code`、`user_code`、
@@ -142,7 +144,7 @@ CI artifact として保存する場合も、code 値は redact する。real au
 1. Release build を Windows へインストールする。
 2. Settings の GitHub **Connect** で verification URI と user code が表示される。
 3. 同じ transaction を cancel または expire させ、typed recovery が表示される。
-4. New Session の **Sign in to GitHub** でも同じ authorizing state へ遷移する。
+4. New Session の **Sign in to GitHub** が Settings の GitHub ページへ遷移する。
 5. GitHub で承認し、repository catalog が取得できる。
 6. private repository が見えることと、Projects source が失敗の影響を受けないことを確認する。
 

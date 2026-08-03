@@ -20,11 +20,12 @@ type Auth struct {
 }
 
 type Server struct {
-	ID          string `json:"-"`
-	DisplayName string `json:"display_name"`
-	Enabled     bool   `json:"enabled"`
-	URL         string `json:"url"`
-	Auth        Auth   `json:"auth"`
+	ID               string `json:"-"`
+	DisplayName      string `json:"display_name"`
+	Enabled          bool   `json:"enabled"`
+	DefaultExecution bool   `json:"default_execution,omitempty"`
+	URL              string `json:"url"`
+	Auth             Auth   `json:"auth"`
 }
 
 type Snapshot struct {
@@ -75,6 +76,7 @@ func validateServers(servers []Server) error {
 	}
 	ids := make(map[string]struct{}, len(servers))
 	enabled := 0
+	defaultExecution := 0
 	for index := range servers {
 		server := &servers[index]
 		if strings.TrimSpace(server.DisplayName) == "" {
@@ -93,6 +95,12 @@ func validateServers(servers []Server) error {
 		if server.Enabled {
 			enabled++
 		}
+		if server.DefaultExecution {
+			if !server.Enabled {
+				return fmt.Errorf("default execution server %q must be enabled", server.DisplayName)
+			}
+			defaultExecution++
+		}
 		switch server.Auth.Mode {
 		case "none":
 			if server.Auth.Token != "" {
@@ -108,6 +116,17 @@ func validateServers(servers []Server) error {
 	}
 	if enabled == 0 {
 		return errors.New("at least one server must be enabled")
+	}
+	if defaultExecution > 1 {
+		return errors.New("exactly one enabled server may be the default execution server")
+	}
+	if defaultExecution == 0 {
+		for index := range servers {
+			if servers[index].Enabled {
+				servers[index].DefaultExecution = true
+				break
+			}
+		}
 	}
 	return nil
 }

@@ -69,7 +69,7 @@ describe("StatusBar (FR-023 / UAC-010)", () => {
             serverId: "b",
             serverLabel: "B",
             state: "incompatible_protocol",
-            reason: "incompatible protocol: client protocol-2, server protocol-1",
+            reason: "incompatible protocol: client protocol-3, server protocol-1",
           },
         ]),
         create: vi.fn(),

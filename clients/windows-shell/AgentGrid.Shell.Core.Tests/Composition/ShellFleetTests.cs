@@ -82,13 +82,13 @@ public sealed class ShellFleetTests
 
         var aggregate = ShellFleet.AggregateTrayAppearances([
             (connected, null),
-            (degraded, "incompatible protocol: client protocol-2, server protocol-1"),
+            (degraded, "incompatible protocol: client protocol-3, server protocol-1"),
         ]);
 
         Assert.Equal(TrayIconKind.Degraded, aggregate.Kind);
         Assert.False(aggregate.IsConnected);
         Assert.Contains("1/2 servers incompatible", aggregate.Tooltip);
-        Assert.Contains("client protocol-2, server protocol-1", aggregate.Tooltip);
+        Assert.Contains("client protocol-3, server protocol-1", aggregate.Tooltip);
     }
 
     private static SupervisionSnapshot Snapshot(string sessionId) => new(

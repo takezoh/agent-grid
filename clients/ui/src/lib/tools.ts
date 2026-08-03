@@ -108,6 +108,50 @@ export interface DaemonSnapshot {
   pushCommands: string[];
 }
 
+export type NewSessionTarget =
+  | { source: "project"; project: string }
+  | {
+      source: "repository";
+      repository: { repository_id: string; owner: string; name: string };
+    };
+
+export function readNewSessionTarget(payload: Record<string, unknown>): NewSessionTarget {
+  const value = payload.target;
+  if (value && typeof value === "object") {
+    const target = value as Record<string, unknown>;
+    if (target.source === "project" && typeof target.project === "string" && target.project) {
+      return { source: "project", project: target.project };
+    }
+    if (
+      target.source === "repository" &&
+      target.repository &&
+      typeof target.repository === "object"
+    ) {
+      const repository = target.repository as Record<string, unknown>;
+      if (
+        typeof repository.repository_id === "string" &&
+        typeof repository.owner === "string" &&
+        typeof repository.name === "string" &&
+        repository.repository_id &&
+        repository.owner &&
+        repository.name
+      ) {
+        return {
+          source: "repository",
+          repository: {
+            repository_id: repository.repository_id,
+            owner: repository.owner,
+            name: repository.name,
+          },
+        };
+      }
+    }
+  }
+  // Project-only callers from the pre-repository palette contract continue
+  // to construct the typed target at the submit boundary.
+  return { source: "project", project: readString(payload, "project") };
+}
+
 // NotificationsApi is the minimal surface ToolDef.submit needs for toast
 // emission. Defined here (rather than imported from store/notifications)
 // because the store today exposes add({level, message}); we want a
@@ -254,9 +298,14 @@ const newSessionTool: ToolDef = {
   ],
   disabledReason: () => null,
   async submit(ctx, payload) {
-    const projectTarget = readString(payload, "project");
+    const target = readNewSessionTarget(payload);
+    const projectTarget = target.source === "project" ? target.project : null;
     const selectedProject = findProject(ctx.daemon.projects, projectTarget);
     const project = selectedProject?.path ?? projectTarget;
+    const executionServerId =
+      typeof payload.executionServerId === "string" && payload.executionServerId
+        ? payload.executionServerId
+        : selectedProject?.serverId;
     const command = readString(payload, "command");
     const worktree = readOptionalBool(payload, "worktree");
     const sandbox = readSandboxFromHostToggle(payload);
@@ -264,9 +313,32 @@ const newSessionTool: ToolDef = {
     // Build the payload with only present fields so JSON.stringify doesn't
     // serialize "worktree": undefined / "sandbox": undefined (which would
     // break the server's omitempty contract on round-trip).
-    const profile = selectedProject?.commandProfiles?.find((candidate) => candidate.id === command);
+    const profile =
+      target.source === "project"
+        ? selectedProject?.commandProfiles?.find((candidate) => candidate.id === command)
+        : ctx.daemon.serverOutcomes
+            .find((server) => server.serverId === executionServerId)
+            ?.commandProfiles?.find((candidate) => candidate.id === command);
     if (!profile) {
-      throw new Error(`command profile "${command}" is not available for the selected project`);
+      throw new Error(`command profile "${command}" is not available for the selected target`);
+    }
+    if (target.source === "repository") {
+      if (!executionServerId) throw new Error("repository session requires an execution server");
+      if (!ctx.http.createRepositorySession) {
+        throw new Error("repository session creation is unavailable");
+      }
+      const result = await ctx.http.createRepositorySession(executionServerId, {
+        ...target.repository,
+        version: 2,
+        profile_id: profile.id,
+        profile_revision: profile.revision,
+        parameters: profileParameterValues(profile, payload),
+        ...(geometry !== null ? { cols: geometry.cols, rows: geometry.rows } : {}),
+      });
+      if (result.session_id) ctx.daemonActions.selectSession(result.session_id);
+      ctx.notify.success("Repository session preparation started");
+      ctx.store.close();
+      return;
     }
     const req: {
       server_id?: string;
@@ -280,13 +352,13 @@ const newSessionTool: ToolDef = {
       worktree?: boolean;
       sandbox?: "host";
     } = {
-      project,
+      project: project as string,
       version: 2,
       profile_id: profile.id,
       profile_revision: profile.revision,
       parameters: profileParameterValues(profile, payload),
     };
-    if (selectedProject?.serverId) req.server_id = selectedProject.serverId;
+    if (executionServerId) req.server_id = executionServerId;
     if (geometry !== null) {
       req.cols = geometry.cols;
       req.rows = geometry.rows;
@@ -338,9 +410,18 @@ export function findProject(
 // on the daemon snapshot (sourced from /api/session-config). value === label
 // since the command string IS what we send on the wire AND what we show to
 // the user (FR/UAC for new-session "Command" picker, web-ui-fixes 2026-06-24).
-export function commandOptions(daemon: DaemonSnapshot, projectPath?: string | null): ParamOption[] {
-  const project = findProject(daemon.projects, projectPath);
-  return (project?.commandProfiles ?? []).map((profile) => ({
+export function commandOptions(
+  daemon: DaemonSnapshot,
+  projectPath?: string | null,
+  executionServerId?: string | null,
+  targetSource: NewSessionTarget["source"] = "project",
+): ParamOption[] {
+  const profiles =
+    targetSource === "repository"
+      ? daemon.serverOutcomes.find((server) => server.serverId === executionServerId)
+          ?.commandProfiles
+      : findProject(daemon.projects, projectPath)?.commandProfiles;
+  return (profiles ?? []).map((profile) => ({
     value: profile.id,
     label: profile.label,
   }));

@@ -77,6 +77,7 @@ describe("buildPreloadApi", () => {
         appearance: { theme: "dark", density: "compact", font_scale: 1 },
         shell: { workspace_executable: "agent-grid-workspace", health_poll_interval_seconds: 5 },
         workspace: { idle_quit_seconds: 300, default_window: { width: 1280, height: 800 } },
+        github: { app_id: "4460068", client_id: "Iv23li471HWU8jxRwlK7", scopes: ["read:user", "repo"] },
       });
     const save = () => load();
     const api = buildPreloadApi({

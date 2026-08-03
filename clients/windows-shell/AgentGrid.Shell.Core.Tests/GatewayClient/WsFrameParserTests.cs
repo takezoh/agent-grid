@@ -129,7 +129,7 @@ public class WsFrameParserTests
     public void Parses_hello_frame_seeds_initial_sessions()
     {
         var json = """
-            {"k":"h","sessions":[{"id":"s1","project":"/repo/p","command":"claude","status":{"lifecycle":"active","human_input":false,"failure":"none"},"view":{"card":{"title":"T1"}}}],"features":["surface"],"serverTime":1700000001,"protocolVersion":"protocol-2","capabilities":["sessions.view_update"]}
+            {"k":"h","sessions":[{"id":"s1","project":"/repo/p","command":"claude","status":{"lifecycle":"active","human_input":false,"failure":"none"},"view":{"card":{"title":"T1"}}}],"features":["surface"],"serverTime":1700000001,"protocolVersion":"protocol-3","capabilities":["sessions.view_update"]}
             """;
         var ev = WsFrameParser.TryParse(json) as EvtViewUpdateSessions;
         Assert.NotNull(ev);
@@ -144,14 +144,14 @@ public class WsFrameParserTests
     {
         var error = Assert.Throws<ProtocolVersionMismatchException>(
             () => WsFrameParser.TryParse("""{"k":"h","protocolVersion":"1"}"""));
-        Assert.Contains("client protocol-2, server 1", error.Message);
+        Assert.Contains("client protocol-3, server 1", error.Message);
     }
 
     [Fact]
     public void Parses_repository_preparation_and_target_round_trip()
     {
         var preps = WsFrameParser.TryParsePreparations(
-            """{"k":"h","protocolVersion":"protocol-2","sessions":[],"preparations":[{"preparation_id":"prep-1","intent_id":"intent-1","server_id":"srv-a","repository":{"repository_id":"1","owner":"acme","name":"widgets"},"stage":"clone-in-progress","revision":2,"environment_disposition":"none"}]}""");
+            """{"k":"h","protocolVersion":"protocol-3","sessions":[],"preparations":[{"preparation_id":"prep-1","intent_id":"intent-1","server_id":"srv-a","repository":{"repository_id":"1","owner":"acme","name":"widgets"},"stage":"clone-in-progress","revision":2,"environment_disposition":"none"}]}""");
         Assert.Single(preps);
         Assert.Equal(("prep-1", "clone-in-progress", "acme", 2ul), (preps[0].PreparationId, preps[0].Stage, preps[0].Repository.Owner, preps[0].Revision));
         var target = WsFrameParser.TryParseSessionTarget("""{"source":"repository","repository":{"repository_id":"1","owner":"acme","name":"widgets"}}""");

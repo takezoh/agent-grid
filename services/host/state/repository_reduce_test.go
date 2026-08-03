@@ -10,7 +10,7 @@ func createPrep(t *testing.T) (State, RepositoryPreparation) {
 	t.Helper()
 	s, effs := Reduce(New(), EvRepository{
 		ConnID: 1, ReqID: "c1", Kind: "create", IntentID: "intent-1", PreparationID: "prep-1",
-		ServerID: "srv-local", Repository: testRepo(), Fingerprint: "fp-1",
+		ServerID: "srv-local", Repository: testRepo(), Fingerprint: "fp-1", Command: "codex",
 	})
 	mustOK(t, effs)
 	if !hasEff[EffRepositoryStartClone](effs) || !hasEff[EffRepositoryPersist](effs) {
@@ -119,8 +119,8 @@ func TestRepositoryTransitionsAndFences(t *testing.T) {
 	if pQ, _ := FindPreparation(sQ, "prep-1"); pQ.Stage != PrepStageCloneInProgress || pQ.Revision != prep.Revision {
 		t.Fatalf("stale quarantine mutated: %+v", pQ)
 	}
-	s, _ = Reduce(New(), EvRepository{ConnID: 1, ReqID: "1", Kind: "create", IntentID: "a", PreparationID: "pa", ServerID: "s", Repository: testRepo(), Fingerprint: "a"})
-	s, _ = Reduce(s, EvRepository{ConnID: 1, ReqID: "2", Kind: "create", IntentID: "b", PreparationID: "pb", ServerID: "s", Repository: testRepo(), Fingerprint: "b"})
+	s, _ = Reduce(New(), EvRepository{ConnID: 1, ReqID: "1", Kind: "create", IntentID: "a", PreparationID: "pa", ServerID: "s", Repository: testRepo(), Fingerprint: "a", Command: "codex"})
+	s, _ = Reduce(s, EvRepository{ConnID: 1, ReqID: "2", Kind: "create", IntentID: "b", PreparationID: "pb", ServerID: "s", Repository: testRepo(), Fingerprint: "b", Command: "codex"})
 	if len(s.RepositoryPreparations) != 2 {
 		t.Fatal("coalesce")
 	}

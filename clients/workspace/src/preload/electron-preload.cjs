@@ -17,8 +17,10 @@ contextBridge.exposeInMainWorld("agentGridWorkspace", {
   serverHealth: {
     list: () => ipcRenderer.invoke("agent-grid:server-health-list"),
   },
+  openSettings: (section) => ipcRenderer.invoke("agent-grid:open-settings", section),
   github: {
     action: (action) => ipcRenderer.invoke("agent-grid:github-action", action),
+    openAuthorization: () => ipcRenderer.invoke("agent-grid:github-open-authorization"),
   },
   sessionFleet: {
     listConfigs: () => ipcRenderer.invoke("agent-grid:session-fleet-configs"),
@@ -54,6 +56,8 @@ contextBridge.exposeInMainWorld("agentGridWorkspace", {
     },
     create: (serverId, payload) =>
       ipcRenderer.invoke("agent-grid:session-fleet-create", serverId, payload),
+    createRepositorySession: (serverId, payload) =>
+      ipcRenderer.invoke("agent-grid:session-fleet-repository-create", serverId, payload),
     request: (serverId, pathname, init) =>
       ipcRenderer.invoke("agent-grid:session-fleet-request", serverId, pathname, init),
   },

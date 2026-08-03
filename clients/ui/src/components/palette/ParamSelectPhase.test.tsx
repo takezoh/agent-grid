@@ -14,13 +14,17 @@
 // render and dispatch React Testing Library events.
 
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApiHttpError, SessionsApi } from "../../api/sessions";
+import * as fleetProviderModule from "../../fleet/provider";
+import type { FleetProvider } from "../../fleet/provider";
 import type { NotificationsApi, ToolCtx, ToolDaemonActions, ToolStoreCtx } from "../../lib/tools";
 import { useDaemonStore } from "../../store/daemon";
 import { usePaletteStore } from "../../store/palette";
 import { type DaemonSnapshot, mkSnapshot } from "../../test/fixtures/daemon";
 import { ParamSelectPhase, materializeOptions } from "./ParamSelectPhase";
+
+afterEach(() => vi.restoreAllMocks());
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -158,6 +162,10 @@ function projectListbox(): HTMLElement {
   return document.getElementById("palette-param-project") as HTMLElement;
 }
 
+function showProjects(): void {
+  fireEvent.click(screen.getByRole("tab", { name: "Projects" }));
+}
+
 // ---------------------------------------------------------------------------
 // materializeOptions unit tests (pure helper)
 // ---------------------------------------------------------------------------
@@ -211,54 +219,223 @@ describe("materializeOptions", () => {
 // ---------------------------------------------------------------------------
 
 describe("ParamSelectPhase", () => {
-  it("keeps an unavailable server visible with its reason", () => {
+  it("routes a GitHub repository through the shared Command flow and submits its versioned profile", async () => {
+    const createRepositorySession = vi.fn().mockResolvedValue({
+      preparation_id: "prep-10",
+      intent_id: "intent-10",
+      stage: "confirmed",
+      revision: 1,
+    });
+    const provider: FleetProvider = {
+      initialServerId: () => "srv-a",
+      subscribe: () => () => {},
+      listConfigs: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockResolvedValue({}),
+      repositoryProjection: vi.fn().mockResolvedValue({
+        sources: [
+          { id: "projects", available: true },
+          { id: "github", available: true, status: "authenticated" },
+        ],
+        account: { state: "authenticated", login: "alice" },
+        catalog: {
+          outcome: "complete-current",
+          generation: 1,
+          repositories: [{ repository_id: "10", owner: "alice", name: "demo" }],
+        },
+        targets: [
+          {
+            source: "repository",
+            repository: { repository_id: "10", owner: "alice", name: "demo" },
+          },
+        ],
+        preparations: [],
+        execution_servers: [
+          { serverId: "srv-a", serverLabel: "Alpha", available: true, isDefaultExecution: true },
+          { serverId: "srv-b", serverLabel: "Beta", available: true },
+        ],
+      }),
+      githubAction: vi.fn().mockResolvedValue({
+        outcome: "success",
+        account: { state: "authenticated", login: "alice" },
+        catalog: { outcome: "complete-current", generation: 1, repositories: [] },
+      }),
+      createRepositorySession,
+      apiUrl: () => "http://example.invalid",
+      wsUrl: () => "ws://example.invalid",
+      activeConnection: () => ({
+        ticketEndpoint: "http://example.invalid/ticket",
+        wsUrl: () => "ws://example.invalid",
+      }),
+      request: vi.fn().mockResolvedValue(Response.json({})),
+    };
+    vi.spyOn(fleetProviderModule, "makeFleetProvider").mockReturnValue(provider);
+    const repositorySnapshot = mkSnapshot({
+      projects: [],
+      serverOutcomes: [
+        {
+          serverId: "srv-a",
+          serverLabel: "Alpha",
+          state: "connected",
+          isDefaultExecution: true,
+          commandProfiles: [
+            {
+              id: "sol",
+              label: "Sol",
+              revision: "revision-sol",
+              parameters: [
+                {
+                  name: "model",
+                  label: "Model",
+                  type: "string",
+                  required: true,
+                  default: "gpt-5.6",
+                },
+              ],
+            },
+          ],
+        },
+        { serverId: "srv-b", serverLabel: "Beta", state: "connected" },
+      ],
+    });
+    setDaemonSnapshot(repositorySnapshot);
+    seedPalette("new-session");
+
+    render(
+      <ParamSelectPhase
+        ctx={makeCtx({
+          http: makeFakeHttp({ createRepositorySession }),
+          daemon: repositorySnapshot,
+        })}
+      />,
+    );
+    fireEvent.mouseDown(await screen.findByTestId("target-option-repository:10"));
+
+    const expectedTarget = {
+      source: "repository",
+      repository: { repository_id: "10", owner: "alice", name: "demo" },
+    };
+    expect.soft(usePaletteStore.getState().paramValues.target).toEqual(expectedTarget);
+    expect.soft(usePaletteStore.getState().paramCursor).toBe(1);
+    expect.soft(screen.queryByTestId("repository-server-confirm")).toBeNull();
+    expect.soft(screen.queryByTestId("execution-server-selector")).not.toBeNull();
+    expect.soft(screen.queryByRole("group", { name: "Command" })).not.toBeNull();
+
+    await waitFor(() => {
+      expect(usePaletteStore.getState().paramValues.command).toBe("sol");
+      expect(usePaletteStore.getState().paramValues["profile:model"]).toBe("gpt-5.6");
+    });
+    fireEvent.click(await screen.findByTestId("palette-submit"));
+    await waitFor(() =>
+      expect(createRepositorySession).toHaveBeenCalledWith("srv-a", {
+        repository_id: "10",
+        owner: "alice",
+        name: "demo",
+        version: 2,
+        profile_id: "sol",
+        profile_revision: "revision-sol",
+        parameters: { model: "gpt-5.6" },
+      }),
+    );
+  });
+
+  it.each([
+    ["unavailable", "Build Server", "connection refused"],
+    ["incompatible_protocol", "Old Server", "client protocol-3, server protocol-1"],
+  ] as const)(
+    "keeps the configured %s default above Command without exposing health details",
+    (state, serverLabel, reason) => {
+      setDaemonSnapshot(
+        mkSnapshot({
+          projects: [{ path: "/repo/a", serverId: "healthy", serverLabel: "Healthy" }],
+          profileIds: ["claude"],
+          serverOutcomes: [
+            {
+              serverId: "configured-default",
+              serverLabel,
+              isDefaultExecution: true,
+              state,
+              reason,
+            },
+            {
+              serverId: "healthy",
+              serverLabel: "Healthy",
+              state: "connected",
+            },
+          ],
+        }),
+      );
+      seedPalette("new-session", { project: "/repo/a" }, 1);
+
+      render(<ParamSelectPhase ctx={makeCtx()} />);
+
+      const commandGroup = screen.getByRole("group", { name: "Command" });
+      const selector = screen.getByTestId("execution-server-selector");
+      expect(
+        selector.compareDocumentPosition(commandGroup) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).not.toBe(0);
+      expect(screen.getByTestId("execution-server-current").textContent).toBe(serverLabel);
+      expect(
+        (
+          selector.querySelector(
+            'button[aria-controls="execution-server-options"]',
+          ) as HTMLButtonElement
+        ).disabled,
+      ).toBe(false);
+      expect(selector.textContent).not.toContain(reason);
+      expect(selector.textContent).not.toMatch(/unavailable|incompatible|error/i);
+    },
+  );
+
+  it("shows all configured outcomes only after Change and prevents unavailable selection", () => {
     setDaemonSnapshot(
       mkSnapshot({
-        projects: [{ path: "/repo/a", serverId: "healthy", serverLabel: "Healthy" }],
+        projects: [{ path: "/repo/a", serverId: "srv-connected", serverLabel: "Connected" }],
         profileIds: ["claude"],
         serverOutcomes: [
           {
-            serverId: "offline",
+            serverId: "srv-connected",
+            serverLabel: "Connected",
+            state: "connected",
+          },
+          {
+            serverId: "srv-unavailable",
             serverLabel: "Build Server",
             state: "unavailable",
             reason: "connection refused",
           },
-        ],
-      }),
-    );
-    seedPalette("new-session");
-
-    render(<ParamSelectPhase ctx={makeCtx()} />);
-
-    expect(screen.getByText("Build Server")).toBeTruthy();
-    expect(screen.getByText("Unavailable — connection refused")).toBeTruthy();
-  });
-
-  it("keeps an incompatible server visible with its version evidence", () => {
-    setDaemonSnapshot(
-      mkSnapshot({
-        projects: [{ path: "/repo/a", serverId: "healthy", serverLabel: "Healthy" }],
-        profileIds: ["claude"],
-        serverOutcomes: [
           {
-            serverId: "old",
+            serverId: "srv-incompatible",
             serverLabel: "Old Server",
             state: "incompatible_protocol",
-            reason: "incompatible protocol: client protocol-2, server protocol-1",
+            reason: "protocol mismatch",
           },
         ],
       }),
     );
-    seedPalette("new-session");
+    seedPalette("new-session", { project: "/repo/a", executionServerId: "srv-connected" }, 1);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
-    expect(screen.getByText("Old Server")).toBeTruthy();
+    const selector = screen.getByTestId("execution-server-selector");
+    fireEvent.click(
+      selector.querySelector(
+        'button[aria-controls="execution-server-options"]',
+      ) as HTMLButtonElement,
+    );
+    expect((screen.getByRole("button", { name: "Connected" }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
     expect(
-      screen.getByText(
-        "Incompatible protocol — incompatible protocol: client protocol-2, server protocol-1",
-      ),
-    ).toBeTruthy();
+      (screen.getByRole("button", { name: "Build Server" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect((screen.getByRole("button", { name: "Old Server" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    expect(selector.textContent).not.toMatch(
+      /connection refused|protocol mismatch|unavailable|incompatible|error/i,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Connected" }));
+    expect(usePaletteStore.getState().paramValues.executionServerId).toBe("srv-connected");
   });
 
   beforeEach(() => {
@@ -422,12 +599,25 @@ describe("ParamSelectPhase", () => {
   // FR-011 / FR-012 layout
   // -------------------------------------------------------------------------
 
-  it("transitions from the project listbox to the command listbox", () => {
+  it("shows the default Execution Server above Command and allows Change", async () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [
           { path: "/repo/a", isGit: true },
           { path: "/repo/b", isSandboxed: true },
+        ],
+        serverOutcomes: [
+          {
+            serverId: "srv-a",
+            serverLabel: "Alpha",
+            state: "connected",
+          },
+          {
+            serverId: "srv-b",
+            serverLabel: "Beta",
+            isDefaultExecution: true,
+            state: "connected",
+          },
         ],
         profileIds: ["claude", "codex"],
       }),
@@ -435,6 +625,7 @@ describe("ParamSelectPhase", () => {
     seedPalette("new-session");
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
+    showProjects();
 
     const projectGroup = screen.getByRole("group", { name: "Project" });
     expect(projectGroup.querySelector("[role=listbox]")).not.toBeNull();
@@ -444,6 +635,18 @@ describe("ParamSelectPhase", () => {
     fireEvent.keyDown(projectFilterInput(), { key: "Enter" });
 
     const commandGroup = screen.getByRole("group", { name: "Command" });
+    const executionServer = await screen.findByTestId("execution-server-selector");
+    expect(
+      executionServer.compareDocumentPosition(commandGroup) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    expect(screen.getByTestId("execution-server-current").textContent).toBe("Beta");
+    expect(usePaletteStore.getState().paramValues.executionServerId).toBe("srv-b");
+    const changeExecutionServer = executionServer.querySelector("button");
+    expect(changeExecutionServer).not.toBeNull();
+    if (!changeExecutionServer) throw new Error("Execution Server Change button was not rendered");
+    fireEvent.click(changeExecutionServer);
+    fireEvent.click(screen.getByRole("button", { name: "Alpha" }));
+    expect(usePaletteStore.getState().paramValues.executionServerId).toBe("srv-a");
     expect(commandGroup.querySelector("[role=listbox]")).not.toBeNull();
     expect(commandGroup.querySelector("input[role=combobox]")).not.toBeNull();
     expect(screen.queryByRole("group", { name: "Project" })).toBeNull();
@@ -462,6 +665,7 @@ describe("ParamSelectPhase", () => {
     seedPalette("new-session");
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
+    showProjects();
 
     const lb = projectListbox();
     expect(lb).not.toBeNull();
@@ -536,9 +740,9 @@ describe("ParamSelectPhase", () => {
     });
 
     render(<ParamSelectPhase ctx={ctx} />);
+    showProjects();
 
-    // Categorized TargetPicker keeps the GitHub entry available (UAC-004) and
-    // still suppresses command/submit until a project is chosen.
+    // The Projects tab still suppresses command/submit until a project is chosen.
     expect(screen.getByTestId("target-picker")).toBeTruthy();
     expect(screen.getByText("No project matches")).toBeTruthy();
     expect(document.getElementById("palette-param-command")).toBeNull();
@@ -602,6 +806,7 @@ describe("ParamSelectPhase", () => {
       daemonSnapshot: snap,
     });
     const firstRender = render(<ParamSelectPhase ctx={makeCtx()} />);
+    showProjects();
     const firstForm = firstRender.container.querySelector(
       "form.palette-param-select",
     ) as HTMLFormElement;
@@ -620,6 +825,7 @@ describe("ParamSelectPhase", () => {
     usePaletteStore.getState().openPalette({ daemonSnapshot: snap });
     usePaletteStore.getState().confirmTool("new-session");
     const secondRender = render(<ParamSelectPhase ctx={makeCtx()} />);
+    showProjects();
     const secondForm = secondRender.container.querySelector(
       "form.palette-param-select",
     ) as HTMLFormElement;
@@ -670,6 +876,7 @@ describe("ParamSelectPhase", () => {
     seedPalette("new-session");
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
+    showProjects();
 
     const filter = projectFilterInput();
     act(() => {
@@ -694,6 +901,7 @@ describe("ParamSelectPhase", () => {
     seedPalette("new-session");
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
+    showProjects();
 
     const filter = projectFilterInput();
     act(() => {
@@ -714,6 +922,7 @@ describe("ParamSelectPhase", () => {
     seedPalette("new-session", { project: "/repo/a" }, 0);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
+    showProjects();
 
     // Click the second project option. mousedown is what the listbox
     // listens for (so the combobox input keeps focus).
@@ -770,6 +979,7 @@ describe("ParamSelectPhase", () => {
     seedPalette("new-session", { project: "/repo/a" }, 0);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
+    showProjects();
 
     fireEvent.keyDown(projectFilterInput(), { key: "Enter" });
     expect(usePaletteStore.getState().paramCursor).toBe(1);

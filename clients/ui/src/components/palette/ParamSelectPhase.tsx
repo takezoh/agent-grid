@@ -21,10 +21,10 @@
 //     materializeKey → ParamOption[]; store / wire stay daemon-free)
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { fleetOutcomeLabel } from "../../fleet/presentation";
 import { useChipHotkey } from "../../hooks/useChipHotkey";
 import {
   type DaemonSnapshot,
+  type NewSessionTarget,
   type ParamDef,
   type ParamOption,
   type ToolCtx,
@@ -38,6 +38,7 @@ import {
 import { usePaletteStore } from "../../store/palette";
 import { useDaemonSnapshot } from "../../store/useDaemonSnapshot";
 import { ChipSwitch } from "./ChipSwitch";
+import { ExecutionServerSelector, defaultExecutionServerId } from "./ExecutionServerSelector";
 import { ParamEmptyState } from "./ParamEmptyState";
 import { ParamListbox } from "./ParamListbox";
 import { ParamTextInput } from "./ParamTextInput";
@@ -73,6 +74,8 @@ export function materializeOptions(
   param: ParamDef,
   snapshot: DaemonSnapshot,
   projectPath?: string | null,
+  executionServerId?: string | null,
+  targetSource: NewSessionTarget["source"] = "project",
 ): ParamOption[] | null {
   switch (param.kind) {
     case "text":
@@ -84,7 +87,7 @@ export function materializeOptions(
         case "projects":
           return projectOptions(snapshot);
         case "commands":
-          return commandOptions(snapshot, projectPath);
+          return commandOptions(snapshot, projectPath, executionServerId, targetSource);
         default: {
           const _exhaustive: never = param.materializeKey;
           return _exhaustive;
@@ -167,7 +170,14 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
   // FR-015 / FR-016: chips are only shown when the command field is rendered
   // (param.id === 'command' exists in params up to stopIdx) AND the selected
   // project has isGit / isSandboxed flags set.
-  const selectedProjectPath = typeof paramValues.project === "string" ? paramValues.project : null;
+  const selectedTarget = useMemo<NewSessionTarget | null>(() => {
+    const target = paramValues.target;
+    if (target && typeof target === "object") return target as NewSessionTarget;
+    return typeof paramValues.project === "string"
+      ? { source: "project", project: paramValues.project }
+      : null;
+  }, [paramValues.project, paramValues.target]);
+  const selectedProjectPath = selectedTarget?.source === "project" ? selectedTarget.project : null;
   const selectedProject = useMemo(
     () =>
       selectedProjectPath !== null
@@ -176,12 +186,29 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
     [selectedProjectPath, snapshot.projects],
   );
   const selectedCommand = typeof paramValues.command === "string" ? paramValues.command : null;
+  const selectedExecutionServerId =
+    typeof paramValues.executionServerId === "string" ? paramValues.executionServerId : null;
+  const resolvedExecutionServerId = defaultExecutionServerId(
+    snapshot.serverOutcomes,
+    selectedExecutionServerId,
+    selectedProject?.serverId,
+  );
+  const selectedProfiles =
+    selectedTarget?.source === "repository"
+      ? snapshot.serverOutcomes.find((server) => server.serverId === resolvedExecutionServerId)
+          ?.commandProfiles
+      : selectedProject?.commandProfiles;
   const selectedProfile = useMemo(
-    () =>
-      selectedProject?.commandProfiles?.find((profile) => profile.id === selectedCommand) ?? null,
-    [selectedCommand, selectedProject],
+    () => selectedProfiles?.find((profile) => profile.id === selectedCommand) ?? null,
+    [selectedCommand, selectedProfiles],
   );
   const params = baseParams;
+
+  useEffect(() => {
+    if (!selectedTarget || !resolvedExecutionServerId) return;
+    if (selectedExecutionServerId === resolvedExecutionServerId) return;
+    setParam("executionServerId", resolvedExecutionServerId);
+  }, [resolvedExecutionServerId, selectedExecutionServerId, selectedTarget, setParam]);
 
   useEffect(() => {
     if (!selectedProfile) return;
@@ -206,19 +233,39 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
   const slot0 = params[0] ?? sentinelParam;
   const slot1 = params[1] ?? sentinelParam;
   const options0 = useMemo(
-    () => materializeOptions(slot0, snapshot, selectedProjectPath),
-    [slot0, snapshot, selectedProjectPath],
+    () =>
+      materializeOptions(
+        slot0,
+        snapshot,
+        selectedProjectPath,
+        resolvedExecutionServerId,
+        selectedTarget?.source,
+      ),
+    [slot0, snapshot, selectedProjectPath, resolvedExecutionServerId, selectedTarget?.source],
   );
   const options1 = useMemo(
-    () => materializeOptions(slot1, snapshot, selectedProjectPath),
-    [slot1, snapshot, selectedProjectPath],
+    () =>
+      materializeOptions(
+        slot1,
+        snapshot,
+        selectedProjectPath,
+        resolvedExecutionServerId,
+        selectedTarget?.source,
+      ),
+    [slot1, snapshot, selectedProjectPath, resolvedExecutionServerId, selectedTarget?.source],
   );
   useDynamicParamPreset(slot0, options0, paramValues[slot0.id], setParam);
   useDynamicParamPreset(slot1, options1, paramValues[slot1.id], setParam);
   const materialized: Array<ParamOption[] | null> = params.map((param, index) => {
     if (index === 0) return options0;
     if (index === 1) return options1;
-    return materializeOptions(param, snapshot, selectedProjectPath);
+    return materializeOptions(
+      param,
+      snapshot,
+      selectedProjectPath,
+      resolvedExecutionServerId,
+      selectedTarget?.source,
+    );
   });
 
   // FR-015 / FR-016: chip visibility is derived from the selected project's
@@ -295,10 +342,25 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
     const project = findProject(snapshot.projects, projectTarget);
     // Preserve command/profile fields so scoped project re-bind does not wipe
     // the command leading-option preset mid-flow (smoke Enter → confirm).
-    const next: Record<string, unknown> = { ...paramValues, project: projectTarget };
+    const next: Record<string, unknown> = {
+      ...paramValues,
+      project: projectTarget,
+      target: { source: "project", project: projectTarget } satisfies NewSessionTarget,
+    };
     if (project?.isGit !== true) next.worktree = undefined;
     if (project?.isSandboxed !== true) next.host = undefined;
     setParams(next);
+  }
+
+  function selectRepository(repository: {
+    repository_id: string;
+    owner: string;
+    name: string;
+  }): void {
+    setParams({
+      target: { source: "repository", repository } satisfies NewSessionTarget,
+      executionServerId: resolvedExecutionServerId,
+    });
   }
 
   function selectCommand(value: unknown): void {
@@ -306,8 +368,12 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
     const profile = selectedProject?.commandProfiles?.find((candidate) => candidate.id === command);
     const next: Record<string, unknown> = {
       project: paramValues.project,
+      target: paramValues.target,
       command,
     };
+    if (paramValues.executionServerId !== undefined) {
+      next.executionServerId = paramValues.executionServerId;
+    }
     if (paramValues.worktree !== undefined) next.worktree = paramValues.worktree;
     if (paramValues.host !== undefined) next.host = paramValues.host;
     for (const parameter of profile?.parameters ?? []) {
@@ -346,30 +412,28 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
         void submit(ctx);
       }}
     >
-      {paramCursor === 1 && selectedProject && (
+      {paramCursor === 1 && selectedTarget && (
         <div className="palette-project-summary" data-testid="palette-project-summary">
           <span>
-            {selectedProject.serverLabel
-              ? `${selectedProject.serverLabel} · ${selectedProject.path}`
-              : selectedProject.path}
+            {selectedTarget.source === "repository"
+              ? `${selectedTarget.repository.owner}/${selectedTarget.repository.name}`
+              : selectedProject?.serverLabel
+                ? `${selectedProject.serverLabel} · ${selectedProject.path}`
+                : selectedProject?.path}
           </span>
           <button type="button" onClick={() => moveCursor(-1)}>
             Change
           </button>
         </div>
       )}
-      {snapshot.serverOutcomes
-        .map((outcome) => ({ outcome, label: fleetOutcomeLabel(outcome) }))
-        .filter((entry): entry is typeof entry & { label: string } => entry.label !== null)
-        .map(({ outcome, label }) => (
-          <output
-            key={outcome.serverId}
-            className={`palette-server-outcome palette-server-outcome--${outcome.state}`}
-          >
-            <strong>{outcome.serverLabel}</strong>
-            <span>{label}</span>
-          </output>
-        ))}
+      {paramCursor === 1 && resolvedExecutionServerId && (
+        <ExecutionServerSelector
+          servers={snapshot.serverOutcomes}
+          value={resolvedExecutionServerId}
+          disabled={submitting}
+          onChange={(serverId) => setParam("executionServerId", serverId)}
+        />
+      )}
       {params.slice(0, stopIdx).map((param, idx) => {
         if (idx !== paramCursor) return null;
         const isCurrent = idx === paramCursor;
@@ -391,8 +455,10 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
                 projects={snapshot.projects}
                 value={value}
                 onSelectProject={(v) => selectProject(v)}
+                onSelectRepository={selectRepository}
                 onEnter={advanceOrSubmit}
                 onAnnounce={announcePreparation}
+                executionServers={snapshot.serverOutcomes}
                 inputRef={projectInputRef}
               />
             </div>

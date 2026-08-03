@@ -4,12 +4,16 @@ Web host, Windows Shell, and Workspace share the `servers.json` version 2
 contract. Desktop hosts additionally read appearance and process settings.
 
 - `servers.json` (schema version 2): enabled server connections, display names,
-  and explicit `auth` values
+  explicit `auth` values, and the optional `default_execution` marker used by
+  New Session. Exactly one enabled entry is selected in Settings; legacy files
+  without the marker temporarily use their first enabled entry until saved.
 - `appearance.json`: theme, density, and UI font scale
 - `shell.json`: Shell process settings
 - `workspace.json`: Workspace process settings
-- `github.schema.json` / `fixtures/github-oauth-valid.json`: fixed public GitHub
-  OAuth App device-flow registration (`client_id`, `read:user` + `repo` scopes).
+- `github.schema.json` / `fixtures/github-oauth-valid.json`: release defaults for
+  the public GitHub OAuth App device-flow registration (`app_id`, `client_id`,
+  `read:user` + `repo` scopes). Workspace copies these defaults to its own
+  `github.json`; App ID and Client ID are editable from Settings > GitHub.
   No `client_secret`, bearer token, or refresh material is stored here.
   Registration ownership, release validation, rotation, and the current
   production limitation are documented in
@@ -26,7 +30,7 @@ to a client.
 
 Pass `--config-dir <path>` to a client host to replace the whole directory.
 Shell forwards the same argument when it starts Workspace. Web host loads
-`servers.json` only; desktop hosts load all four files. Tests must use a
+`servers.json` only; desktop hosts additionally load `github.json`. Tests must use a
 temporary directory through this argument and must not read or write the user
 configuration directory.
 

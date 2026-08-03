@@ -52,13 +52,20 @@ func AdmitRepositoryOperationAgainst(serverExpected, clientVersion string, sideE
 }
 
 type RepositoryCreateRequest struct {
-	IntentID      string `json:"intent_id"`
-	PreparationID string `json:"preparation_id"`
-	ServerID      string `json:"server_id"`
-	RepositoryID  string `json:"repository_id"`
-	Owner         string `json:"owner"`
-	Name          string `json:"name"`
-	Fingerprint   string `json:"fingerprint,omitempty"`
+	IntentID        string         `json:"intent_id"`
+	PreparationID   string         `json:"preparation_id"`
+	ServerID        string         `json:"server_id"`
+	RepositoryID    string         `json:"repository_id"`
+	Owner           string         `json:"owner"`
+	Name            string         `json:"name"`
+	LeaseID         string         `json:"lease_id,omitempty"`
+	Fingerprint     string         `json:"fingerprint,omitempty"`
+	Version         int            `json:"version"`
+	ProfileID       string         `json:"profile_id"`
+	ProfileRevision string         `json:"profile_revision"`
+	Parameters      map[string]any `json:"parameters,omitempty"`
+	Cols            int            `json:"cols,omitempty"`
+	Rows            int            `json:"rows,omitempty"`
 }
 
 func DecodeRepositoryCreateRequest(raw []byte) (RepositoryCreateRequest, error) {
@@ -67,7 +74,8 @@ func DecodeRepositoryCreateRequest(raw []byte) (RepositoryCreateRequest, error) 
 		return RepositoryCreateRequest{}, err
 	}
 	if req.IntentID == "" || req.PreparationID == "" || req.ServerID == "" ||
-		req.RepositoryID == "" || req.Owner == "" || req.Name == "" {
+		req.RepositoryID == "" || req.Owner == "" || req.Name == "" ||
+		req.Version != 2 || req.ProfileID == "" || req.ProfileRevision == "" {
 		return RepositoryCreateRequest{}, errRepositoryInvalidIdentity
 	}
 	return req, nil

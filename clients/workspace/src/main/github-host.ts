@@ -3,10 +3,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import { atomicWriteJson } from "./file-state-store.js";
+import { FIXED_CLIENT_ID, SCOPE_READ_USER, SCOPE_REPO } from "./github-oauth.generated.js";
 
-export const FIXED_CLIENT_ID = "Ov23liAgentGridDeviceFlow";
-export const SCOPE_READ_USER = "read:user";
-export const SCOPE_REPO = "repo";
+export { FIXED_CLIENT_ID, SCOPE_READ_USER, SCOPE_REPO };
 export const REFRESH_DEADLINE_MS = 120_000;
 export const MAX_PAGES = 100;
 export const MAX_REPOSITORIES = 10_000;
@@ -30,6 +29,7 @@ export const FailSourceFailed = "source_failed";
 export const FailAuthRequired = "authentication_required";
 export const FailTransport = "transport_failure";
 export const FailRefreshToken = "refresh_failure";
+export const FailHostMisconfigured = "host_misconfigured";
 
 export type HttpHeaders = Record<string, string>;
 export interface HttpRequest { method: string; url: string; headers?: HttpHeaders; body?: string }
@@ -107,6 +107,7 @@ export class Account {
   private login = ""; private userCode = ""; private verificationUri = "";
   private deviceCode = ""; private failureCode = "";
   private expiresAt = 0; private credGen = 0;
+  private pollIntervalMs = 5_000; private nextPollAt = 0;
   private pollFlight: Promise<void> | null = null;
   constructor(
     readonly doer: HttpDoer, readonly clock: Clock, readonly store: CredentialStore,
@@ -120,7 +121,7 @@ export class Account {
   }
   async startDeviceFlow(): Promise<AccountProjection> {
     if (!this.app.client_id) {
-      this.set("host_misconfigured", "host_misconfigured");
+      this.set("host_misconfigured", FailHostMisconfigured);
       throw new Error("github-host: missing client_id");
     }
     try {
@@ -130,10 +131,18 @@ export class Account {
       this.deviceCode = String(out.device_code ?? "");
       this.failureCode = "";
       this.verificationUri = String(out.verification_uri || out.verification_uri_complete || "");
-      this.expiresAt = this.clock.now().getTime() + (Number(out.expires_in) || 900) * 1000;
+      const now = this.clock.now().getTime();
+      this.pollIntervalMs = Math.max(1, Number(out.interval) || 5) * 1000;
+      this.nextPollAt = now + this.pollIntervalMs;
+      this.expiresAt = now + (Number(out.expires_in) || 900) * 1000;
       return this.snap();
     } catch (e) {
-      this.set("host_misconfigured", FailTransport);
+      this.set(
+        "host_misconfigured",
+        isOAuthAppConfigurationError(e)
+          ? FailHostMisconfigured
+          : FailTransport,
+      );
       throw e instanceof Error ? e : new Error(String(e));
     }
   }
@@ -141,16 +150,20 @@ export class Account {
     if (this.state === "authorizing") {
       this.state = "cancelled"; this.failureCode = "cancelled";
       this.userCode = ""; this.verificationUri = ""; this.deviceCode = "";
+      this.nextPollAt = 0;
     }
     return this.snap();
   }
   async pollDeviceFlow(): Promise<AccountProjection> {
     if (this.state !== "authorizing") return this.snap();
+    const now = this.clock.now().getTime();
+    if (now >= this.expiresAt) return this.term("expired", "expired");
+    if (now < this.nextPollAt) return this.snap();
     if (this.pollFlight) { await this.pollFlight; return this.projection(); }
     let resolve!: () => void;
     this.pollFlight = new Promise<void>((r) => { resolve = r; });
     try {
-      if (this.clock.now().getTime() >= this.expiresAt) return this.term("expired", "expired");
+      this.nextPollAt = now + this.pollIntervalMs;
       return await this.applyToken(await this.post(TOKEN_URL, {
         client_id: this.app.client_id, device_code: this.deviceCode,
         grant_type: "urn:ietf:params:oauth:grant-type:device_code",
@@ -183,7 +196,12 @@ export class Account {
   private async applyToken(out: Record<string, unknown>): Promise<AccountProjection> {
     if (out.error) {
       const e = String(out.error);
-      if (e === "authorization_pending" || e === "slow_down") return this.projection();
+      if (e === "authorization_pending") return this.projection();
+      if (e === "slow_down") {
+        this.pollIntervalMs += 5_000;
+        this.nextPollAt = this.clock.now().getTime() + this.pollIntervalMs;
+        return this.projection();
+      }
       if (e === "access_denied") return this.term("denied", "denied");
       if (e === "expired_token") return this.term("expired", "expired");
       return this.term("host_misconfigured", FailTransport);
@@ -206,12 +224,14 @@ export class Account {
     });
     this.state = "authenticated"; this.login = login; this.failureCode = "";
     this.userCode = ""; this.verificationUri = ""; this.deviceCode = "";
+    this.nextPollAt = 0;
     return this.snap();
   }
   private set(st: AccountState, code: string) { this.state = st; this.failureCode = code; return this.snap(); }
   private term(st: AccountState, code: string) {
     this.state = st; this.failureCode = code;
     this.userCode = ""; this.verificationUri = ""; this.deviceCode = "";
+    this.nextPollAt = 0;
     return this.snap();
   }
   private snap(): AccountProjection {
@@ -228,9 +248,33 @@ export class Account {
       headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
       body: new URLSearchParams(form).toString(),
     });
-    if (res.status < 200 || res.status >= 300) throw new Error(`status ${res.status}`);
+    if (res.status < 200 || res.status >= 300) {
+      let oauthError = "";
+      try {
+        const parsed = JSON.parse(res.body) as Record<string, unknown>;
+        if (typeof parsed.error === "string") oauthError = parsed.error;
+      } catch {
+        // The status remains authoritative when GitHub returns a non-JSON body.
+      }
+      throw new HttpStatusError(res.status, oauthError);
+    }
     return JSON.parse(res.body) as Record<string, unknown>;
   }
+}
+
+class HttpStatusError extends Error {
+  constructor(readonly status: number, readonly oauthError: string) {
+    super(`status ${status}`);
+    this.name = "HttpStatusError";
+  }
+}
+
+function isOAuthAppConfigurationError(error: unknown): boolean {
+  return error instanceof HttpStatusError && (
+    error.status === 404 ||
+    error.oauthError === "device_flow_disabled" ||
+    error.oauthError === "incorrect_client_credentials"
+  );
 }
 
 const errDeadline = new Error("refresh_deadline");

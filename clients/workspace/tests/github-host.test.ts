@@ -9,7 +9,8 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  Account, Catalog, FileCacheStore, FileCredentialStore, MAX_PAGES, ManualClock,
+  Account, Catalog, FailHostMisconfigured, FailTransport, FileCacheStore, FileCredentialStore,
+  MAX_PAGES, ManualClock,
   MemoryCacheStore, MemoryCredentialStore, REFRESH_DEADLINE_MS, fixedOAuthApp,
   projectionContainsCredential, resolveGitHubAuthAuthority, resolveGitHubCatalogAuthority,
   type CatalogProjection, type HttpDoer, type HttpRequest, type HttpResponse, type Repository,
@@ -82,13 +83,19 @@ class CombinedTransport implements HttpDoer {
 const newAcct = (auth: FakeGitHubAuth) =>
   new Account(auth, new ManualClock(EPOCH), new MemoryCredentialStore(), fixedOAuthApp());
 
+async function pollAfterInterval(account: Account, milliseconds = 5_000) {
+  if (!(account.clock instanceof ManualClock)) throw new Error("manual clock required");
+  account.clock.advance(milliseconds);
+  return account.pollDeviceFlow();
+}
+
 async function newCat(catalog: FakeGitHubCatalog): Promise<Catalog> {
   const auth = new FakeGitHubAuth();
   auth.userLogin = "alice";
   auth.tokenPolls = [{ access_token: "gho_secret", refresh_token: "ghr_secret" }];
   const http = new CombinedTransport(auth, catalog);
   const a = new Account(http, new ManualClock(EPOCH), new MemoryCredentialStore(), fixedOAuthApp());
-  await a.startDeviceFlow(); await a.pollDeviceFlow();
+  await a.startDeviceFlow(); await pollAfterInterval(a);
   return new Catalog(http, new ManualClock(EPOCH), new MemoryCacheStore(), a);
 }
 
@@ -104,20 +111,46 @@ function fetchDoer(): HttpDoer {
 }
 
 describe("GitHubAuthContract", () => {
+  it("enforces the device interval and increases it after slow_down", async () => {
+    const auth = new FakeGitHubAuth();
+    auth.deviceCodes = [{
+      device_code: "dev",
+      user_code: "ABCD-1234",
+      verification_uri: "https://github.com/login/device",
+      expires_in: 900,
+      interval: 5,
+    }];
+    auth.tokenPolls = [
+      { error: "slow_down" },
+      { access_token: "gho_secret", refresh_token: "ghr_secret" },
+    ];
+    const clock = new ManualClock(EPOCH);
+    const account = new Account(auth, clock, new MemoryCredentialStore(), fixedOAuthApp());
+
+    await account.startDeviceFlow();
+    expect((await account.pollDeviceFlow()).state).toBe("authorizing");
+    clock.advance(5_000);
+    expect((await account.pollDeviceFlow()).state).toBe("authorizing");
+    clock.advance(9_999);
+    expect((await account.pollDeviceFlow()).state).toBe("authorizing");
+    clock.advance(1);
+    expect((await account.pollDeviceFlow()).state).toBe("authenticated");
+  });
+
   it("distinct outcomes + credential sentinel non-exposure", async () => {
     const auth = new FakeGitHubAuth();
     auth.userLogin = "alice";
     auth.tokenPolls = [{ access_token: "gho_secret_token", refresh_token: "ghr_r" }];
     const a = newAcct(auth);
     await a.startDeviceFlow();
-    const p = await a.pollDeviceFlow();
+    const p = await pollAfterInterval(a);
     expect(p).toMatchObject({ state: "authenticated", login: "alice" });
     noCred(p);
     expect(a.hostCredential()).toEqual({ token: "gho_secret_token", ok: true });
     for (const [err, want] of [["access_denied", "denied"], ["expired_token", "expired"]] as const) {
       const b = new FakeGitHubAuth(); b.tokenPolls = [{ error: err }];
       const acct = newAcct(b); await acct.startDeviceFlow();
-      expect((await acct.pollDeviceFlow()).state).toBe(want);
+      expect((await pollAfterInterval(acct)).state).toBe(want);
     }
     const c = newAcct(new FakeGitHubAuth()); await c.startDeviceFlow();
     expect(c.cancelDeviceFlow().state).toBe("cancelled");
@@ -127,10 +160,67 @@ describe("GitHubAuthContract", () => {
     expect(mis.projection().state).toBe("host_misconfigured");
     const fake = new FakeGitHubAuth();
     fake.userLogin = "a"; fake.tokenPolls = [{ access_token: "gho_a", refresh_token: "ghr_r" }];
-    const d = newAcct(fake); await d.startDeviceFlow(); await d.pollDeviceFlow();
+    const d = newAcct(fake); await d.startDeviceFlow(); await pollAfterInterval(d);
     fake.tokenPolls = [{ error: "bad" }]; fake.resetTokenIndex();
     await expect(d.refreshAccessToken()).rejects.toThrow();
     expect(d.projection().state).toBe("refresh_failed");
+  });
+
+  it("types only device-code OAuth App failures as host misconfiguration", async () => {
+    // Counterexample rejected: mapping every HTTP failure to a config error fails the 503 case.
+    for (const [status, oauthError, failureCode] of [
+      [404, "rejected", FailHostMisconfigured],
+      [400, "device_flow_disabled", FailHostMisconfigured],
+      [400, "incorrect_client_credentials", FailHostMisconfigured],
+      [400, "authorization_pending", FailTransport],
+      [503, "rejected", FailTransport],
+    ] as const) {
+      let transportCalls = 0;
+      const account = new Account(
+        {
+          async do() {
+            transportCalls += 1;
+            return j(status, { error: oauthError });
+          },
+        },
+        new ManualClock(EPOCH),
+        new MemoryCredentialStore(),
+        fixedOAuthApp(),
+      );
+
+      await expect(account.startDeviceFlow()).rejects.toThrow(`status ${status}`);
+      expect(transportCalls).toBe(1);
+      expect(account.projection()).toEqual({
+        state: "host_misconfigured",
+        failure_code: failureCode,
+      });
+      noCred(account.projection());
+    }
+
+    const token404: HttpDoer = {
+      async do(req) {
+        if (req.url.endsWith("/device/code")) {
+          return j(200, {
+            device_code: "synthetic-device",
+            user_code: "TEST-CODE",
+            verification_uri: "https://github.example/device",
+            expires_in: 900,
+          });
+        }
+        return j(404, { error: "rejected" });
+      },
+    };
+    const tokenAccount = new Account(
+      token404,
+      new ManualClock(EPOCH),
+      new MemoryCredentialStore(),
+      fixedOAuthApp(),
+    );
+    await tokenAccount.startDeviceFlow();
+    expect(await pollAfterInterval(tokenAccount)).toMatchObject({
+      state: "host_misconfigured",
+      failure_code: FailTransport,
+    });
   });
 });
 
@@ -213,8 +303,11 @@ describe("GitHubCatalogContract", () => {
 
 describe("shared fixture parity", () => {
   it("Web/Workspace credential-free projection deep-equals shared fixture", () => {
+    const production = JSON.parse(fs.readFileSync(path.join(CONFIG, "github.production.json"), "utf8"));
     const oauth = JSON.parse(fs.readFileSync(path.join(CONFIG, "fixtures/github-oauth-valid.json"), "utf8"));
+    expect(oauth).toEqual(production);
     expect(oauth).toMatchObject({ client_id: fixedOAuthApp().client_id, scopes: fixedOAuthApp().scopes });
+    expect(production.client_id).not.toBe("Ov23liAgentGridDeviceFlow");
     noCred(oauth);
     const fixture = JSON.parse(fs.readFileSync(path.join(CONFIG, "fixtures/github-projection-credential-free.json"), "utf8"));
     const workspace = {
@@ -227,6 +320,28 @@ describe("shared fixture parity", () => {
     expect(workspace).toEqual(fixture);
     noCred(workspace);
     expect(fs.readFileSync(path.join(CONFIG, "github.schema.json"), "utf8")).not.toContain('"client_secret"');
+  });
+});
+
+describe("Windows GitHub OAuth generation input contract", () => {
+  it("stages every client tree required by the OAuth generator", () => {
+    const generator = fs.readFileSync(path.join(CONFIG, "generate-github-oauth.mjs"), "utf8");
+    const buildScript = fs.readFileSync(
+      path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../scripts/build-windows.ps1"),
+      "utf8",
+    );
+    const generatedClientTrees = Array.from(
+      generator.matchAll(/resolve\(root, "clients\/([^/"]+)\//g),
+      (match) => match[1]!,
+    );
+    const stagedTrees = new Set(
+      buildScript.match(/foreach \(\$name in @\(([^)]+)\)\)/)?.[1]
+        ?.match(/"([^"]+)"/g)
+        ?.map((name) => name.slice(1, -1)) ?? [],
+    );
+
+    expect(generatedClientTrees.length).toBeGreaterThan(0);
+    expect([...stagedTrees]).toEqual(expect.arrayContaining(["config", ...generatedClientTrees]));
   });
 });
 
@@ -297,6 +412,6 @@ describe("protected file persistence", () => {
     auth.tokenPolls = [{ access_token: "gho_secret_token", refresh_token: "ghr_secret" }];
     const a = new Account(auth, new ManualClock(EPOCH), cred, fixedOAuthApp());
     await a.startDeviceFlow();
-    noCred(await a.pollDeviceFlow());
+    noCred(await pollAfterInterval(a));
   });
 });

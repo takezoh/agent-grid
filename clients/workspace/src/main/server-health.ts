@@ -27,6 +27,17 @@ export interface ServerHealthDependencies {
   fetchFn?: typeof fetch;
 }
 
+/** Converts runtime/network implementation details into stable user-facing fleet reasons. */
+export function connectionFailureReason(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/^(?:ws-ticket )?HTTP \d{3}$/.test(message)) return message;
+  if (/timeout|timed out|aborted due to timeout/i.test(message)) return "Connection timed out";
+  if (/fetch failed|failed to fetch|econnrefused|enotfound|unable to connect|network error/i.test(message)) {
+    return "Could not connect to server";
+  }
+  return "Server connection failed";
+}
+
 /** Runtime-only fleet observation. It never enters DesktopConfig persistence. */
 export async function probeServerFleet(
   servers: readonly ServerConfig[],
@@ -82,7 +93,7 @@ export async function probeServerFleet(
           serverId: server.id,
           displayName: server.display_name,
           state: "unavailable",
-          reason: error instanceof Error ? error.message : String(error),
+          reason: connectionFailureReason(error),
         };
       }
     }),

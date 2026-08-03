@@ -345,12 +345,13 @@ describe("new-session.submit", () => {
     const tool = findTool(listTools(ctx.daemon, []), "new-session");
     await tool.submit(ctx, {
       project: JSON.stringify(["server-a", "/repo/a"]),
+      executionServerId: "server-b",
       command: "sol",
       "profile:effort": "high",
       "profile:limit": "3",
     });
     expect(http.createSession).toHaveBeenCalledWith({
-      server_id: "server-a",
+      server_id: "server-b",
       project: "/repo/a",
       version: 2,
       profile_id: "sol",

@@ -6,7 +6,7 @@
 
 import type { Capabilities } from "../generated/capabilities.js";
 
-export const PROTOCOL_VERSION = "protocol-2";
+export const PROTOCOL_VERSION = "protocol-3";
 
 export interface TransportConfig {
   /** Gateway base URL, e.g. http://127.0.0.1:8787 */

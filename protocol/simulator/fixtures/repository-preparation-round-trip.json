@@ -1,6 +1,6 @@
 {
   "name": "repository-preparation-round-trip",
-  "protocolVersion": "protocol-2",
+  "protocolVersion": "protocol-3",
   "description": "Exact-version repository identity and preparation snapshot for SDK/simulator flag-day consumers.",
   "sessionTarget": {
     "source": "repository",
@@ -25,7 +25,7 @@
   },
   "mismatch": {
     "oldClientVersion": "protocol-1",
-    "newServerVersion": "protocol-2",
+    "newServerVersion": "protocol-3",
     "code": "incompatible_protocol",
     "sideEffects": []
   }

@@ -116,6 +116,7 @@ type CreationIntent struct {
 	ServerID    ExecutionServerID
 	Repository  GitHubRepositoryIdentity
 	Fingerprint string
+	Command     string
 }
 
 type RepositoryPreparation struct {

@@ -2,6 +2,12 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import { createHash } from "node:crypto";
+import {
+  FIXED_APP_ID,
+  FIXED_CLIENT_ID,
+  SCOPE_READ_USER,
+  SCOPE_REPO,
+} from "./github-oauth.generated.js";
 
 export const CONFIG_SCHEMA_VERSION = 1;
 export const SERVERS_SCHEMA_VERSION = 2;
@@ -17,6 +23,7 @@ export interface ServerConfig {
   id: string;
   display_name: string;
   enabled: boolean;
+  default_execution: boolean;
   url: string;
   auth: ServerAuth;
 }
@@ -42,18 +49,26 @@ export interface WorkspaceAppConfig {
   default_window: { width: number; height: number };
 }
 
+export interface GitHubAppConfig {
+  app_id: string;
+  client_id: string;
+  scopes: string[];
+}
+
 export interface DesktopConfig {
   configDirectory: string;
   servers: readonly ServerConfig[];
   appearance: AppearanceConfig;
   shell: ShellAppConfig;
   workspace: WorkspaceAppConfig;
+  github: GitHubAppConfig;
 }
 
 export interface EditableDesktopSettings {
   servers: readonly ServerConfig[];
   appearance: AppearanceConfig;
   workspace: WorkspaceAppConfig;
+  github: GitHubAppConfig;
 }
 
 type Versioned<T> = T & { schema_version: number };
@@ -87,16 +102,21 @@ export function loadOrCreateDesktopConfig(configDirectory: string): DesktopConfi
   const appearanceDoc = readJson<Versioned<AppearanceConfig>>(directory, "appearance.json");
   const shellDoc = readJson<Versioned<ShellAppConfig>>(directory, "shell.json");
   const workspaceDoc = readJson<Versioned<WorkspaceAppConfig>>(directory, "workspace.json");
+  const githubDoc = readJson<Versioned<GitHubAppConfig>>(directory, "github.json");
   checkVersion(serversDoc, "servers.json", SERVERS_SCHEMA_VERSION);
   checkVersion(appearanceDoc, "appearance.json");
   checkVersion(shellDoc, "shell.json");
   checkVersion(workspaceDoc, "workspace.json");
+  checkVersion(githubDoc, "github.json");
 
   validateServers(serversDoc.servers);
-  const servers = serversDoc.servers.map(mapServer);
+  const servers = serversDoc.servers.map((server, index) =>
+    mapServer(server, index, serversDoc.servers),
+  );
   validateAppearance(appearanceDoc);
   validateShell(shellDoc);
   validateWorkspace(workspaceDoc);
+  validateGitHub(githubDoc);
   return {
     configDirectory: directory,
     servers,
@@ -112,6 +132,11 @@ export function loadOrCreateDesktopConfig(configDirectory: string): DesktopConfi
     workspace: {
       idle_quit_seconds: workspaceDoc.idle_quit_seconds,
       default_window: { ...workspaceDoc.default_window },
+    },
+    github: {
+      app_id: githubDoc.app_id,
+      client_id: githubDoc.client_id,
+      scopes: [...githubDoc.scopes],
     },
   };
 }
@@ -144,12 +169,20 @@ export function saveEditableDesktopSettings(
       height: settings.workspace.default_window.height,
     },
   };
+  const githubDoc: Versioned<GitHubAppConfig> = {
+    schema_version: CONFIG_SCHEMA_VERSION,
+    app_id: settings.github.app_id.trim(),
+    client_id: settings.github.client_id.trim(),
+    scopes: [...settings.github.scopes],
+  };
   validateServers([...serversDoc.servers]);
   validateAppearance(appearanceDoc);
   validateWorkspace(workspaceDoc);
+  validateGitHub(githubDoc);
   writeJson(path.join(directory, "servers.json"), serversDoc);
   writeJson(path.join(directory, "appearance.json"), appearanceDoc);
   writeJson(path.join(directory, "workspace.json"), workspaceDoc);
+  writeJson(path.join(directory, "github.json"), githubDoc);
   return loadOrCreateDesktopConfig(directory);
 }
 
@@ -205,11 +238,13 @@ function validateServers(servers: unknown): asserts servers is ServerDocument[] 
   }
   const ids = new Set<string>();
   let enabled = 0;
+  let defaultExecution = 0;
   for (const raw of servers) {
     if (!isRecord(raw)) throw new Error("servers.json: every server must be an object");
     const server = raw as unknown as ServerDocument;
     const extraKeys = Object.keys(raw).filter(
-      (key) => !["id", "display_name", "enabled", "url", "auth"].includes(key),
+      (key) =>
+        !["id", "display_name", "enabled", "default_execution", "url", "auth"].includes(key),
     );
     if (extraKeys.length > 0) {
       throw new Error(`servers.json: server contains unsupported field '${extraKeys[0]}'`);
@@ -224,6 +259,14 @@ function validateServers(servers: unknown): asserts servers is ServerDocument[] 
       throw new Error(`servers.json: server '${label}' enabled must be boolean`);
     }
     if (server.enabled) enabled++;
+    if (server.default_execution === true) {
+      if (!server.enabled) {
+        throw new Error(`servers.json: default execution server '${label}' must be enabled`);
+      }
+      defaultExecution++;
+    } else if (server.default_execution !== undefined && server.default_execution !== false) {
+      throw new Error(`servers.json: server '${label}' default_execution must be boolean`);
+    }
     assertHttpUrl(server.url, `servers.json: server '${label}' url`);
     const id = serverIdentifier(server.url);
     if (ids.has(id)) throw new Error(`servers.json: duplicate server url '${server.url}'`);
@@ -231,13 +274,21 @@ function validateServers(servers: unknown): asserts servers is ServerDocument[] 
     validateServerAuth(server.auth, label);
   }
   if (enabled === 0) throw new Error("servers.json: at least one server must be enabled");
+  if (defaultExecution > 1) {
+    throw new Error("servers.json: exactly one enabled server may be the default execution server");
+  }
 }
 
-function mapServer(server: ServerDocument): ServerConfig {
+function mapServer(server: ServerDocument, index: number, servers: readonly ServerDocument[]): ServerConfig {
+  const hasExplicitDefault = servers.some((candidate) => candidate.default_execution === true);
+  const firstEnabledIndex = servers.findIndex((candidate) => candidate.enabled);
   return {
     id: serverIdentifier(server.url),
     display_name: server.display_name,
     enabled: server.enabled,
+    default_execution: hasExplicitDefault
+      ? server.default_execution === true
+      : server.enabled && index === firstEnabledIndex,
     url: canonicalServerUrl(server.url),
     auth: mapServerAuth(server.auth),
   };
@@ -295,6 +346,18 @@ function validateWorkspace(value: Versioned<WorkspaceAppConfig>): void {
   }
 }
 
+function validateGitHub(value: Versioned<GitHubAppConfig>): void {
+  if (typeof value.app_id !== "string" || !/^\d+$/.test(value.app_id.trim())) {
+    throw new Error("github.json: app_id must be a numeric GitHub App ID");
+  }
+  if (typeof value.client_id !== "string" || !/^[A-Za-z0-9]{20,64}$/.test(value.client_id.trim())) {
+    throw new Error("github.json: client_id must be a valid public GitHub Client ID");
+  }
+  if (JSON.stringify(value.scopes) !== JSON.stringify([SCOPE_READ_USER, SCOPE_REPO])) {
+    throw new Error('github.json: scopes must be ["read:user","repo"]');
+  }
+}
+
 function assertHttpUrl(value: unknown, label: string): void {
   if (typeof value !== "string") throw new Error(`${label} must be a URL`);
   try {
@@ -348,6 +411,7 @@ function defaultDocuments(): Record<string, unknown> {
       servers: [{
         display_name: "Local",
         enabled: true,
+        default_execution: true,
         url: "http://127.0.0.1:8443",
         auth: { mode: "none" },
       }],
@@ -367,6 +431,12 @@ function defaultDocuments(): Record<string, unknown> {
       schema_version: CONFIG_SCHEMA_VERSION,
       idle_quit_seconds: 300,
       default_window: { width: 1280, height: 800 },
+    },
+    "github.json": {
+      schema_version: CONFIG_SCHEMA_VERSION,
+      app_id: FIXED_APP_ID,
+      client_id: FIXED_CLIENT_ID,
+      scopes: [SCOPE_READ_USER, SCOPE_REPO],
     },
   };
 }

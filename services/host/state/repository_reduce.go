@@ -34,8 +34,9 @@ func reduceRepository(s State, e EvRepository) (State, []Effect) {
 }
 
 func reduceRepositoryCreate(s State, e EvRepository) (State, []Effect) {
-	if e.IntentID == "" || e.PreparationID == "" || e.ServerID == "" || !e.Repository.Valid() {
-		return s, rejectPrep(e.ConnID, e.ReqID, PrepFailureInvalidIdentity, "fully-qualified identities required")
+	if e.IntentID == "" || e.PreparationID == "" || e.ServerID == "" ||
+		!e.Repository.Valid() || e.Command == "" {
+		return s, rejectPrep(e.ConnID, e.ReqID, PrepFailureInvalidIdentity, "fully-qualified identities and command required")
 	}
 	if existing, ok := s.CreationIntents[e.IntentID]; ok {
 		if existing.Fingerprint != e.Fingerprint {
@@ -48,7 +49,10 @@ func reduceRepositoryCreate(s State, e EvRepository) (State, []Effect) {
 	if _, exists := s.RepositoryPreparations[e.PreparationID]; exists {
 		return s, rejectPrep(e.ConnID, e.ReqID, PrepFailureIllegalTransition, "preparation already exists")
 	}
-	intent := CreationIntent{ID: e.IntentID, ServerID: e.ServerID, Repository: e.Repository, Fingerprint: e.Fingerprint}
+	intent := CreationIntent{
+		ID: e.IntentID, ServerID: e.ServerID, Repository: e.Repository,
+		Fingerprint: e.Fingerprint, Command: e.Command,
+	}
 	prep := RepositoryPreparation{
 		ID: e.PreparationID, IntentID: e.IntentID, ServerID: e.ServerID, Repository: e.Repository,
 		Stage: PrepStageConfirmed, EnvironmentDisposition: EnvDispositionNone,
@@ -306,12 +310,12 @@ func rejectPrep(conn ConnID, req string, code PreparationFailureCode, msg string
 	return []Effect{errResp(conn, req, string(code), msg)}
 }
 
-func prepSnapshot(p RepositoryPreparation) map[string]any {
-	return map[string]any{
-		"preparation_id": string(p.ID), "intent_id": string(p.IntentID), "server_id": string(p.ServerID),
-		"repository_id": string(p.Repository.ID), "owner": string(p.Repository.Owner), "name": string(p.Repository.Name),
-		"stage": string(p.Stage), "failure_code": string(p.FailureCode), "retry_origin": string(p.RetryOrigin),
-		"environment_disposition": string(p.EnvironmentDisposition), "revision": p.Revision,
-		"session_id": string(p.SessionID), "clone_path": string(p.ClonePath), "environment_id": string(p.EnvironmentID),
+func prepSnapshot(p RepositoryPreparation) RepositoryPreparationReply {
+	return RepositoryPreparationReply{
+		PreparationID: string(p.ID), IntentID: string(p.IntentID), ServerID: string(p.ServerID),
+		Repository: p.Repository, Stage: string(p.Stage), FailureCode: string(p.FailureCode),
+		RetryOrigin: string(p.RetryOrigin), EnvironmentDisposition: string(p.EnvironmentDisposition),
+		Revision: p.Revision, SessionID: string(p.SessionID), ClonePath: string(p.ClonePath),
+		EnvironmentID: string(p.EnvironmentID),
 	}
 }

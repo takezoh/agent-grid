@@ -18,7 +18,7 @@ class GatewayClient(
         .build(),
 ) {
     companion object {
-        const val PROTOCOL_VERSION = "protocol-2"
+        const val PROTOCOL_VERSION = "protocol-3"
     }
     var clientInstanceId: String? = null
         private set

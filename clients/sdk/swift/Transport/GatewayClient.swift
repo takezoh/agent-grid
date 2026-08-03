@@ -5,7 +5,7 @@
 import Foundation
 
 public final class GatewayClient: @unchecked Sendable {
-    public static let protocolVersion = "protocol-2"
+    public static let protocolVersion = "protocol-3"
     private let baseURL: URL
     private let token: String?
     private let session: URLSession

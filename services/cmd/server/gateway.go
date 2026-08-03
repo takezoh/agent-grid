@@ -63,6 +63,10 @@ func (g *gatewayHandle) Close() {
 // contained by recover() — it cancels the daemon ctx so the binary exits, but
 // the recovered stack is logged rather than dropped into the void.
 func startGateway(ctx context.Context, cancel context.CancelFunc, sockPath, dataDir string, df *daemonFlagSet, stdout io.Writer) (*gatewayHandle, error) {
+	return startGatewayWithAuthority(ctx, cancel, sockPath, dataDir, df, stdout, nil)
+}
+
+func startGatewayWithAuthority(ctx context.Context, cancel context.CancelFunc, sockPath, dataDir string, df *daemonFlagSet, stdout io.Writer, authority serverapi.RepositoryAuthoritySink) (*gatewayHandle, error) {
 	token, err := resolveAuth(df.token, df.tokenFile, df.noAuth)
 	if err != nil {
 		return nil, err
@@ -70,7 +74,7 @@ func startGateway(ctx context.Context, cancel context.CancelFunc, sockPath, data
 	daemon := serverapi.NewDaemonClient(sockPath)
 	srv := &http.Server{
 		Addr:              df.addr,
-		Handler:           buildHTTPHandler(daemon, dataDir, token, df.noAuth),
+		Handler:           buildHTTPHandlerWithAuthority(daemon, dataDir, token, df.noAuth, authority),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -190,16 +194,13 @@ func tokenFromFile(path string) (string, error) {
 	return tok, nil
 }
 
-// buildHTTPHandler picks the appropriate mux variant and bolts on /healthz.
-// no-auth mode goes through NewMuxNoAuth, which mounts apiHandler directly
-// (no TokenAuth wrap) and skips the WS-ticket consume check.
-func buildHTTPHandler(daemon *serverapi.DaemonClient, dataDir, token string, noAuth bool) http.Handler {
+func buildHTTPHandlerWithAuthority(daemon *serverapi.DaemonClient, dataDir, token string, noAuth bool, authority serverapi.RepositoryAuthoritySink) http.Handler {
 	serverapi.InitWorkspaceOperatorAuditor(daemon, dataDir)
 	mux := http.NewServeMux()
 	if noAuth {
-		mux.Handle("/", serverapi.NewMuxNoAuth(daemon))
+		mux.Handle("/", serverapi.NewMuxNoAuthWithRepositoryAuthority(daemon, authority))
 	} else {
-		mux.Handle("/", serverapi.NewMux(daemon, token))
+		mux.Handle("/", serverapi.NewMuxWithRepositoryAuthority(daemon, token, authority))
 	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeHealth(w, daemon)

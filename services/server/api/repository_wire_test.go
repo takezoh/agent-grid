@@ -35,6 +35,7 @@ func TestRepositoryCreateAndGateBeforeHandler(t *testing.T) {
 	}
 	raw, _ := json.Marshal(RepositoryCreateRequest{
 		IntentID: "i", PreparationID: "p", ServerID: "s", RepositoryID: "1", Owner: "o", Name: "n",
+		Version: 2, ProfileID: "shell", ProfileRevision: "revision",
 	})
 	if got, err := DecodeRepositoryCreateRequest(raw); err != nil || got.RepositoryID != "1" {
 		t.Fatal(err)

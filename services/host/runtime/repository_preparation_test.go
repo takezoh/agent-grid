@@ -90,21 +90,22 @@ func TestPreparationCapacityAdmissionBeforeMutation(t *testing.T) {
 func TestPreparationIdempotencyDistinctIntentsAndEnvReuse(t *testing.T) {
 	cloner := &gitclone.FakeGitClone{}
 	dc := runtime.NewFakeRepositoryDevcontainer()
-	r := startRuntime(t, prepConfig(t, newOKBackend(), cloner, dc))
+	backend := &recordingBackend{}
+	r := startRuntime(t, prepConfig(t, backend, cloner, dc))
 	repo := testRepo()
 	r.Enqueue(state.EvRepository{
 		ConnID: 1, ReqID: "c1", Kind: "create", IntentID: "intent-a", PreparationID: "prep-a",
-		ServerID: "srv", Repository: repo, Fingerprint: "fp-a",
+		ServerID: "srv", Repository: repo, Fingerprint: "fp-a", Command: "codex --model selected",
 	})
 	r.Enqueue(state.EvRepository{
 		ConnID: 1, ReqID: "c2", Kind: "create", IntentID: "intent-b", PreparationID: "prep-b",
-		ServerID: "srv", Repository: repo, Fingerprint: "fp-b",
+		ServerID: "srv", Repository: repo, Fingerprint: "fp-b", Command: "codex --model selected",
 	})
 	waitPrep(t, r, "prep-a", state.PrepStageAvailable, 5*time.Second)
 	waitPrep(t, r, "prep-b", state.PrepStageAvailable, 5*time.Second)
 	r.Enqueue(state.EvRepository{
 		ConnID: 1, ReqID: "c1b", Kind: "create", IntentID: "intent-a", PreparationID: "prep-a-dup",
-		ServerID: "srv", Repository: repo, Fingerprint: "fp-a",
+		ServerID: "srv", Repository: repo, Fingerprint: "fp-a", Command: "codex --model selected",
 	})
 	time.Sleep(50 * time.Millisecond)
 	snap := r.TestPublishedState()
@@ -123,6 +124,9 @@ func TestPreparationIdempotencyDistinctIntentsAndEnvReuse(t *testing.T) {
 	}
 	if len(cloner.Calls) < 2 {
 		t.Fatalf("clone calls=%d", len(cloner.Calls))
+	}
+	if len(backend.spawned) != 2 || backend.spawned[0].command != "codex --model selected" || backend.spawned[1].command != "codex --model selected" {
+		t.Fatalf("repository command profile was not propagated to launch: %#v", backend.spawned)
 	}
 }
 
@@ -170,7 +174,7 @@ func TestCancelAndLaunchFailureDoNotPublishSession(t *testing.T) {
 	r := startRuntime(t, prepConfig(t, newOKBackend(), cloner, nil))
 	r.Enqueue(state.EvRepository{
 		ConnID: 1, ReqID: "c", Kind: "create", IntentID: "i", PreparationID: "p",
-		ServerID: "srv", Repository: testRepo(), Fingerprint: "f",
+		ServerID: "srv", Repository: testRepo(), Fingerprint: "f", Command: "codex",
 	})
 	select {
 	case <-started:
@@ -192,7 +196,7 @@ func TestCancelAndLaunchFailureDoNotPublishSession(t *testing.T) {
 	r2 := startRuntime(t, prepConfig(t, failBackend{}, nil, nil))
 	r2.Enqueue(state.EvRepository{
 		ConnID: 1, ReqID: "c", Kind: "create", IntentID: "i2", PreparationID: "p2",
-		ServerID: "srv", Repository: testRepo(), Fingerprint: "f2",
+		ServerID: "srv", Repository: testRepo(), Fingerprint: "f2", Command: "codex",
 	})
 	waitPrep(t, r2, "p2", state.PrepStageFailed, 5*time.Second)
 	if len(r2.TestPublishedState().Sessions) != 0 {
@@ -207,7 +211,7 @@ func TestRestartReconciliationAndFakeVsRealEnv(t *testing.T) {
 			ID: "p", IntentID: "i", ServerID: "srv", Repository: testRepo(),
 			Stage: state.PrepStageCloneInProgress, Revision: 2, LastOwnedWorkerGeneration: 1,
 		},
-		Intent: state.CreationIntent{ID: "i", ServerID: "srv", Repository: testRepo(), Fingerprint: "f"},
+		Intent: state.CreationIntent{ID: "i", ServerID: "srv", Repository: testRepo(), Fingerprint: "f", Command: "codex"},
 	})
 	ctrl := runtime.NewPreparationController(store, gitclone.OSFilesystem{}, &gitclone.FakeGitClone{}, t.TempDir(), nil)
 	evs := ctrl.ReconcileStartup([]state.RepositoryPreparation{{ID: "p", Stage: state.PrepStageCloneInProgress, Revision: 2}})
@@ -312,7 +316,7 @@ func TestSweepNeverAvailableOrphansByAge(t *testing.T) {
 			ID: "old", IntentID: "i", ServerID: "s", Repository: testRepo(),
 			Stage: state.PrepStageFailed, ClonePath: state.ClonePathID(clone), Revision: 2,
 		},
-		Intent:    state.CreationIntent{ID: "i", ServerID: "s", Repository: testRepo(), Fingerprint: "f"},
+		Intent:    state.CreationIntent{ID: "i", ServerID: "s", Repository: testRepo(), Fingerprint: "f", Command: "codex"},
 		UpdatedAt: time.Now().Add(-runtime.PrepCapCleanupAge - time.Hour),
 	}
 	if err := store.Save(rec); err != nil {
@@ -425,7 +429,7 @@ func TestRuntimeReconcileAndTickSweepProductionPath(t *testing.T) {
 			ID: "live", IntentID: "i-live", ServerID: "s", Repository: testRepo(),
 			Stage: state.PrepStageCloneInProgress, Revision: 2, LastOwnedWorkerGeneration: 1,
 		},
-		Intent: state.CreationIntent{ID: "i-live", ServerID: "s", Repository: testRepo(), Fingerprint: "f"},
+		Intent: state.CreationIntent{ID: "i-live", ServerID: "s", Repository: testRepo(), Fingerprint: "f", Command: "codex"},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -434,7 +438,7 @@ func TestRuntimeReconcileAndTickSweepProductionPath(t *testing.T) {
 			ID: "stale", IntentID: "i-stale", ServerID: "s", Repository: testRepo(),
 			Stage: state.PrepStageFailed, ClonePath: state.ClonePathID(clone), Revision: 3,
 		},
-		Intent: state.CreationIntent{ID: "i-stale", ServerID: "s", Repository: testRepo(), Fingerprint: "g"},
+		Intent: state.CreationIntent{ID: "i-stale", ServerID: "s", Repository: testRepo(), Fingerprint: "g", Command: "codex"},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -690,11 +694,17 @@ func (s *slowDevcontainer) Ensure(ctx context.Context, req runtime.RepositoryEnv
 	return s.inner.Ensure(ctx, req)
 }
 
-type recordingBackend struct{ spawned []string }
+type recordedSpawn struct {
+	frameID  string
+	startDir string
+	command  string
+}
+
+type recordingBackend struct{ spawned []recordedSpawn }
 
 func newOKBackend() runtime.FrameBackend { return &recordingBackend{} }
 func (b *recordingBackend) SpawnFrame(frameID, name, command, startDir string, env map[string]string, cols, rows uint16) error {
-	b.spawned = append(b.spawned, frameID+"|"+startDir)
+	b.spawned = append(b.spawned, recordedSpawn{frameID: frameID, startDir: startDir, command: command})
 	return nil
 }
 func (b *recordingBackend) KillFrame(string) error                    { return nil }

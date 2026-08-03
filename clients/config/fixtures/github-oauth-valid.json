@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
-  "client_id": "Ov23liAgentGridDeviceFlow",
+  "app_id": "4460068",
+  "client_id": "Iv23li471HWU8jxRwlK7",
   "scopes": ["read:user", "repo"]
 }

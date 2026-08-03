@@ -109,10 +109,11 @@ type apiProjectMeta struct {
 //
 // ADR-0041 keeps this extension REST-only: WS frames are unchanged (ADR-0030).
 type apiSessionConfig struct {
-	PushCommands []string         `json:"push_commands"`
-	ProjectRoots []string         `json:"project_roots"`
-	ProjectPaths []string         `json:"project_paths"`
-	Projects     []apiProjectMeta `json:"projects"`
+	PushCommands        []string                        `json:"push_commands"`
+	BaseCommandProfiles []config.ResolvedCommandProfile `json:"base_command_profiles"`
+	ProjectRoots        []string                        `json:"project_roots"`
+	ProjectPaths        []string                        `json:"project_paths"`
+	Projects            []apiProjectMeta                `json:"projects"`
 }
 
 // NewMux builds the backend HTTP handler. DaemonClient replaces the old
@@ -133,10 +134,28 @@ func NewMuxNoAuth(d *DaemonClient) http.Handler {
 	return newMux(d, "", true, defaultMuxDependencies())
 }
 
+func NewMuxWithRepositoryAuthority(d *DaemonClient, token string, authority RepositoryAuthoritySink) http.Handler {
+	deps := defaultMuxDependencies()
+	deps.repositoryAuthority = authority
+	return newMux(d, token, false, deps)
+}
+
+func NewMuxNoAuthWithRepositoryAuthority(d *DaemonClient, authority RepositoryAuthoritySink) http.Handler {
+	deps := defaultMuxDependencies()
+	deps.repositoryAuthority = authority
+	return newMux(d, "", true, deps)
+}
+
+type RepositoryAuthoritySink interface {
+	Offer(serverID, repositoryID, owner, name, username, token string) error
+}
+
 type muxDependencies struct {
+	daemon               *DaemonClient
 	workspaceAtomicWrite workspaceAtomicWriteFunc
 	sessionConfigLoader  func() (*config.Config, error)
 	leases               *leaseStore
+	repositoryAuthority  RepositoryAuthoritySink
 	noAuth               bool
 }
 
@@ -202,6 +221,7 @@ func newMux(d *DaemonClient, token string, noAuth bool, dependencies muxDependen
 // apiHandler builds the header-authenticated REST routes (session CRUD and
 // WebSocket-ticket minting). Mount it under /api/ wrapped with TokenAuth.
 func apiHandler(d *DaemonClient, tickets *ticketStore, dependencies muxDependencies) http.Handler {
+	dependencies.daemon = d
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/sessions", handleListSessions(d))
 	mux.HandleFunc("POST /api/sessions", handleCreateSession(d, dependencies.sessionConfigLoader))
@@ -310,10 +330,11 @@ func handleSessionConfig(loadConfig func() (*config.Config, error)) http.Handler
 			})
 		}
 		writeJSON(w, http.StatusOK, apiSessionConfig{
-			PushCommands: pushCommands,
-			ProjectRoots: projectRoots,
-			ProjectPaths: projectPaths,
-			Projects:     projects,
+			PushCommands:        pushCommands,
+			BaseCommandProfiles: cfg.Session.ResolveBaseProfiles(),
+			ProjectRoots:        projectRoots,
+			ProjectPaths:        projectPaths,
+			Projects:            projects,
 		})
 	}
 }

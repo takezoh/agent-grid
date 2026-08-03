@@ -4,8 +4,10 @@ import {
   Menu,
   WebContentsView,
   app,
+  clipboard,
   ipcMain,
   nativeTheme,
+  shell,
   webContents,
   type MenuItemConstructorOptions,
   type WebContents,
@@ -18,20 +20,30 @@ import {
   saveEditableDesktopSettings,
   type DesktopConfig,
   type EditableDesktopSettings,
+  type GitHubAppConfig,
 } from "./desktop-config.js";
 import type {
   ElectronBaseWindowConstructor,
   ElectronWebContentsViewConstructor,
 } from "./electron-window-factory.js";
-import { FleetHealthMonitor } from "./server-health.js";
+import { connectionFailureReason, FleetHealthMonitor } from "./server-health.js";
 import { FleetSessionRuntime } from "./fleet-session-runtime.js";
 import {
   Account, Catalog, FileCacheStore, FileCredentialStore, fixedOAuthApp, type HttpDoer,
 } from "./github-host.js";
+import { createGitHubActionDispatcher } from "./github-action-dispatch.js";
+import { handoffGitHubAuthorization } from "./github-browser.js";
+import { GitHubDeviceFlowController } from "./github-device-flow.js";
 import {
   PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER, protocolMismatchReason,
 } from "./protocol-version.js";
-import { githubActionResult, type GitHubAction } from "./repository-lease.js";
+import {
+  authorityFromStore,
+  requestRepositoryLease,
+  type GitHubAction,
+} from "./repository-lease.js";
+import { parseRepositoryCreatePayload } from "./repository-create.js";
+import type { SettingsSection } from "./settings-page.js";
 import {
   isTitleBarMenuId, themeSourceFor, titleBarOverlayFor, type TitleBarMenuId,
 } from "./window-chrome.js";
@@ -43,7 +55,7 @@ const titleBarPreloadPath = fileURLToPath(
 const rendererInfo = new Map<number, import("./daemon-config.js").HostedModeInfo>();
 let desktopConfig: DesktopConfig | null = null;
 let updateDesktopConfig: ((config: DesktopConfig) => void) | null = null;
-let openSettingsWindow: (() => void) | null = null;
+let openSettingsWindow: ((section?: SettingsSection) => void) | null = null;
 const serverHealth = new FleetHealthMonitor(() => desktopConfig?.servers ?? []);
 let fleetRuntime: FleetSessionRuntime | null = null;
 const fleetUnsubscribeByRenderer = new Map<number, () => void>();
@@ -58,16 +70,61 @@ const nodeFetchDoer: HttpDoer = {
   },
 };
 const githubCredentialStore = new FileCredentialStore();
-const githubAccount = new Account(nodeFetchDoer, { now: () => new Date() }, githubCredentialStore, fixedOAuthApp());
-const githubCatalog = new Catalog(nodeFetchDoer, { now: () => new Date() }, new FileCacheStore(), githubAccount);
+let githubAccount = new Account(
+  nodeFetchDoer,
+  { now: () => new Date() },
+  githubCredentialStore,
+  fixedOAuthApp(),
+);
+let githubCatalog = new Catalog(
+  nodeFetchDoer,
+  { now: () => new Date() },
+  new FileCacheStore(),
+  githubAccount,
+);
 
-function githubStatusProjection() {
+function githubStatusAccountProjection() {
   const { record, ok } = githubCredentialStore.load();
   let account = githubAccount.projection();
   if (account.state === "unauthenticated" && ok && record.access_token) {
     account = { state: "authenticated", login: record.login || undefined };
   }
-  return githubActionResult(account, githubCatalog.projection());
+  return account;
+}
+
+let dispatchGitHubAction = createGitHubActionDispatcher(
+  githubAccount,
+  githubCatalog,
+  githubStatusAccountProjection,
+);
+let githubDeviceFlow = new GitHubDeviceFlowController(dispatchGitHubAction);
+
+function replaceGitHubRuntime(config: GitHubAppConfig): void {
+  githubDeviceFlow.stop();
+  githubAccount = new Account(
+    nodeFetchDoer,
+    { now: () => new Date() },
+    githubCredentialStore,
+    { schema_version: 1, client_id: config.client_id, scopes: [...config.scopes] },
+  );
+  githubCatalog = new Catalog(
+    nodeFetchDoer,
+    { now: () => new Date() },
+    new FileCacheStore(),
+    githubAccount,
+  );
+  dispatchGitHubAction = createGitHubActionDispatcher(
+    githubAccount,
+    githubCatalog,
+    githubStatusAccountProjection,
+  );
+  githubDeviceFlow = new GitHubDeviceFlowController(dispatchGitHubAction);
+}
+
+function githubConfigChanged(current: GitHubAppConfig, next: GitHubAppConfig): boolean {
+  return current.app_id !== next.app_id ||
+    current.client_id !== next.client_id ||
+    JSON.stringify(current.scopes) !== JSON.stringify(next.scopes);
 }
 
 function replaceFleetRuntime(config: DesktopConfig): void {
@@ -107,8 +164,10 @@ ipcMain.handle("agent-grid:desktop-config-load", () => {
 
 ipcMain.handle("agent-grid:desktop-config-save", (_event, settings: EditableDesktopSettings) => {
   if (!desktopConfig) throw new Error("desktop config is not ready");
+  const previousGitHub = desktopConfig.github;
   const next = saveEditableDesktopSettings(desktopConfig.configDirectory, settings);
   desktopConfig = next;
+  if (githubConfigChanged(previousGitHub, next.github)) replaceGitHubRuntime(next.github);
   serverHealth.invalidate();
   replaceFleetRuntime(next);
   updateDesktopConfig?.(next);
@@ -120,29 +179,35 @@ ipcMain.handle("agent-grid:server-health-list", () => {
   return serverHealth.list();
 });
 
+ipcMain.handle("agent-grid:open-settings", (_event, section: unknown) => {
+  if (section !== "github") throw new Error("unsupported settings section");
+  openSettingsWindow?.(section);
+});
+
 // Credential-free GitHub Settings actions only.
 ipcMain.handle("agent-grid:github-action", async (_event, action: GitHubAction) => {
-  if (action === "status") return githubStatusProjection();
-  if (action === "start") return githubActionResult(await githubAccount.startDeviceFlow(), githubCatalog.projection());
-  if (action === "cancel") return githubActionResult(githubAccount.cancelDeviceFlow(), githubCatalog.projection());
-  if (action === "poll") {
-    const account = await githubAccount.pollDeviceFlow();
-    if (account.state === "authenticated") {
-      try { await githubCatalog.refresh(); } catch { /* source-local */ }
-    }
-    return githubActionResult(account, githubCatalog.projection());
-  }
-  if (action === "refresh_catalog") {
-    try {
-      return githubActionResult(githubStatusProjection().account, await githubCatalog.refresh());
-    } catch {
-      return githubActionResult(githubStatusProjection().account, githubCatalog.projection());
+  const result = await githubDeviceFlow.action(action);
+  if (action === "start" && result.account.state === "authorizing") {
+    const opened = await handoffGitHubAuthorization(
+      result.account,
+      (code) => clipboard.writeText(code),
+      (url) => shell.openExternal(url),
+    );
+    if (!opened) {
+      return { ...result, reason: "browser_handoff_failed" };
     }
   }
-  return githubActionResult(
-    { state: "host_misconfigured", failure_code: "host_misconfigured" },
-    githubCatalog.projection(), "unknown action",
+  return result;
+});
+
+ipcMain.handle("agent-grid:github-open-authorization", async () => {
+  const account = githubAccount.projection();
+  const opened = await handoffGitHubAuthorization(
+    account,
+    (code) => clipboard.writeText(code),
+    (url) => shell.openExternal(url),
   );
+  if (!opened) throw new Error("GitHub authorization page could not be opened");
 });
 
 ipcMain.handle("agent-grid:session-fleet-configs", async () => {
@@ -165,6 +230,7 @@ ipcMain.handle("agent-grid:session-fleet-configs", async () => {
             return {
               serverId: server.id,
               serverLabel: server.display_name,
+              isDefaultExecution: server.default_execution,
               state: "incompatible_protocol",
               reason: protocolMismatchReason(capabilities.protocolVersion),
             };
@@ -173,6 +239,7 @@ ipcMain.handle("agent-grid:session-fleet-configs", async () => {
           return {
             serverId: server.id,
             serverLabel: server.display_name,
+            isDefaultExecution: server.default_execution,
             state: "connected",
             config: await response.json(),
           };
@@ -180,8 +247,9 @@ ipcMain.handle("agent-grid:session-fleet-configs", async () => {
           return {
             serverId: server.id,
             serverLabel: server.display_name,
+            isDefaultExecution: server.default_execution,
             state: "unavailable",
-            reason: error instanceof Error ? error.message : String(error),
+            reason: connectionFailureReason(error),
           };
         }
       }),
@@ -224,6 +292,68 @@ ipcMain.handle(
       ...result,
       fleet_status: confirmed ? "confirmed" : "created_unconfirmed",
     };
+  },
+);
+
+ipcMain.handle(
+  "agent-grid:session-fleet-repository-create",
+  async (_event, serverId: string, payload: unknown) => {
+    if (!desktopConfig) throw new Error("desktop config is not ready");
+    const server = desktopConfig.servers.find(
+      (candidate) => candidate.enabled && candidate.id === serverId,
+    );
+    if (!server) throw new Error(`unknown or disabled server '${serverId}'`);
+    const repository = parseRepositoryCreatePayload(payload);
+    const intentId =
+      typeof repository.intent_id === "string" && repository.intent_id
+        ? repository.intent_id
+        : randomUUID();
+    const preparationId = randomUUID();
+    const capabilitiesResponse = await fleetFetch(
+      server,
+      "/api/capabilities",
+      { method: "GET" },
+      false,
+    );
+    const capabilities = (await capabilitiesResponse.json()) as { protocolVersion?: unknown };
+    const lease = await requestRepositoryLease({
+      server,
+      observedProtocol:
+        typeof capabilities.protocolVersion === "string" ? capabilities.protocolVersion : "",
+      request: {
+        repository_id: repository.repository_id,
+        owner: repository.owner,
+        name: repository.name,
+        server_id: serverId,
+      },
+      auth: authorityFromStore(githubCredentialStore),
+    });
+    if (!lease.issue) {
+      throw new Error(lease.code ?? "repository_authority_unavailable");
+    }
+    const response = await fleetFetch(server, "/api/repository-sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        intent_id: intentId,
+        preparation_id: preparationId,
+        server_id: serverId,
+        repository_id: repository.repository_id,
+        owner: repository.owner,
+        name: repository.name,
+        version: 2,
+        profile_id: repository.profile_id,
+        profile_revision: repository.profile_revision,
+        ...(repository.parameters && typeof repository.parameters === "object"
+          ? { parameters: repository.parameters }
+          : {}),
+        ...(typeof repository.cols === "number" ? { cols: repository.cols } : {}),
+        ...(typeof repository.rows === "number" ? { rows: repository.rows } : {}),
+        lease_id: lease.issue.lease_id,
+        fingerprint: `${serverId}:${repository.repository_id}:${repository.profile_id}:${repository.profile_revision}:${intentId}`,
+      }),
+    });
+    return response.json();
   },
 );
 
@@ -460,6 +590,7 @@ void startWorkspaceApp({
   onDesktopConfigLoaded: (config) => {
     desktopConfig = config;
     replaceFleetRuntime(config);
+    replaceGitHubRuntime(config.github);
   },
   systemPrefersDark: () => nativeTheme.shouldUseDarkColors,
   registerWindowChrome: (handles) => {

@@ -32,6 +32,7 @@ export interface WindowControls {
 
 export interface GitHubSettingsBridge {
   action(action: GitHubAction): Promise<GitHubActionResult>;
+  openAuthorization(): Promise<void>;
 }
 
 export interface WorkspacePreloadApi {
@@ -40,6 +41,7 @@ export interface WorkspacePreloadApi {
   requestJumpBack(sessionId: string): Promise<void>;
   desktopConfig?: DesktopConfigBridge;
   serverHealth?: { list(): Promise<FleetHealth> };
+  openSettings?: (section: "github") => Promise<void>;
   github?: GitHubSettingsBridge;
   sessionFleet?: {
     listConfigs(): Promise<unknown>;
@@ -49,6 +51,7 @@ export interface WorkspacePreloadApi {
       listener: (event: { channelId: string; kind: string; data?: unknown }) => void,
     ): Promise<{ channelId: string; send(data: string): void; close(): void }>;
     create(serverId: string, payload: unknown): Promise<unknown>;
+    createRepositorySession(serverId: string, payload: unknown): Promise<unknown>;
     request(
       serverId: string,
       pathname: string,
@@ -73,6 +76,7 @@ export function buildPreloadApi(opts: {
   requestJumpBack: (sessionId: string) => Promise<void>;
   desktopConfig?: DesktopConfigBridge;
   serverHealth?: { list(): Promise<FleetHealth> };
+  openSettings?: (section: "github") => Promise<void>;
   github?: GitHubSettingsBridge;
   sessionFleet?: WorkspacePreloadApi["sessionFleet"];
 }): WorkspacePreloadApi {
@@ -82,6 +86,7 @@ export function buildPreloadApi(opts: {
     requestJumpBack: opts.requestJumpBack,
     desktopConfig: opts.desktopConfig,
     serverHealth: opts.serverHealth,
+    openSettings: opts.openSettings,
     github: opts.github,
     sessionFleet: opts.sessionFleet,
   };

@@ -25,7 +25,15 @@ describe("server-qualified SessionsApi", () => {
             serverLabel: "A",
             state: "connected",
             config: {
-              projects: [{ path: "/a", isGit: false, isSandboxed: false }],
+              base_command_profiles: [],
+              projects: [
+                {
+                  path: "/a",
+                  isGit: false,
+                  isSandboxed: false,
+                  command_profiles: [],
+                },
+              ],
               push_commands: ["/clear"],
             },
           },
@@ -162,6 +170,7 @@ describe("server-qualified SessionsApi", () => {
             serverLabel: "A",
             state: "connected",
             config: {
+              base_command_profiles: [],
               projects: [
                 {
                   path: "/typed",
@@ -178,7 +187,7 @@ describe("server-qualified SessionsApi", () => {
                           type: "enum",
                           required: true,
                           default: "a",
-                          values: ["a", 2],
+                          values: ["a", "b"],
                         },
                         {
                           name: "flag",
@@ -229,7 +238,7 @@ describe("server-qualified SessionsApi", () => {
           label: "profile",
           revision: "r1",
           parameters: [
-            expect.objectContaining({ name: "choice", values: ["a", 2] }),
+            expect.objectContaining({ name: "choice", values: ["a", "b"] }),
             expect.objectContaining({ name: "flag", default: true }),
             expect.objectContaining({ name: "text", pattern: "^x" }),
             expect.objectContaining({ name: "count", min: 1, max: 3 }),
@@ -262,6 +271,98 @@ describe("server-qualified SessionsApi", () => {
     );
   });
 
+  it("rejects an exact-version server that omits the repository command catalog", async () => {
+    window.agentGridWorkspace = {
+      sessionFleet: {
+        listConfigs: vi.fn().mockResolvedValue([
+          {
+            serverId: "srv-a",
+            serverLabel: "A",
+            state: "connected",
+            config: {
+              projects: [],
+              push_commands: [],
+            },
+          },
+        ]),
+        create: vi.fn(),
+      },
+    };
+
+    await expect(makeSessionsApi(vi.fn()).getSessionConfig()).rejects.toThrow(
+      "invalid exact-version session-config: base_command_profiles must be an array",
+    );
+  });
+
+  it("keeps a valid parameterless repository command profile", async () => {
+    window.agentGridWorkspace = {
+      sessionFleet: {
+        listConfigs: vi.fn().mockResolvedValue([
+          {
+            serverId: "srv-a",
+            serverLabel: "A",
+            state: "connected",
+            config: {
+              base_command_profiles: [
+                { id: "shell", label: "Shell", revision: "revision-shell", parameters: [] },
+              ],
+              projects: [],
+              push_commands: [],
+            },
+          },
+        ]),
+        create: vi.fn(),
+      },
+    };
+
+    await expect(makeSessionsApi(vi.fn()).getSessionConfig()).resolves.toMatchObject({
+      serverOutcomes: [
+        {
+          serverId: "srv-a",
+          commandProfiles: [
+            { id: "shell", label: "Shell", revision: "revision-shell", parameters: [] },
+          ],
+        },
+      ],
+    });
+  });
+
+  it.each([
+    { name: "model", label: "Model", type: "enum", required: true },
+    { name: "flag", label: "Flag", type: "boolean", required: false, default: "yes" },
+    { name: "text", label: "Text", type: "string", required: false, pattern: 7 },
+    { name: "count", label: "Count", type: "number", required: false, min: 10, max: 1 },
+  ])("rejects a malformed exact-version $type parameter", async (parameter) => {
+    window.agentGridWorkspace = {
+      sessionFleet: {
+        listConfigs: vi.fn().mockResolvedValue([
+          {
+            serverId: "srv-a",
+            serverLabel: "A",
+            state: "connected",
+            config: {
+              base_command_profiles: [
+                {
+                  id: "bad",
+                  label: "Bad",
+                  revision: "revision-bad",
+                  parameters: [parameter],
+                },
+              ],
+              projects: [],
+              push_commands: [],
+            },
+          },
+        ]),
+        create: vi.fn(),
+      },
+    };
+
+    await expect(makeSessionsApi(vi.fn()).getSessionConfig()).rejects.toThrow(
+      "invalid exact-version session-config: command profiles[0].parameters[0]",
+    );
+  });
+
   it("deduplicates push commands across healthy servers", async () => {
     window.agentGridWorkspace = {
       sessionFleet: {
@@ -270,7 +371,11 @@ describe("server-qualified SessionsApi", () => {
             serverId,
             serverLabel: serverId,
             state: "connected",
-            config: { projects: [], push_commands: ["/clear", `/${serverId}`] },
+            config: {
+              base_command_profiles: [],
+              projects: [],
+              push_commands: ["/clear", `/${serverId}`],
+            },
           })),
         ),
         create: vi.fn(),

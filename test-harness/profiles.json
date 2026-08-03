@@ -10,6 +10,9 @@
       {"id":"repeat-changed","group":"core","command":"scripts/repeat-changed-tests.sh"}
     ]},
     {"name":"pr","tier":"T0-T2 full","commands":[
+      {"id":"workspace-install","group":"core","command":"cd clients/workspace && npm ci"},
+      {"id":"workspace-typecheck","group":"core","command":"cd clients/workspace && env -u AG_E2E_GITHUB_OAUTH_CLIENT_ID -u AG_E2E_GITHUB_CATALOG_TOKEN npm run typecheck"},
+      {"id":"workspace-test","group":"core","command":"cd clients/workspace && env -u AG_E2E_GITHUB_OAUTH_CLIENT_ID -u AG_E2E_GITHUB_CATALOG_TOKEN npm test"},
       {"id":"web-gate","group":"core","command":"cd clients/ui && npm ci && npx playwright install chromium && npm run test:web"},
       {"id":"wire-fixtures","group":"core","command":"cd services && go test ./server/api -run TestWireFixtures -count=1 -args -update && git diff --exit-code -- ../clients/ui/src/wire/testdata && test -z \"$(git status --porcelain -- ../clients/ui/src/wire/testdata)\""},
       {"id":"go-vet","group":"core","command":"cd services && go vet ./..."},

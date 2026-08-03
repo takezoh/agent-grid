@@ -5,8 +5,12 @@
   "version": "0.0.0",
   "main": "dist/main/electron-entry.js",
   "scripts": {
+    "check:github-oauth": "node ../config/generate-github-oauth.mjs --check",
+    "prebuild": "npm run check:github-oauth",
     "build": "npm --prefix ../ui run build && tsc -p tsconfig.json && node scripts/copy-ui.mjs",
+    "pretypecheck": "npm run check:github-oauth",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pretest": "npm run check:github-oauth",
     "test": "vitest --run",
     "test:unit": "vitest --run",
     "lint:browserwindow": "node scripts/check-browserwindow.mjs",

@@ -105,6 +105,16 @@ func (r *Runtime) translateResponseBody(body any) proto.Response {
 		return r.buildDriverList()
 	case state.SessionMessagesReply:
 		return r.buildSessionMessages(b)
+	case state.RepositoryPreparationReply:
+		return proto.RespRepositoryPreparation{
+			PreparationID: b.PreparationID, IntentID: b.IntentID, ServerID: b.ServerID,
+			Repository: proto.GitHubRepositoryWire{
+				ID: string(b.Repository.ID), Owner: string(b.Repository.Owner), Name: string(b.Repository.Name),
+			},
+			Stage: b.Stage, FailureCode: b.FailureCode, RetryOrigin: b.RetryOrigin,
+			EnvironmentDisposition: b.EnvironmentDisposition, Revision: b.Revision,
+			SessionID: b.SessionID, ClonePath: b.ClonePath, EnvironmentID: b.EnvironmentID,
+		}
 	case state.SurfaceUnsubscribedReply:
 		return proto.RespSurfaceUnsubscribed{
 			SessionID:    string(b.SessionID),

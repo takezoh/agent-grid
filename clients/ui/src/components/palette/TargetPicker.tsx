@@ -1,18 +1,16 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { JSX } from "react";
-import type { SessionConfigProject } from "../../api/sessions";
+import type { ServerConfigOutcome, SessionConfigProject } from "../../api/sessions";
 import { type FleetProvider, makeFleetProvider } from "../../fleet/provider";
 import { projectTargetValue } from "../../lib/tools";
 import {
   type ExecutionServer,
   GITHUB_ENTRY_KEY,
-  type HostPreparation,
   type HostRepositoryProjection,
   type ProjectRow,
   type RepositoryPickerState,
-  type RepositoryRow,
+  type SourceFilter,
   type TargetRow,
-  confirmationLabels,
   emptyPickerState,
   filteredTargets,
   githubStatusLabel,
@@ -20,7 +18,6 @@ import {
   projectsSource,
   reduceRepositoryPicker,
   repositoryKey,
-  serverKey,
 } from "../../store/repository_picker";
 
 export interface TargetPickerProps {
@@ -29,8 +26,14 @@ export interface TargetPickerProps {
   projects: readonly SessionConfigProject[];
   value: unknown;
   onSelectProject: (projectValue: string) => void;
+  onSelectRepository?: (repository: {
+    repository_id: string;
+    owner: string;
+    name: string;
+  }) => void;
   onEnter: () => void;
   onAnnounce: (message: string) => void;
+  executionServers?: readonly ServerConfigOutcome[];
   provider?: FleetProvider;
   inputRef?: React.Ref<HTMLInputElement>;
 }
@@ -53,7 +56,17 @@ function serversFromProjects(projects: readonly SessionConfigProject[]): Executi
 function resolveServers(
   projection: HostRepositoryProjection,
   projects: readonly SessionConfigProject[],
+  configured?: readonly ServerConfigOutcome[],
 ): ExecutionServer[] {
+  if (configured && configured.length > 0) {
+    return configured.map((server) => ({
+      serverId: server.serverId,
+      serverLabel: server.serverLabel,
+      available: server.state === "connected",
+      isDefaultExecution: server.isDefaultExecution,
+      reason: server.reason,
+    }));
+  }
   if (projection.execution_servers && projection.execution_servers.length > 0) {
     return projection.execution_servers;
   }
@@ -91,6 +104,7 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
     projects,
     value,
     onSelectProject,
+    onSelectRepository,
     onEnter,
     onAnnounce,
     provider: providerProp,
@@ -112,12 +126,13 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
     return reduceRepositoryPicker(seed, {
       type: "applyProjection",
       projection,
-      servers: resolveServers(projection, projects),
+      servers: resolveServers(projection, projects, props.executionServers),
     });
   });
   const filterRef = useRef<HTMLInputElement | null>(null);
+  const githubTabRef = useRef<HTMLButtonElement | null>(null);
+  const projectsTabRef = useRef<HTMLButtonElement | null>(null);
   const lastAnnounced = useRef(0);
-  const announceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setFilterRef = (el: HTMLInputElement | null) => {
     filterRef.current = el;
@@ -130,7 +145,7 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
   useEffect(() => {
     let cancelled = false;
     // Last complete projection retained across transient poll failures so catalog
-    // selection and in-flight preparation are not wiped to unauthenticated empty.
+    // selection is not wiped to an unauthenticated empty state.
     let lastComplete: HostRepositoryProjection | null = null;
     const pull = async () => {
       try {
@@ -140,7 +155,7 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
         dispatch({
           type: "applyProjection",
           projection,
-          servers: resolveServers(projection, projects),
+          servers: resolveServers(projection, projects, props.executionServers),
         });
       } catch {
         if (cancelled) return;
@@ -163,7 +178,7 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
           dispatch({
             type: "applyProjection",
             projection: failed,
-            servers: resolveServers(failed, projects),
+            servers: resolveServers(failed, projects, props.executionServers),
           });
           return;
         }
@@ -182,7 +197,7 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
         dispatch({
           type: "applyProjection",
           projection,
-          servers: resolveServers(projection, projects),
+          servers: resolveServers(projection, projects, props.executionServers),
         });
       }
     };
@@ -192,25 +207,13 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
       cancelled = true;
       clearInterval(id);
     };
-  }, [provider, projects]);
+  }, [provider, projects, props.executionServers]);
 
   useEffect(() => {
     if (state.announceRevision === lastAnnounced.current || !state.announce) return;
-    const prep = state.preparation;
-    const terminal =
-      !prep || prep.stage === "failed" || prep.stage === "cancelled" || prep.stage === "available";
-    if (announceTimer.current) clearTimeout(announceTimer.current);
-    const message = state.announce;
-    const fire = () => {
-      lastAnnounced.current = state.announceRevision;
-      if (message) onAnnounce(message);
-    };
-    if (terminal) fire();
-    else announceTimer.current = setTimeout(fire, 500);
-    return () => {
-      if (announceTimer.current) clearTimeout(announceTimer.current);
-    };
-  }, [state.announce, state.announceRevision, state.preparation, onAnnounce]);
+    lastAnnounced.current = state.announceRevision;
+    onAnnounce(state.announce);
+  }, [state.announce, state.announceRevision, onAnnounce]);
 
   useEffect(() => {
     if (!focused || disabled) return;
@@ -240,6 +243,7 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
 
   useEffect(() => {
     if (typeof value !== "string" || !value) return;
+    if (state.selected?.source === "repository") return;
     if (state.selected?.source === "project") {
       const match = projects.find((p) => projectKeyMatch(p, state.selected as ProjectRow));
       if (match && projectTargetValue(match) === value) return;
@@ -248,7 +252,7 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
     if (!match) return;
     const key = `project:${match.serverId ?? "local"}:${match.path}`;
     if (state.projects.some((p) => p.key === key) && state.selected?.key !== key) {
-      dispatch({ type: "select", key });
+      dispatch({ type: "syncProject", key });
     }
   }, [value, projects, state.projects, state.selected]);
 
@@ -257,20 +261,48 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
     [state],
   );
 
+  const visibleOptionKeys = [
+    ...visibleProjects.map((p) => p.key),
+    ...visibleRepos.map((r) => r.key),
+  ];
+  const activeOptionId =
+    state.activeKey && visibleOptionKeys.includes(state.activeKey)
+      ? optionDomId(state.activeKey)
+      : undefined;
+
+  const activateSourceTab = (sourceFilter: SourceFilter) => {
+    dispatch({ type: "setSourceFilter", sourceFilter });
+    (sourceFilter === "github" ? githubTabRef : projectsTabRef).current?.focus();
+  };
+
+  const onSourceTabKeyDown = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    sourceFilter: SourceFilter,
+  ) => {
+    let next: SourceFilter | null = null;
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      next = sourceFilter === "github" ? "projects" : "github";
+    } else if (event.key === "Home") {
+      next = "github";
+    } else if (event.key === "End") {
+      next = "projects";
+    }
+    if (!next) return;
+    event.preventDefault();
+    activateSourceTab(next);
+  };
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (disabled) return;
     if (e.nativeEvent.isComposing) return;
-    if (state.phase === "settings-auth" || state.phase === "preparing" || state.phase === "retry") {
+    if (state.phase === "settings-auth") {
       if (e.key === "Escape") {
         e.preventDefault();
         dispatch({ type: "back" });
       }
       return;
     }
-    const keys =
-      state.phase === "server-select"
-        ? state.servers.filter((s) => s.available).map((s) => serverKey(s.serverId))
-        : [...visibleProjects.map((p) => p.key), ...visibleRepos.map((r) => r.key)];
+    const keys = visibleOptionKeys;
     const idx = state.activeKey ? keys.indexOf(state.activeKey) : -1;
     if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -286,18 +318,6 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
     }
     if (e.key === "Enter") {
       e.preventDefault();
-      if (
-        state.phase === "server-select" &&
-        state.selectedServerId &&
-        state.selected?.source === "repository"
-      ) {
-        void startRepository(state, provider, dispatch);
-        return;
-      }
-      if (state.phase === "server-select" && state.activeKey) {
-        dispatch({ type: "select", key: state.activeKey });
-        return;
-      }
       const key = state.activeKey && keys.includes(state.activeKey) ? state.activeKey : keys[0];
       if (!key) return;
       dispatch({ type: "select", key });
@@ -306,12 +326,15 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
         const match = projects.find((p) => projectKeyMatch(p, row));
         if (match) onSelectProject(projectTargetValue(match));
         onEnter();
+      } else if (row?.source === "repository") {
+        onSelectRepository?.({
+          repository_id: row.repositoryId,
+          owner: row.owner,
+          name: row.name,
+        });
+        onEnter();
       }
       return;
-    }
-    if (e.key === "Escape" && state.phase === "server-select") {
-      e.preventDefault();
-      dispatch({ type: "back" });
     }
   };
 
@@ -322,14 +345,12 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
       dispatch({
         type: "applyProjection",
         projection,
-        servers: serversFromProjects(projects),
+        servers: resolveServers(projection, projects, props.executionServers),
       });
     } catch {
       /* source-local */
     }
-  }, [provider, projects]);
-
-  const labels = confirmationLabels(state);
+  }, [provider, projects, props.executionServers]);
 
   return (
     <fieldset
@@ -339,8 +360,40 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
       aria-label="Project"
     >
       <label className="palette-param-label" htmlFor="palette-param-project-input">
-        {state.phase === "server-select" ? "Execution server" : "Project"}
+        {state.sourceFilter === "github" ? "GitHub repository" : "Project"}
       </label>
+      {state.phase === "target-select" ? (
+        <div className="target-picker__tabs" role="tablist" aria-label="Target source">
+          <button
+            ref={githubTabRef}
+            id="target-source-tab-github"
+            className="target-picker__tab"
+            type="button"
+            role="tab"
+            aria-selected={state.sourceFilter === "github"}
+            aria-controls="target-source-panel"
+            tabIndex={state.sourceFilter === "github" ? 0 : -1}
+            onClick={() => activateSourceTab("github")}
+            onKeyDown={(event) => onSourceTabKeyDown(event, "github")}
+          >
+            GitHub repositories
+          </button>
+          <button
+            ref={projectsTabRef}
+            id="target-source-tab-projects"
+            className="target-picker__tab"
+            type="button"
+            role="tab"
+            aria-selected={state.sourceFilter === "projects"}
+            aria-controls="target-source-panel"
+            tabIndex={state.sourceFilter === "projects" ? 0 : -1}
+            onClick={() => activateSourceTab("projects")}
+            onKeyDown={(event) => onSourceTabKeyDown(event, "projects")}
+          >
+            Projects
+          </button>
+        </div>
+      ) : null}
       <input
         ref={setFilterRef}
         id="palette-param-project-input"
@@ -350,18 +403,16 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
         aria-controls="palette-param-project"
         aria-expanded="true"
         aria-autocomplete="list"
-        aria-activedescendant={state.activeKey ? optionDomId(state.activeKey) : undefined}
+        aria-activedescendant={activeOptionId}
         value={state.query}
-        disabled={disabled || state.phase === "preparing"}
+        disabled={disabled}
         placeholder={
-          state.phase === "server-select"
-            ? "Filter servers..."
-            : "Filter projects and repositories..."
+          state.sourceFilter === "github" ? "Filter GitHub repositories..." : "Filter projects..."
         }
         onChange={(e) => dispatch({ type: "setQuery", query: e.target.value })}
         onKeyDown={onKeyDown}
         data-testid="palette-param-project-filter"
-        data-source-filter="all"
+        data-source-filter={state.sourceFilter}
       />
 
       {state.phase === "settings-auth" ? (
@@ -372,20 +423,16 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
         />
       ) : null}
 
-      {state.phase === "preparing" || state.phase === "retry" ? (
-        <PreparationPanel
-          state={state}
-          onCancel={() => dispatch({ type: "cancelPreparation" })}
-          onRetry={() => dispatch({ type: "retryPreparation" })}
-          onExit={() => dispatch({ type: "exitRetry" })}
-        />
-      ) : null}
-
-      {state.phase === "target-select" || state.phase === "server-select" ? (
-        <>
-          {/* Adjacent control groups — not inside listbox options. */}
-          {state.phase === "target-select" ? (
-            <fieldset className="target-picker__controls" aria-label="Source status">
+      {state.phase === "target-select" ? (
+        <div
+          id="target-source-panel"
+          className="target-picker__panel"
+          role="tabpanel"
+          aria-labelledby={`target-source-tab-${state.sourceFilter}`}
+        >
+          {/* Source controls remain adjacent to, never nested in, listbox options. */}
+          <fieldset className="target-picker__controls" aria-label="Source status">
+            {state.sourceFilter === "projects" ? (
               <div className="target-picker__source-status" data-testid="projects-source-status">
                 <span>Projects</span>
                 {!projectsSource(state)?.available ? (
@@ -400,6 +447,7 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
                   <span data-testid="projects-ok">Available</span>
                 )}
               </div>
+            ) : (
               <div className="target-picker__source-status" data-testid="github-source-status">
                 <span>GitHub repositories</span>
                 {needsGitHubAuth(state) ? (
@@ -408,7 +456,13 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
                     id={optionDomId(GITHUB_ENTRY_KEY)}
                     data-testid="github-auth-entry"
                     data-focus-key={GITHUB_ENTRY_KEY}
-                    onClick={() => dispatch({ type: "openSettings" })}
+                    onClick={() => {
+                      if (provider.openGitHubSettings) {
+                        void provider.openGitHubSettings();
+                        return;
+                      }
+                      dispatch({ type: "openSettings" });
+                    }}
                   >
                     {githubStatusLabel(state)}
                   </button>
@@ -437,122 +491,64 @@ export function TargetPicker(props: TargetPickerProps): JSX.Element {
                   </>
                 )}
               </div>
-            </fieldset>
-          ) : null}
-
-          {state.phase === "server-select" && state.selected?.source === "repository" ? (
-            <div className="target-picker__confirm" data-testid="repository-server-confirm">
-              <span data-testid="confirm-repository">Repository {labels.repository}</span>
-              {labels.server ? (
-                <span data-testid="confirm-server">Server {labels.server}</span>
-              ) : (
-                <span>Select an execution server</span>
-              )}
-              <button
-                type="button"
-                data-testid="server-select-back"
-                onClick={() => dispatch({ type: "back" })}
-              >
-                Back
-              </button>
-            </div>
-          ) : null}
-
+            )}
+          </fieldset>
           <div
             id="palette-param-project"
             className="palette-param-listbox target-picker__listbox"
             // biome-ignore lint/a11y/useSemanticElements: ARIA listbox pattern
             role="listbox"
             tabIndex={-1}
-            aria-label={state.phase === "server-select" ? "Execution servers" : "Targets"}
-            aria-activedescendant={state.activeKey ? optionDomId(state.activeKey) : undefined}
+            aria-label={state.sourceFilter === "github" ? "GitHub repositories" : "Projects"}
+            aria-activedescendant={activeOptionId}
             data-testid="target-listbox"
           >
-            {state.phase === "server-select" ? (
-              state.servers.map((s) => {
-                const key = serverKey(s.serverId);
-                const selected = state.selectedServerId === s.serverId;
-                const active = state.activeKey === key;
-                return (
-                  // biome-ignore lint/a11y/useFocusableInteractive: focus on combobox via aria-activedescendant
-                  <div
-                    key={key}
-                    id={optionDomId(key)}
-                    // biome-ignore lint/a11y/useSemanticElements: ARIA listbox uses div+role=option
-                    role="option"
-                    aria-selected={selected}
-                    aria-disabled={!s.available || undefined}
-                    data-stable-key={key}
-                    data-source="server"
-                    className={`palette-param-option ${active ? "selected" : ""} ${!s.available ? "disabled" : ""}`}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      if (!s.available) return;
-                      dispatch({ type: "selectServer", serverId: s.serverId });
+            {state.sourceFilter === "projects" ? (
+              visibleProjects.length === 0 ? (
+                <div className="palette-param-listbox__empty" role="presentation">
+                  No project matches
+                </div>
+              ) : (
+                visibleProjects.map((row) => (
+                  <TargetOption
+                    key={row.key}
+                    row={row}
+                    active={state.activeKey === row.key}
+                    selected={state.selected?.key === row.key}
+                    onPick={() => {
+                      dispatch({ type: "select", key: row.key });
+                      const match = projects.find((p) => projectKeyMatch(p, row));
+                      if (match) onSelectProject(projectTargetValue(match));
+                      onEnter();
                     }}
-                  >
-                    <span className="target-picker__badge">Server</span>
-                    <span className="target-picker__identity">{s.serverLabel}</span>
-                    <span className="target-picker__meta">{s.serverId}</span>
-                    {!s.available ? <span>{s.reason ?? "Unavailable"}</span> : null}
-                  </div>
-                );
-              })
+                  />
+                ))
+              )
+            ) : visibleRepos.length === 0 ? (
+              <div className="palette-param-listbox__empty" role="presentation">
+                No repository matches
+              </div>
             ) : (
-              <>
-                <div
-                  className="target-picker__category"
-                  role="presentation"
-                  data-testid="category-projects"
-                >
-                  Projects
-                </div>
-                {visibleProjects.length === 0 ? (
-                  <div className="palette-param-listbox__empty" role="presentation">
-                    No project matches
-                  </div>
-                ) : (
-                  visibleProjects.map((row) => (
-                    <TargetOption
-                      key={row.key}
-                      row={row}
-                      active={state.activeKey === row.key}
-                      selected={state.selected?.key === row.key}
-                      onPick={() => {
-                        dispatch({ type: "select", key: row.key });
-                        const match = projects.find((p) => projectKeyMatch(p, row));
-                        if (match) onSelectProject(projectTargetValue(match));
-                        onEnter();
-                      }}
-                    />
-                  ))
-                )}
-                <div
-                  className="target-picker__category"
-                  role="presentation"
-                  data-testid="category-github"
-                >
-                  GitHub repositories
-                </div>
-                {visibleRepos.length === 0 ? (
-                  <div className="palette-param-listbox__empty" role="presentation">
-                    No repository matches
-                  </div>
-                ) : (
-                  visibleRepos.map((row) => (
-                    <TargetOption
-                      key={row.key}
-                      row={row}
-                      active={state.activeKey === row.key}
-                      selected={state.selected?.key === row.key}
-                      onPick={() => dispatch({ type: "select", key: row.key })}
-                    />
-                  ))
-                )}
-              </>
+              visibleRepos.map((row) => (
+                <TargetOption
+                  key={row.key}
+                  row={row}
+                  active={state.activeKey === row.key}
+                  selected={state.selected?.key === row.key}
+                  onPick={() => {
+                    dispatch({ type: "select", key: row.key });
+                    onSelectRepository?.({
+                      repository_id: row.repositoryId,
+                      owner: row.owner,
+                      name: row.name,
+                    });
+                    onEnter();
+                  }}
+                />
+              ))
             )}
           </div>
-        </>
+        </div>
       ) : null}
     </fieldset>
   );
@@ -595,11 +591,6 @@ function TargetOption(props: {
       <span className="target-picker__identity" data-testid="stable-identity">
         {row.source === "project" ? row.label : `${row.owner}/${row.name}`}
       </span>
-      {row.source === "project" ? (
-        <span className="target-picker__meta">{row.serverId}</span>
-      ) : (
-        <span className="target-picker__meta">{row.repositoryId}</span>
-      )}
     </div>
   );
 }
@@ -614,6 +605,7 @@ function SettingsAuthPanel(props: {
   const { provider, onReturn } = props;
   const [code, setCode] = useState("");
   const [uri, setUri] = useState("");
+  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -622,6 +614,20 @@ function SettingsAuthPanel(props: {
       try {
         const started = await provider.githubAction("start");
         if (cancelled) return;
+        if (
+          started.account.state === "host_misconfigured" &&
+          started.account.failure_code === "host_misconfigured"
+        ) {
+          setCode("");
+          setUri("");
+          setError("GitHub OAuth App is not configured on this host.");
+          return;
+        }
+        if (started.account.state !== "authorizing") {
+          setCode("");
+          setUri("");
+          return;
+        }
         const userCode =
           "user_code" in started.account
             ? String((started.account as { user_code?: string }).user_code ?? "")
@@ -648,6 +654,7 @@ function SettingsAuthPanel(props: {
       aria-label="GitHub account"
     >
       <p>Authorize GitHub in Settings. Credentials stay on the host.</p>
+      {error ? <p data-testid="github-auth-error">{error}</p> : null}
       {uri ? (
         <p data-testid="github-device-uri">
           Open <a href={uri}>{uri}</a>
@@ -703,105 +710,6 @@ function SettingsAuthPanel(props: {
       </div>
     </section>
   );
-}
-
-function PreparationPanel(props: {
-  state: RepositoryPickerState;
-  onCancel: () => void;
-  onRetry: () => void;
-  onExit: () => void;
-}): JSX.Element {
-  const p = props.state.preparation;
-  if (!p) return <div />;
-  const repo = `${p.repository.owner}/${p.repository.name}`;
-  const retry = props.state.phase === "retry";
-  return (
-    <section
-      className="target-picker__prep"
-      data-testid="preparation-panel"
-      aria-label="Preparation progress"
-    >
-      <div data-testid="prep-repository">Repository {repo}</div>
-      <div data-testid="prep-server">Server {p.server_id}</div>
-      <div data-testid="prep-stage" data-stage={p.stage}>
-        Stage: {p.stage}
-      </div>
-      {p.environment_disposition ? (
-        <div data-testid="prep-environment">{p.environment_disposition}</div>
-      ) : null}
-      {p.failure_code ? <div data-testid="prep-failure">{p.failure_code}</div> : null}
-      {p.retry_origin ? (
-        <div data-testid="prep-retry-origin">Retry from {p.retry_origin}</div>
-      ) : null}
-      <div className="target-picker__settings-actions">
-        {!retry ? (
-          <button type="button" data-testid="prep-cancel" onClick={props.onCancel}>
-            Cancel
-          </button>
-        ) : (
-          <>
-            <button type="button" data-testid="prep-retry" onClick={props.onRetry}>
-              Retry
-            </button>
-            <button type="button" data-testid="prep-exit" onClick={props.onExit}>
-              Exit
-            </button>
-          </>
-        )}
-      </div>
-    </section>
-  );
-}
-
-async function startRepository(
-  state: RepositoryPickerState,
-  provider: FleetProvider,
-  dispatch: (e: Parameters<typeof reduceRepositoryPicker>[1]) => void,
-): Promise<void> {
-  if (state.selected?.source !== "repository" || !state.selectedServerId) return;
-  const row = state.selected as RepositoryRow;
-  try {
-    const result = (await provider.createRepositorySession(state.selectedServerId, {
-      repository_id: row.repositoryId,
-      owner: row.owner,
-      name: row.name,
-    })) as Partial<HostPreparation>;
-    const prep: HostPreparation = {
-      preparation_id: String(result.preparation_id ?? `prep-${row.repositoryId}`),
-      intent_id: String(result.intent_id ?? `intent-${row.repositoryId}`),
-      server_id: state.selectedServerId,
-      repository: {
-        repository_id: row.repositoryId,
-        owner: row.owner,
-        name: row.name,
-      },
-      stage: String(result.stage ?? "clone-in-progress"),
-      revision: Number(result.revision ?? 1),
-      failure_code: result.failure_code,
-      retry_origin: result.retry_origin,
-      environment_disposition: result.environment_disposition,
-      session_id: result.session_id,
-    };
-    dispatch({ type: "startPreparation", preparation: prep });
-  } catch (err) {
-    dispatch({
-      type: "startPreparation",
-      preparation: {
-        preparation_id: `prep-${row.repositoryId}`,
-        intent_id: `intent-${row.repositoryId}`,
-        server_id: state.selectedServerId,
-        repository: {
-          repository_id: row.repositoryId,
-          owner: row.owner,
-          name: row.name,
-        },
-        stage: "failed",
-        revision: 1,
-        failure_code: err instanceof Error ? err.message : "create_failed",
-        retry_origin: "clone",
-      },
-    });
-  }
 }
 
 // Re-export for tests

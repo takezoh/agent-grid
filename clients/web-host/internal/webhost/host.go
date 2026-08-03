@@ -19,7 +19,7 @@ import (
 
 const (
 	serverRoutePrefix     = "/host/servers/"
-	protocolVersion       = "protocol-2"
+	protocolVersion       = "protocol-3"
 	protocolVersionHeader = "X-Agent-Grid-Protocol-Version"
 )
 

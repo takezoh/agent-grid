@@ -74,6 +74,18 @@ export interface CreateSessionPayload {
   sandbox?: "host";
 }
 
+export interface CreateRepositorySessionPayload {
+  repository_id: string;
+  owner: string;
+  name: string;
+  version: 2;
+  profile_id: string;
+  profile_revision: string;
+  parameters?: Record<string, string | number | boolean>;
+  cols?: number;
+  rows?: number;
+}
+
 /** Project entry returned by the exact-version GET /api/session-config wire. */
 export interface SessionConfigProject {
   path: string;
@@ -128,8 +140,10 @@ export interface LaunchProfile {
 export interface ServerConfigOutcome {
   serverId: string;
   serverLabel: string;
+  isDefaultExecution?: boolean;
   state: "connected" | "unavailable" | "incompatible_protocol";
   reason?: string;
+  commandProfiles?: LaunchProfile[];
 }
 
 /** Exact-version client view of GET /api/session-config. */
@@ -180,6 +194,10 @@ export interface SessionMessagesResponse {
 
 export interface SessionsApi {
   createSession(payload: CreateSessionPayload): Promise<{ id: string; serverId?: string }>;
+  createRepositorySession?(
+    serverId: string,
+    payload: CreateRepositorySessionPayload,
+  ): Promise<{ preparation_id: string; intent_id: string; session_id?: string }>;
   deleteSession(id: string): Promise<void>;
   pushCommand(sessionId: string, command: string): Promise<void>;
   getSessionConfig(): Promise<SessionConfig>;
@@ -317,34 +335,118 @@ function normalizeProjects(raw: unknown): SessionConfigProject[] {
 }
 
 function normalizeLaunchProfiles(raw: unknown): LaunchProfile[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.flatMap((value): LaunchProfile[] => {
-    if (!value || typeof value !== "object") return [];
+  if (!Array.isArray(raw)) {
+    throw new Error("invalid exact-version session-config: command profiles must be an array");
+  }
+  return raw.map((value, profileIndex): LaunchProfile => {
+    if (!value || typeof value !== "object") {
+      throw new Error(`invalid exact-version session-config: command profiles[${profileIndex}]`);
+    }
     const profile = value as Record<string, unknown>;
     if (
       typeof profile.id !== "string" ||
       typeof profile.revision !== "string" ||
       !Array.isArray(profile.parameters)
     ) {
-      return [];
+      throw new Error(`invalid exact-version session-config: command profiles[${profileIndex}]`);
     }
-    const parameters = profile.parameters.filter((parameter): parameter is LaunchParameter =>
-      Boolean(
-        parameter &&
-          typeof parameter === "object" &&
-          typeof (parameter as Record<string, unknown>).name === "string" &&
-          typeof (parameter as Record<string, unknown>).type === "string",
-      ),
+    const parameters = profile.parameters.map((parameter, parameterIndex) =>
+      normalizeLaunchParameter(parameter, profileIndex, parameterIndex),
     );
-    return [
-      {
-        id: profile.id,
-        label: typeof profile.label === "string" && profile.label ? profile.label : profile.id,
-        revision: profile.revision,
-        parameters,
-      },
-    ];
+    return {
+      id: profile.id,
+      label: typeof profile.label === "string" && profile.label ? profile.label : profile.id,
+      revision: profile.revision,
+      parameters,
+    };
   });
+}
+
+function normalizeLaunchParameter(
+  raw: unknown,
+  profileIndex: number,
+  parameterIndex: number,
+): LaunchParameter {
+  const invalid = () =>
+    new Error(
+      `invalid exact-version session-config: command profiles[${profileIndex}].parameters[${parameterIndex}]`,
+    );
+  if (!raw || typeof raw !== "object") throw invalid();
+  const parameter = raw as Record<string, unknown>;
+  if (
+    typeof parameter.name !== "string" ||
+    typeof parameter.label !== "string" ||
+    typeof parameter.required !== "boolean"
+  ) {
+    throw invalid();
+  }
+  const base = {
+    name: parameter.name,
+    label: parameter.label,
+    required: parameter.required,
+  };
+  switch (parameter.type) {
+    case "enum": {
+      if (
+        !Array.isArray(parameter.values) ||
+        !parameter.values.every((value) => typeof value === "string") ||
+        (parameter.default !== undefined && typeof parameter.default !== "string")
+      ) {
+        throw invalid();
+      }
+      return {
+        ...base,
+        type: "enum",
+        values: parameter.values,
+        ...(parameter.default === undefined ? {} : { default: parameter.default }),
+      };
+    }
+    case "boolean":
+      if (parameter.default !== undefined && typeof parameter.default !== "boolean") {
+        throw invalid();
+      }
+      return {
+        ...base,
+        type: "boolean",
+        ...(parameter.default === undefined ? {} : { default: parameter.default }),
+      };
+    case "string":
+      if (
+        (parameter.default !== undefined && typeof parameter.default !== "string") ||
+        (parameter.pattern !== undefined && typeof parameter.pattern !== "string")
+      ) {
+        throw invalid();
+      }
+      return {
+        ...base,
+        type: "string",
+        ...(parameter.default === undefined ? {} : { default: parameter.default }),
+        ...(parameter.pattern === undefined ? {} : { pattern: parameter.pattern }),
+      };
+    case "number": {
+      const finiteOptionalNumber = (value: unknown) =>
+        value === undefined || (typeof value === "number" && Number.isFinite(value));
+      if (
+        !finiteOptionalNumber(parameter.default) ||
+        !finiteOptionalNumber(parameter.min) ||
+        !finiteOptionalNumber(parameter.max) ||
+        (typeof parameter.min === "number" &&
+          typeof parameter.max === "number" &&
+          parameter.min > parameter.max)
+      ) {
+        throw invalid();
+      }
+      return {
+        ...base,
+        type: "number",
+        ...(parameter.default === undefined ? {} : { default: parameter.default as number }),
+        ...(parameter.min === undefined ? {} : { min: parameter.min as number }),
+        ...(parameter.max === undefined ? {} : { max: parameter.max as number }),
+      };
+    }
+    default:
+      throw invalid();
+  }
 }
 
 function normalizeStringList(raw: unknown, fieldName: string): string[] {
@@ -429,16 +531,32 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
         const pushCommands = new Set<string>();
         for (const outcome of outcomes) {
           const state = outcome.state;
+          const rawConfig =
+            outcome.config && typeof outcome.config === "object"
+              ? (outcome.config as Record<string, unknown>)
+              : null;
+          if (
+            state === "connected" &&
+            (!rawConfig || !Array.isArray(rawConfig.base_command_profiles))
+          ) {
+            throw new Error(
+              "invalid exact-version session-config: base_command_profiles must be an array",
+            );
+          }
+          const commandProfiles = rawConfig
+            ? normalizeLaunchProfiles(rawConfig.base_command_profiles)
+            : [];
           serverOutcomes.push({
             serverId: String(outcome.serverId ?? ""),
             serverLabel: String(outcome.serverLabel ?? outcome.serverId ?? ""),
+            ...(outcome.isDefaultExecution === true ? { isDefaultExecution: true } : {}),
             state,
             ...(typeof outcome.reason === "string" ? { reason: outcome.reason } : {}),
+            ...(commandProfiles.length > 0 ? { commandProfiles } : {}),
           });
-          if (state !== "connected" || !outcome.config || typeof outcome.config !== "object") {
+          if (state !== "connected" || !rawConfig) {
             continue;
           }
-          const rawConfig = outcome.config as Record<string, unknown>;
           for (const project of normalizeProjects(rawConfig.projects)) {
             projects.push({
               ...project,
@@ -458,6 +576,25 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
           pushCommands: [...pushCommands],
         };
       }
+    },
+
+    async createRepositorySession(serverId, payload) {
+      const result = (await fleet.createRepositorySession(serverId, payload)) as Record<
+        string,
+        unknown
+      >;
+      if (typeof result.preparation_id !== "string" || typeof result.intent_id !== "string") {
+        throw makeWireFormatError(
+          "/api/repository-sessions",
+          "repository preparation response is invalid",
+          result,
+        );
+      }
+      return {
+        preparation_id: result.preparation_id,
+        intent_id: result.intent_id,
+        ...(typeof result.session_id === "string" ? { session_id: result.session_id } : {}),
+      };
     },
 
     async getSessionMessages(sessionId: string): Promise<SessionMessagesResponse> {

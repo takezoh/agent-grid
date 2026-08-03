@@ -10,7 +10,7 @@ const (
 	// ProtocolVersion is the exact client/server wire contract version.
 	// protocol/protocol-version.json is the repository SSOT; parity tests keep
 	// this projection and every shipped client projection byte-identical.
-	ProtocolVersion = "protocol-2"
+	ProtocolVersion = "protocol-3"
 
 	ProtocolVersionHeader = "X-Agent-Grid-Protocol-Version"
 )

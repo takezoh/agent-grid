@@ -139,6 +139,26 @@ func TestRepositoryExactVersionConsumerInventory(t *testing.T) {
 	}
 }
 
+func TestRepositoryCommandProfileWireUsesNewProtocolFlagDay(t *testing.T) {
+	root := repoRoot(t)
+	var manifest struct {
+		ProtocolVersion string `json:"protocolVersion"`
+	}
+	raw, err := os.ReadFile(filepath.Join(root, "protocol", "protocol-version.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest.ProtocolVersion != "protocol-3" {
+		t.Fatalf(
+			"repository base_command_profiles changed the exact-version session-config wire: protocolVersion = %q, want protocol-3 flag day",
+			manifest.ProtocolVersion,
+		)
+	}
+}
+
 func TestRepositoryPreparationRoundTripInventory(t *testing.T) {
 	root := repoRoot(t)
 	for _, rel := range repositoryPreparationRoundTripSurfaces {

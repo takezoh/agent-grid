@@ -5,6 +5,10 @@ import (
 	"net"
 	"net/http"
 	"strings"
+
+	"github.com/takezoh/agent-grid/services/host/config"
+	"github.com/takezoh/agent-grid/services/host/proto"
+	"github.com/takezoh/agent-grid/services/host/state"
 )
 
 type leaseCreateRequest struct {
@@ -25,8 +29,125 @@ func registerRepositoryRoutes(mux *http.ServeMux, deps muxDependencies) {
 		leases = newLeaseStore()
 	}
 	mux.HandleFunc("POST /api/repository/leases", handleCreateLease(deps.noAuth, leases))
+	mux.HandleFunc("POST /api/repository-sessions", handleCreateRepositorySession(
+		deps.daemon, leases, deps.repositoryAuthority, deps.sessionConfigLoader))
+	mux.HandleFunc("GET /api/repository-preparations/{id}", handleGetRepositoryPreparation(deps.daemon))
 	mux.HandleFunc("DELETE /api/repository/leases/{id}", handleRevokeLease(deps.noAuth, leases))
 	mux.HandleFunc("POST /api/repository/leases/revoke-host", handleRevokeHostLeases(deps.noAuth, leases))
+}
+
+func handleGetRepositoryPreparation(d *DaemonClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if d == nil || !d.Health() {
+			gatewayError(w, r, http.StatusServiceUnavailable, "daemon_unavailable", "daemon unavailable")
+			return
+		}
+		id := strings.TrimSpace(r.PathValue("id"))
+		if id == "" {
+			gatewayAPIError(w, r, http.StatusBadRequest, "invalid_identity", "preparation identity is required")
+			return
+		}
+		payload, _ := json.Marshal(state.RepositoryPreparationParams{PreparationID: state.PreparationID(id)})
+		ctx, cancel := rpcContext(r)
+		defer cancel()
+		response, err := d.SendCommand(ctx, proto.CmdEvent{Event: state.EventGetRepositoryPreparation, Payload: payload})
+		if err != nil {
+			handleProtoError(w, r, err)
+			return
+		}
+		prep, ok := response.(proto.RespRepositoryPreparation)
+		if !ok {
+			gatewayError(w, r, http.StatusBadGateway, "response_type_mismatch", "unexpected preparation response")
+			return
+		}
+		writeJSON(w, http.StatusOK, prep)
+	}
+}
+
+func handleCreateRepositorySession(
+	d *DaemonClient,
+	leases *leaseStore,
+	authority RepositoryAuthoritySink,
+	loadConfig func() (*config.Config, error),
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if d == nil || !d.Health() {
+			gatewayError(w, r, http.StatusServiceUnavailable, "daemon_unavailable", "daemon unavailable")
+			return
+		}
+		var req RepositoryCreateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			gatewayAPIError(w, r, http.StatusBadRequest, "invalid_identity", "invalid repository create request")
+			return
+		}
+		if _, err := DecodeRepositoryCreateRequest(repositoryJSON(req)); err != nil {
+			gatewayAPIError(w, r, http.StatusBadRequest, "invalid_identity", err.Error())
+			return
+		}
+		if err := state.ValidateSizeHint(req.Cols, req.Rows); err != nil {
+			gatewayAPIError(w, r, http.StatusBadRequest, "invalid_cols_rows", err.Error())
+			return
+		}
+		cfg, err := loadConfig()
+		if err != nil {
+			gatewayError(w, r, http.StatusInternalServerError, "config_load_failed", "settings.toml load failed", "err", err)
+			return
+		}
+		argv, err := config.MaterializeResolvedProfile(
+			cfg.Session.ResolveBaseProfiles(), req.ProfileID, req.ProfileRevision, req.Parameters)
+		if err != nil {
+			status, code := http.StatusBadRequest, "invalid_profile_parameters"
+			if strings.Contains(err.Error(), "stale profile revision") {
+				status, code = http.StatusConflict, "stale_profile_revision"
+			}
+			gatewayAPIError(w, r, status, code, err.Error())
+			return
+		}
+		command := joinShellCommand(argv)
+		if req.LeaseID != "" {
+			lease, failure := leases.Consume(req.LeaseID)
+			if failure != nil {
+				gatewayAPIError(w, r, http.StatusBadRequest, failure.Code, failure.Code)
+				return
+			}
+			if lease.RepositoryID != req.RepositoryID || lease.Owner != req.Owner || lease.Name != req.Name {
+				gatewayAPIError(w, r, http.StatusBadRequest, "lease_identity_mismatch", "lease repository identity mismatch")
+				return
+			}
+			if authority == nil {
+				gatewayAPIError(w, r, http.StatusServiceUnavailable, "authority_unavailable", "repository authority unavailable")
+				return
+			}
+			if err := authority.Offer(req.ServerID, req.RepositoryID, req.Owner, req.Name, lease.Username, lease.Token); err != nil {
+				gatewayAPIError(w, r, http.StatusServiceUnavailable, "authority_unavailable", "repository authority unavailable")
+				return
+			}
+		}
+		payload, _ := json.Marshal(state.RepositoryCreateParams{
+			IntentID: state.CreationIntentID(req.IntentID), PreparationID: state.PreparationID(req.PreparationID),
+			ServerID: state.ExecutionServerID(req.ServerID),
+			Repository: state.GitHubRepositoryIdentity{
+				ID: state.GitHubRepositoryID(req.RepositoryID), Owner: state.RepositoryOwner(req.Owner), Name: state.RepositoryName(req.Name),
+			},
+			Fingerprint: req.Fingerprint, Command: command,
+		})
+		ctx, cancel := rpcContext(r)
+		defer cancel()
+		if _, err := d.SendCommand(ctx, proto.CmdEvent{Event: state.EventCreateRepositorySession, Payload: payload}); err != nil {
+			handleProtoError(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{
+			"preparation_id": req.PreparationID, "intent_id": req.IntentID, "server_id": req.ServerID,
+			"repository": map[string]string{"repository_id": req.RepositoryID, "owner": req.Owner, "name": req.Name},
+			"stage":      "confirmed", "revision": 1,
+		})
+	}
+}
+
+func repositoryJSON(value any) []byte {
+	raw, _ := json.Marshal(value)
+	return raw
 }
 func handleCreateLease(noAuth bool, leases *leaseStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

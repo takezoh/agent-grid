@@ -3,9 +3,14 @@
   "title": "Agent Grid fixed GitHub OAuth App (public)",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "client_id", "scopes"],
+  "required": ["schema_version", "app_id", "client_id", "scopes"],
   "properties": {
     "schema_version": { "const": 1 },
+    "app_id": {
+      "type": "string",
+      "pattern": "^[0-9]+$",
+      "description": "Public numeric GitHub App/OAuth registration identifier. Never a client_secret."
+    },
     "client_id": {
       "type": "string",
       "minLength": 1,

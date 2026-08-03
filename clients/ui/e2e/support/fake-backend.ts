@@ -282,6 +282,7 @@ export async function installFakeBackend(
       contentType: "application/json",
       body: JSON.stringify({
         ...sessionConfig,
+        base_command_profiles: commandProfiles,
         projects: sessionConfig.projects.map((project) => ({
           ...project,
           command_profiles: commandProfiles,

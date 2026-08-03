@@ -24,20 +24,27 @@ afterEach(() => {
 });
 
 describe("desktop config", () => {
-  it("creates and loads the four defaults", () => {
+  it("creates and loads desktop defaults including editable GitHub registration", () => {
     const directory = tempDir();
     const config = loadOrCreateDesktopConfig(directory);
 
     expect(config.servers.map((server) => server.id)).toEqual([
       "srv_ca5ed80c77e645b7c7ec83189f36bfa835128debf18096e46c6300fdc17e8c3a",
     ]);
+    expect(config.servers[0]?.default_execution).toBe(true);
     expect(config.appearance).toEqual({
       theme: "default",
       density: "comfortable",
       font_scale: 1,
     });
+    expect(config.github).toEqual({
+      app_id: "4460068",
+      client_id: "Iv23li471HWU8jxRwlK7",
+      scopes: ["read:user", "repo"],
+    });
     expect(fs.readdirSync(directory).sort()).toEqual([
       "appearance.json",
+      "github.json",
       "servers.json",
       "shell.json",
       "workspace.json",
@@ -81,6 +88,29 @@ describe("desktop config", () => {
         enabled: false,
       },
     ]);
+    expect(config.servers.map((entry) => entry.default_execution)).toEqual([true, false]);
+  });
+
+  it("rejects a disabled or duplicate default execution server", () => {
+    const directory = tempDir();
+    loadOrCreateDesktopConfig(directory);
+    const file = path.join(directory, "servers.json");
+    const one = server("One", true, "http://127.0.0.1:8443");
+    const two = server("Two", true, "https://example.test");
+    fs.writeFileSync(file, JSON.stringify({
+      schema_version: 2,
+      servers: [
+        { ...one, default_execution: true },
+        { ...two, default_execution: true },
+      ],
+    }));
+    expect(() => loadOrCreateDesktopConfig(directory)).toThrow(/exactly one enabled server/);
+
+    fs.writeFileSync(file, JSON.stringify({
+      schema_version: 2,
+      servers: [{ ...one, enabled: false, default_execution: true }, two],
+    }));
+    expect(() => loadOrCreateDesktopConfig(directory)).toThrow(/must be enabled/);
   });
 
   it("does not replace invalid user configuration", () => {
@@ -152,12 +182,18 @@ describe("desktop config", () => {
         idle_quit_seconds: 42,
         default_window: { width: 1440, height: 900 },
       },
+      github: {
+        app_id: "9000001",
+        client_id: "Iv23liUpdatedClient99",
+        scopes: ["read:user", "repo"],
+      },
     });
 
     expect(updated.servers).toMatchObject([
       {
         id: "srv_ca5ed80c77e645b7c7ec83189f36bfa835128debf18096e46c6300fdc17e8c3a",
         display_name: "Updated Local",
+        default_execution: true,
       },
     ]);
     expect(updated.appearance).toEqual({
@@ -168,6 +204,11 @@ describe("desktop config", () => {
     expect(updated.workspace).toEqual({
       idle_quit_seconds: 42,
       default_window: { width: 1440, height: 900 },
+    });
+    expect(updated.github).toEqual({
+      app_id: "9000001",
+      client_id: "Iv23liUpdatedClient99",
+      scopes: ["read:user", "repo"],
     });
     expect(JSON.parse(fs.readFileSync(path.join(directory, "appearance.json"), "utf8"))).toMatchObject({
       schema_version: 1,
@@ -180,11 +221,18 @@ describe("desktop config", () => {
       idle_quit_seconds: 42,
       default_window: { width: 1440, height: 900 },
     });
+    expect(JSON.parse(fs.readFileSync(path.join(directory, "github.json"), "utf8"))).toEqual({
+      schema_version: 1,
+      app_id: "9000001",
+      client_id: "Iv23liUpdatedClient99",
+      scopes: ["read:user", "repo"],
+    });
     expect(JSON.parse(fs.readFileSync(path.join(directory, "servers.json"), "utf8"))).toMatchObject({
       schema_version: 2,
       servers: [
         {
           display_name: "Updated Local",
+          default_execution: true,
         },
       ],
     });
@@ -238,9 +286,29 @@ describe("desktop config", () => {
       servers: loaded.servers,
       appearance: loaded.appearance,
       workspace: loaded.workspace,
+      github: loaded.github,
     });
 
     expect(JSON.parse(fs.readFileSync(serversPath, "utf8")).servers[0]).not.toHaveProperty("id");
+  });
+
+  it.each([
+    { github: { app_id: "not-numeric", client_id: "Iv23li471HWU8jxRwlK7", scopes: ["read:user", "repo"] }, message: /app_id/ },
+    { github: { app_id: "4460068", client_id: "short", scopes: ["read:user", "repo"] }, message: /client_id/ },
+    { github: { app_id: "4460068", client_id: "Iv23li471HWU8jxRwlK7", scopes: ["repo"] }, message: /scopes/ },
+  ])("rejects invalid editable GitHub registration without rewriting it %#", ({ github, message }) => {
+    const directory = tempDir();
+    const initial = loadOrCreateDesktopConfig(directory);
+    const file = path.join(directory, "github.json");
+    const before = fs.readFileSync(file, "utf8");
+
+    expect(() => saveEditableDesktopSettings(directory, {
+      servers: initial.servers,
+      appearance: initial.appearance,
+      workspace: initial.workspace,
+      github,
+    })).toThrow(message);
+    expect(fs.readFileSync(file, "utf8")).toBe(before);
   });
 });
 

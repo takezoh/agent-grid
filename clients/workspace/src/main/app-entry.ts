@@ -11,6 +11,7 @@ import {
   resolveConfigDirectory,
   type DesktopConfig,
 } from "./desktop-config.js";
+import type { SettingsSection } from "./settings-page.js";
 import {
   createElectronWindowFactory,
   type ElectronBaseWindowConstructor,
@@ -63,7 +64,7 @@ export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
   endpoint: ControlEndpoint;
   desktopConfig: DesktopConfig;
   setDesktopConfig: (config: DesktopConfig) => void;
-  openSettings: () => void;
+  openSettings: (section?: SettingsSection) => void;
   stop: () => Promise<void>;
 }> {
   if (!opts.app.requestSingleInstanceLock()) {
@@ -109,12 +110,13 @@ export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
     }
     home = factory.createHome(defaultServer.id);
   };
-  const openSettings = () => {
+  const openSettings = (section: SettingsSection = "connections") => {
     if (settings && !settings.isDestroyed()) {
+      settings.showSection(section);
       settings.focus();
       return;
     }
-    settings = factory.createSettings();
+    settings = factory.createSettings(section);
     idle.onWindowsChanged();
   };
   if (shouldOpenHome(opts.args ?? process.argv.slice(1))) {

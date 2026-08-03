@@ -7,8 +7,10 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
-export function settingsPageUrl(): string {
-  return `data:text/html;charset=utf-8,${encodeURIComponent(buildSettingsPageHtml())}`;
+export type SettingsSection = "connections" | "appearance" | "workspace" | "github";
+
+export function settingsPageUrl(section: SettingsSection = "connections"): string {
+  return `data:text/html;charset=utf-8,${encodeURIComponent(buildSettingsPageHtml())}#${section}`;
 }
 
 export function buildSettingsPageHtml(): string {
@@ -33,6 +35,8 @@ export function buildSettingsPageHtml(): string {
         --danger: #c74e39;
         --danger-soft: rgba(199, 78, 57, 0.14);
         --ok: #73c991;
+        --github: #f0f6fc;
+        --github-soft: rgba(240, 246, 252, 0.08);
         --shadow: rgba(0, 0, 0, 0.28);
         font-family: "Segoe UI", "Noto Sans", sans-serif;
       }
@@ -306,6 +310,68 @@ export function buildSettingsPageHtml(): string {
       .server-health[data-state="unavailable"] { color: #f48771; }
       .server-health[data-state="disabled"] { color: var(--muted); }
       .server-health[data-state="checking"] { color: var(--muted); }
+      .github-hero {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 16px;
+        align-items: center;
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: radial-gradient(circle at 85% 0%, rgba(88,166,255,.16), transparent 42%), linear-gradient(145deg, #2a2a2d, #222225);
+      }
+      .github-mark {
+        display: grid;
+        place-items: center;
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        background: var(--github);
+        color: #161b22;
+        font-size: 20px;
+        font-weight: 800;
+        letter-spacing: -.08em;
+        box-shadow: 0 8px 24px rgba(0,0,0,.28);
+      }
+      .github-hero__copy { min-width: 0; }
+      .github-hero__copy h3 { margin: 0 0 5px; color: #fff; font-size: 17px; }
+      .github-hero__copy p { margin: 0; color: var(--muted); line-height: 1.45; }
+      .github-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 6px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(0,0,0,.18);
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .github-status-pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+      .github-status-pill[data-state="authenticated"] { color: var(--ok); }
+      .github-status-pill[data-state="authorizing"] { color: #cca700; }
+      .github-status-pill[data-state="host_misconfigured"],
+      .github-status-pill[data-state="denied"],
+      .github-status-pill[data-state="refresh_failed"] { color: #f48771; }
+      .github-actions { margin-top: 16px; }
+      .github-detail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+      .github-metric { padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.025); }
+      .github-metric span { display: block; margin-bottom: 4px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+      .github-metric strong { color: #fff; font-weight: 600; }
+      .github-device-hint { margin: 16px 0 0; padding: 12px 14px; border-left: 3px solid var(--accent); border-radius: 4px; background: var(--accent-soft); line-height: 1.5; }
+      .github-device-hint:empty { display: none; }
+      .scope-list { display: flex; flex-wrap: wrap; gap: 8px; }
+      .scope-chip { padding: 5px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--github-soft); color: var(--github); font-family: Consolas, monospace; font-size: 12px; }
+      .security-note { margin: 16px 0 0; padding: 12px 14px; border-radius: 8px; background: rgba(115,201,145,.08); color: var(--muted); line-height: 1.5; }
+      .security-note strong { color: var(--ok); }
+      @media (max-width: 760px) {
+        .layout { grid-template-columns: 1fr; }
+        .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
+        .content { padding: 22px 18px 32px; }
+        .github-hero { grid-template-columns: auto minmax(0, 1fr); }
+        .github-status-pill { grid-column: 1 / -1; justify-self: start; }
+        .github-detail { grid-template-columns: 1fr; }
+      }
     </style>
   </head>
   <body>
@@ -345,6 +411,19 @@ export function buildSettingsPageHtml(): string {
         </div>
 
         <section id="connections" class="section" data-active="true">
+          <div class="group">
+            <div class="group__header">
+              <h2>Default execution server</h2>
+              <p>New Session uses this enabled server unless you choose Change in the palette.</p>
+            </div>
+            <div class="group__body">
+              <div class="field">
+                <label for="default-execution-server">Execution server</label>
+                <select id="default-execution-server"></select>
+                <small>The selection is shared by Workspace and the web client through servers.json.</small>
+              </div>
+            </div>
+          </div>
           <div class="group">
             <div class="group__header">
               <h2>Server list</h2>
@@ -423,15 +502,42 @@ export function buildSettingsPageHtml(): string {
           </div>
         </section>
 
-        <section id="github" class="section" data-active="false"><div class="group">
-          <div class="group__header"><h2>GitHub account</h2><p>Host-owned device flow; credentials stay in main.</p></div>
-          <div class="group__body"><p id="github-account-state" class="sidebar__meta">Checking…</p>
-            <p id="github-account-detail" class="sidebar__meta"></p>
-            <div class="toolbar" style="margin-top:12px">
-              <button id="github-connect" type="button" class="btn btn--primary">Connect</button>
-              <button id="github-cancel" type="button" class="btn">Cancel</button>
-              <button id="github-refresh" type="button" class="btn">Refresh catalog</button></div>
-            <p id="github-device-hint" class="sidebar__meta" style="margin-top:12px"></p></div></div></section>
+        <section id="github" class="section" data-active="false">
+          <div class="group">
+            <div class="group__header"><h2>GitHub connection</h2><p>Connect Workspace directly with GitHub using the device authorization flow.</p></div>
+            <div class="group__body">
+              <div class="github-hero">
+                <div class="github-mark" aria-hidden="true">GH</div>
+                <div class="github-hero__copy"><h3 id="github-account-state">Checking account…</h3><p>Authentication is owned by this Workspace app. Access tokens are never exposed to the UI.</p></div>
+                <span id="github-status-pill" class="github-status-pill" data-state="unauthenticated">Checking</span>
+              </div>
+              <div class="github-detail">
+                <div class="github-metric"><span>Account</span><strong id="github-account-detail">Not connected</strong></div>
+                <div class="github-metric"><span>Repository catalog</span><strong id="github-catalog-detail">Empty</strong></div>
+              </div>
+              <div class="toolbar github-actions">
+                <button id="github-connect" type="button" class="btn btn--primary">Connect GitHub</button>
+                <button id="github-open-browser" type="button" class="btn" hidden>Open authorization page</button>
+                <button id="github-cancel" type="button" class="btn">Cancel</button>
+                <button id="github-refresh" type="button" class="btn">Refresh repositories</button>
+              </div>
+              <p id="github-device-hint" class="github-device-hint"></p>
+            </div>
+          </div>
+          <div class="group">
+            <div class="group__header"><h2>GitHub App configuration</h2><p>Public identifiers for the OAuth registration used by Workspace.</p></div>
+            <div class="group__body">
+              <div class="form-grid">
+                <div class="form-row">
+                  <div class="field"><label for="github-app-id">App ID</label><input id="github-app-id" inputmode="numeric" pattern="[0-9]+" autocomplete="off" spellcheck="false" required><small>The numeric identifier shown in GitHub App settings.</small></div>
+                  <div class="field"><label for="github-client-id">Client ID</label><input id="github-client-id" autocomplete="off" spellcheck="false" required><small>The public Client ID used to begin device authorization.</small></div>
+                </div>
+                <div class="field"><label>Requested scopes</label><div class="scope-list"><span class="scope-chip">read:user</span><span class="scope-chip">repo</span></div><small>Scopes are fixed so the client cannot silently broaden access.</small></div>
+              </div>
+              <p class="security-note"><strong>No client secret is required.</strong> Only public identifiers are stored in <code>github.json</code>. Credentials remain in the Workspace credential store.</p>
+            </div>
+          </div>
+        </section>
 
         <div class="toolbar">
           <button id="save-button" type="button" class="btn btn--primary">Save settings</button>
@@ -458,7 +564,7 @@ export function buildSettingsPageHtml(): string {
           title: "Workspace",
           description: "Tune Workspace-specific window behavior without affecting the server list.",
         },
-        github: { title: "GitHub", description: "Host-owned GitHub device flow. Credentials stay in the main process." },
+        github: { title: "GitHub", description: "Workspace-owned GitHub device flow. Credentials stay in the desktop client." },
       };
       const state = {
         snapshot: null,
@@ -475,6 +581,7 @@ export function buildSettingsPageHtml(): string {
         navButtons: Array.from(document.querySelectorAll(".tree button[data-target]")),
         connectionsCount: document.getElementById("connections-count"),
         servers: document.getElementById("servers"),
+        defaultExecutionServer: document.getElementById("default-execution-server"),
         addServer: document.getElementById("add-server"),
         closeSettings: document.getElementById("close-settings"),
         theme: document.getElementById("theme"),
@@ -485,8 +592,13 @@ export function buildSettingsPageHtml(): string {
         windowHeight: document.getElementById("window-height"),
         ghState: document.getElementById("github-account-state"),
         ghDetail: document.getElementById("github-account-detail"),
+        ghCatalog: document.getElementById("github-catalog-detail"),
+        ghPill: document.getElementById("github-status-pill"),
         ghHint: document.getElementById("github-device-hint"),
+        ghAppId: document.getElementById("github-app-id"),
+        ghClientId: document.getElementById("github-client-id"),
         ghConnect: document.getElementById("github-connect"),
+        ghOpenBrowser: document.getElementById("github-open-browser"),
         ghCancel: document.getElementById("github-cancel"),
         ghRefresh: document.getElementById("github-refresh"),
         ghCount: document.getElementById("github-status-count"),
@@ -524,12 +636,14 @@ export function buildSettingsPageHtml(): string {
         return {
           display_name: "New server",
           enabled: true,
+          default_execution: false,
           url: "http://127.0.0.1:8443",
           auth: { mode: "none" },
         };
       }
 
       function setSection(target) {
+        if (!sections[target]) target = "connections";
         state.activeSection = target;
         for (const button of els.navButtons) {
           button.setAttribute("aria-current", button.dataset.target === target ? "true" : "false");
@@ -563,6 +677,7 @@ export function buildSettingsPageHtml(): string {
 
       function renderServers() {
         const servers = state.snapshot?.servers ?? [];
+        renderDefaultExecutionServers();
         els.connectionsCount.textContent = String(servers.length);
         if (servers.length === 0) {
           els.servers.innerHTML = '<p class="empty">No servers configured. Add at least one server before saving.</p>';
@@ -604,6 +719,27 @@ export function buildSettingsPageHtml(): string {
         }).join("");
       }
 
+      function renderDefaultExecutionServers() {
+        const servers = state.snapshot?.servers ?? [];
+        const enabled = servers
+          .map((server, index) => ({ server, index }))
+          .filter(({ server }) => server.enabled);
+        let selected = enabled.find(({ server }) => server.default_execution)?.index;
+        if (selected === undefined && enabled[0]) {
+          selected = enabled[0].index;
+          servers.forEach((server, index) => {
+            server.default_execution = index === selected;
+          });
+        }
+        els.defaultExecutionServer.innerHTML = enabled.length === 0
+          ? '<option value="">No enabled servers</option>'
+          : enabled.map(({ server, index }) =>
+              '<option value="' + index + '"' + (index === selected ? ' selected' : '') + '>' +
+              escapeHtml(serverSummary(server)) + '</option>'
+            ).join("");
+        els.defaultExecutionServer.disabled = enabled.length === 0;
+      }
+
       function updateServerPresentation(index) {
         const server = state.snapshot?.servers?.[index];
         const card = els.servers.querySelector('[data-server-index="' + index + '"]');
@@ -637,6 +773,8 @@ export function buildSettingsPageHtml(): string {
         els.idleQuitSeconds.value = String(snapshot.workspace.idle_quit_seconds);
         els.windowWidth.value = String(snapshot.workspace.default_window.width);
         els.windowHeight.value = String(snapshot.workspace.default_window.height);
+        els.ghAppId.value = snapshot.github.app_id;
+        els.ghClientId.value = snapshot.github.client_id;
         renderServers();
         syncNativeTheme();
       }
@@ -646,6 +784,8 @@ export function buildSettingsPageHtml(): string {
         if (!server) return;
         if (field === "enabled") {
           server.enabled = Boolean(value);
+          if (!server.enabled && server.default_execution) server.default_execution = false;
+          renderDefaultExecutionServers();
           return;
         }
         if (field === "auth_mode") {
@@ -668,6 +808,7 @@ export function buildSettingsPageHtml(): string {
         server[field] = String(value);
         if (field === "display_name") {
           updateServerPresentation(index);
+          renderDefaultExecutionServers();
         }
       }
 
@@ -677,6 +818,7 @@ export function buildSettingsPageHtml(): string {
             return {
               display_name: (server.display_name || "").trim(),
               enabled: Boolean(server.enabled),
+              default_execution: Boolean(server.default_execution),
               url: (server.url || "").trim(),
               auth: server.auth?.mode === "bearer"
                 ? { mode: "bearer", token: (server.auth.token || "").trim() }
@@ -694,6 +836,11 @@ export function buildSettingsPageHtml(): string {
               width: Number(els.windowWidth.value),
               height: Number(els.windowHeight.value),
             },
+          },
+          github: {
+            app_id: els.ghAppId.value.trim(),
+            client_id: els.ghClientId.value.trim(),
+            scopes: ["read:user", "repo"],
           },
         };
       }
@@ -727,7 +874,7 @@ export function buildSettingsPageHtml(): string {
       async function save() {
         if (!workspaceApi?.save) {
           setStatus("error", "Workspace settings bridge is unavailable.");
-          return;
+          return false;
         }
         els.saveButton.disabled = true;
         setStatus("info", "Saving settings…");
@@ -735,8 +882,10 @@ export function buildSettingsPageHtml(): string {
           const snapshot = await workspaceApi.save(collectPayload());
           applySnapshot(snapshot);
           setStatus("success", "Settings saved.");
+          return true;
         } catch (error) {
           setStatus("error", error instanceof Error ? error.message : String(error));
+          return false;
         } finally {
           els.saveButton.disabled = false;
         }
@@ -751,6 +900,13 @@ export function buildSettingsPageHtml(): string {
         renderServers();
         setStatus("info", "Added a new server entry.");
       });
+      els.defaultExecutionServer.addEventListener("change", () => {
+        const selected = Number(els.defaultExecutionServer.value);
+        (state.snapshot?.servers ?? []).forEach((server, index) => {
+          server.default_execution = index === selected;
+        });
+        setStatus("info", "Default execution server changed.");
+      });
       els.closeSettings.addEventListener("click", () => {
         window.agentGridWorkspace?.windowControls?.close?.();
       });
@@ -759,10 +915,24 @@ export function buildSettingsPageHtml(): string {
       function renderGitHub(r) {
         if (!r || !els.ghState) return;
         const a = r.account || {}, c = r.catalog || {};
-        els.ghState.textContent = "Account: " + (a.state || "?") + (a.login ? " (" + a.login + ")" : "");
-        els.ghDetail.textContent = "Catalog: " + (c.outcome || "empty") + (c.repositories ? " · " + c.repositories.length : "");
+        const stateLabel =
+          a.state === "authenticated" ? "Connected to GitHub" :
+          a.state === "authorizing" ? "Authorization in progress" :
+          a.state === "host_misconfigured" ? "GitHub App configuration required" :
+          a.state === "unauthenticated" ? "Connect your GitHub account" :
+          "GitHub connection needs attention";
+        els.ghState.textContent = stateLabel;
+        els.ghDetail.textContent = a.login || (a.state === "authenticated" ? "Connected" : "Not connected");
+        els.ghCatalog.textContent = (c.repositories ? c.repositories.length : 0) + " repositories · " + (c.outcome || "empty");
+        els.ghPill.dataset.state = a.state || "unauthenticated";
+        els.ghPill.textContent = (a.state || "unknown").replaceAll("_", " ");
         if (els.ghCount) els.ghCount.textContent = a.state || "";
-        els.ghHint.textContent = a.state === "authorizing"
+        const hostMisconfigured = a.state === "host_misconfigured"
+          && a.failure_code === "host_misconfigured";
+        if (els.ghOpenBrowser) els.ghOpenBrowser.hidden = a.state !== "authorizing";
+        els.ghHint.textContent = hostMisconfigured
+          ? "GitHub rejected this OAuth registration. Review App ID and Client ID below, save, then connect again."
+          : a.state === "authorizing"
           ? ((a.user_code ? "Code " + a.user_code + " — " : "") + (a.verification_uri || "Authorize in browser."))
           : (r.outcome === "denied" || r.outcome === "cancel" || r.outcome === "failure"
             ? ("Outcome: " + r.outcome + (a.failure_code ? " (" + a.failure_code + ")" : "")) : "");
@@ -770,27 +940,48 @@ export function buildSettingsPageHtml(): string {
       async function githubAction(action) {
         if (!githubApi?.action) { setStatus("error", "GitHub settings bridge is unavailable."); return null; }
         try { const r = await githubApi.action(action); renderGitHub(r); return r; }
-        catch (e) { setStatus("error", e instanceof Error ? e.message : String(e)); return null; }
+        catch { setStatus("error", "GitHub action could not be completed."); return null; }
       }
       const stopGh = () => { if (ghPoll) { clearInterval(ghPoll); ghPoll = null; } };
-      els.ghConnect?.addEventListener("click", async () => {
-        stopGh();
-        const s = await githubAction("start");
-        if (!s || s.account?.state !== "authorizing") return;
-        setStatus("info", "Waiting for GitHub authorization…");
+      const observeGitHubStatus = () => {
+        if (ghPoll) return;
         ghPoll = setInterval(async () => {
-          const p = await githubAction("poll");
+          const p = await githubAction("status");
           if (p?.account?.state && p.account.state !== "authorizing") {
             stopGh(); setStatus(p.outcome === "success" ? "success" : "error", "GitHub " + p.outcome);
           }
         }, 3000);
+      };
+      els.ghConnect?.addEventListener("click", async () => {
+        stopGh();
+        if (!await save()) return;
+        const s = await githubAction("start");
+        if (!s || s.account?.state !== "authorizing") return;
+        setStatus(
+          s.reason === "browser_handoff_failed" ? "error" : "info",
+          s.reason === "browser_handoff_failed"
+            ? "GitHub could not be opened. The authorization code was copied; use Open GitHub to retry."
+            : "Authorization code copied. Waiting for GitHub authorization…",
+        );
+        observeGitHubStatus();
+      });
+      els.ghOpenBrowser?.addEventListener("click", async () => {
+        if (!githubApi?.openAuthorization) {
+          setStatus("error", "GitHub browser handoff is unavailable.");
+          return;
+        }
+        try { await githubApi.openAuthorization(); }
+        catch { setStatus("error", "GitHub authorization page could not be opened."); }
       });
       els.ghCancel?.addEventListener("click", async () => { stopGh(); const r = await githubAction("cancel"); if (r) setStatus("info", "GitHub " + r.outcome); });
       els.ghRefresh?.addEventListener("click", async () => { const r = await githubAction("refresh_catalog"); if (r) setStatus("info", "Catalog " + (r.catalog?.outcome || r.outcome)); });
-      void githubAction("status");
+      void githubAction("status").then((r) => {
+        if (r?.account?.state === "authorizing") observeGitHubStatus();
+      });
       els.servers.addEventListener("input", (event) => {
         const target = event.target;
         if (!(target instanceof HTMLInputElement)) return;
+        if (target.type === "checkbox") return;
         const index = Number(target.dataset.index);
         const field = target.dataset.field;
         if (!Number.isInteger(index) || !field) return;
@@ -821,6 +1012,9 @@ export function buildSettingsPageHtml(): string {
         setStatus("info", "Removed server entry.");
       });
 
+      const sectionFromHash = () => setSection(window.location.hash.slice(1));
+      window.addEventListener("hashchange", sectionFromHash);
+      sectionFromHash();
       load();
       setInterval(refreshHealth, 5000);
     </script>

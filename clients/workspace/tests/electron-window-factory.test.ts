@@ -9,6 +9,7 @@ import {
   type ElectronFactoryOptions,
   type ElectronWebContentsViewConstructor,
   type ElectronWebContentsViewLike,
+  type SettingsWindowHandle,
 } from "../src/main/electron-window-factory.js";
 import { TITLE_BAR_HEIGHT, titleBarOverlayFor } from "../src/main/window-chrome.js";
 
@@ -23,8 +24,10 @@ interface Recorded {
   viewOptions: Record<string, unknown>[];
   viewBounds: ChromeRect[][];
   viewLoads: string[][];
+  viewScripts: string[][];
   childViews: ElectronWebContentsViewLike[];
   resizeListeners: (() => void)[];
+  settingsHandle?: SettingsWindowHandle;
 }
 
 function makeFakes(contentBounds: ChromeRect): {
@@ -37,6 +40,7 @@ function makeFakes(contentBounds: ChromeRect): {
     viewOptions: [],
     viewBounds: [],
     viewLoads: [],
+    viewScripts: [],
     childViews: [],
     resizeListeners: [],
   };
@@ -45,10 +49,11 @@ function makeFakes(contentBounds: ChromeRect): {
   class FakeWebContentsView {
     bounds: ChromeRect[] = [];
     loads: string[] = [];
+    scripts: string[] = [];
     webContents: {
       id: number;
       once(event: string, listener: () => void): void;
-      executeJavaScript(): Promise<unknown>;
+      executeJavaScript(code: string): Promise<unknown>;
       loadURL(url: string): Promise<void>;
     };
 
@@ -56,11 +61,16 @@ function makeFakes(contentBounds: ChromeRect): {
       recorded.viewOptions.push(options);
       recorded.viewBounds.push(this.bounds);
       recorded.viewLoads.push(this.loads);
+      recorded.viewScripts.push(this.scripts);
       const loads = this.loads;
+      const scripts = this.scripts;
       this.webContents = {
         id: nextWebContentsId++,
         once() {},
-        executeJavaScript: () => Promise.resolve(),
+        executeJavaScript: (code: string) => {
+          scripts.push(code);
+          return Promise.resolve();
+        },
         loadURL: (url: string) => {
           loads.push(url);
           return Promise.resolve();
@@ -132,7 +142,10 @@ function createHome(
   return recorded;
 }
 
-function createSettings(overrides: Partial<ElectronFactoryOptions> = {}): Recorded {
+function createSettings(
+  overrides: Partial<ElectronFactoryOptions> = {},
+  section: "connections" | "github" = "connections",
+): Recorded {
   const { BaseWindow, WebContentsView, recorded } = makeFakes({
     x: 0,
     y: 0,
@@ -148,7 +161,7 @@ function createSettings(overrides: Partial<ElectronFactoryOptions> = {}): Record
     uiEntryUrl: "file:///ui/index.html",
     ...overrides,
   });
-  factory.createSettings();
+  recorded.settingsHandle = factory.createSettings(section);
   return recorded;
 }
 
@@ -261,6 +274,14 @@ describe("frameless window chrome", () => {
     await Promise.resolve();
     expect(recorded.viewLoads[1]![0]).toMatch(/^data:text\/html/);
     expect(decodeURIComponent(recorded.viewLoads[1]![0]!)).toContain("These entries are not a switcher");
+  });
+
+  it("opens GitHub Settings directly and can retarget an existing window", async () => {
+    const recorded = createSettings({}, "github");
+    await Promise.resolve();
+    expect(recorded.viewLoads[1]![0]).toMatch(/#github$/);
+    recorded.settingsHandle?.showSection("github");
+    expect(recorded.viewScripts[1]?.at(-1)).toContain("#github");
   });
 
   it("does not resolve daemon auth for the dedicated settings window", async () => {

@@ -10,7 +10,7 @@ namespace AgentGrid.Client.Transport;
 
 public sealed class GatewayClient : IDisposable
 {
-    public const string ProtocolVersion = "protocol-2";
+    public const string ProtocolVersion = "protocol-3";
     private readonly HttpClient _http;
     private readonly bool _ownsHttp;
     private string? _clientInstanceId;

@@ -96,14 +96,10 @@ export type ExecutionServer = {
   serverId: string;
   serverLabel: string;
   available: boolean;
+  isDefaultExecution?: boolean;
   reason?: string;
 };
-export type PickerPhase =
-  | "target-select"
-  | "server-select"
-  | "settings-auth"
-  | "preparing"
-  | "retry";
+export type PickerPhase = "target-select" | "settings-auth";
 export type SearchValidation = "validation-required" | "validated" | "invalidated";
 export type AuthReturn =
   | "success"
@@ -112,7 +108,7 @@ export type AuthReturn =
   | "cancel"
   | "failure"
   | "unauthenticated";
-export type SourceFilter = "all";
+export type SourceFilter = "projects" | "github";
 export type GitHubAction = "status" | "start" | "poll" | "cancel" | "refresh_catalog";
 export type GitHubActionOutcome =
   | "success"
@@ -142,7 +138,6 @@ export interface RepositoryPickerState {
   projects: ProjectRow[];
   repositories: RepositoryRow[];
   servers: ExecutionServer[];
-  preparation: HostPreparation | null;
   announce: string | null;
   announceRevision: number;
   searchValidation: SearchValidation;
@@ -153,30 +148,25 @@ export interface RepositoryPickerState {
 export type RepositoryPickerEvent =
   | { type: "open" }
   | { type: "setQuery"; query: string }
+  | { type: "setSourceFilter"; sourceFilter: SourceFilter }
+  | { type: "syncProject"; key: string }
   | { type: "applyProjection"; projection: HostRepositoryProjection; servers?: ExecutionServer[] }
   | { type: "activate"; key: string }
   | { type: "select"; key: string }
-  | { type: "selectServer"; serverId: string }
   | { type: "back" }
   | { type: "openSettings" }
   | { type: "returnFromSettings"; outcome: AuthReturn }
-  | { type: "startPreparation"; preparation: HostPreparation }
-  | { type: "preparationUpdate"; preparation: HostPreparation }
-  | { type: "cancelPreparation" }
-  | { type: "retryPreparation" }
-  | { type: "exitRetry" }
   | { type: "validateSearch"; knownFound: boolean; ambiguityFailure: boolean };
 
 export const GITHUB_ENTRY_KEY = "github:entry";
 export const PROJECTS_ENTRY_KEY = "projects:status";
 export const projectKey = (serverId: string, project: string) => `project:${serverId}:${project}`;
 export const repositoryKey = (id: string) => `repository:${id}`;
-export const serverKey = (serverId: string) => `server:${serverId}`;
 
 export function emptyPickerState(): RepositoryPickerState {
   return {
     query: "",
-    sourceFilter: "all",
+    sourceFilter: "github",
     phase: "target-select",
     activeKey: null,
     selected: null,
@@ -191,7 +181,6 @@ export function emptyPickerState(): RepositoryPickerState {
     projects: [],
     repositories: [],
     servers: [],
-    preparation: null,
     announce: null,
     announceRevision: 0,
     searchValidation: "validation-required",
@@ -264,15 +253,18 @@ export function matchesProject(row: ProjectRow, query: string): boolean {
 
 export function filteredTargets(state: RepositoryPickerState) {
   return {
-    projects: state.projects.filter((p) => matchesProject(p, state.query)),
-    repositories: state.repositories.filter((r) => matchesOwnerName(r, state.query)),
+    projects:
+      state.sourceFilter === "projects"
+        ? state.projects.filter((p) => matchesProject(p, state.query))
+        : [],
+    repositories:
+      state.sourceFilter === "github"
+        ? state.repositories.filter((r) => matchesOwnerName(r, state.query))
+        : [],
   };
 }
 
 export function optionKeys(state: RepositoryPickerState): string[] {
-  if (state.phase === "server-select") {
-    return state.servers.filter((s) => s.available).map((s) => serverKey(s.serverId));
-  }
   const { projects, repositories } = filteredTargets(state);
   return [...projects.map((p) => p.key), ...repositories.map((r) => r.key)];
 }
@@ -298,11 +290,6 @@ function recoverFocus(
 function clearInvalidSelection(state: RepositoryPickerState): RepositoryPickerState {
   const selected = state.selected;
   if (!selected) return state;
-  // In-flight preparation/retry must retain selection even when the catalog
-  // transiently omits the repository (projection refresh races).
-  if (state.phase === "preparing" || state.phase === "retry") {
-    return state;
-  }
   const ok =
     selected.source === "project"
       ? state.projects.some((p) => p.key === selected.key)
@@ -320,61 +307,14 @@ function applyServers(
   state: RepositoryPickerState,
   servers: ExecutionServer[],
 ): RepositoryPickerState {
-  let next: RepositoryPickerState = { ...state, servers };
+  const next: RepositoryPickerState = { ...state, servers };
   if (!next.selectedServerId) return next;
   const cur = servers.find((s) => s.serverId === next.selectedServerId);
   if (cur?.available) return next;
-  next = announce(
-    {
-      ...next,
-      selectedServerId: null,
-      phase: next.phase === "preparing" ? next.phase : "server-select",
-    },
+  return announce(
+    { ...next, selectedServerId: null },
     cur?.reason ?? "Selected server is unavailable",
   );
-  const first = servers.find((s) => s.available);
-  return recoverFocus(next, first ? serverKey(first.serverId) : null);
-}
-
-export function stageAnnouncement(p: HostPreparation): string {
-  const repo = `${p.repository.owner}/${p.repository.name}`;
-  const server = p.server_id;
-  switch (p.stage) {
-    case "confirmed":
-      return `Preparing ${repo} on ${server}`;
-    case "clone-in-progress":
-      return `Cloning ${repo} on ${server}`;
-    case "clone-ready":
-      return `Clone ready for ${repo} on ${server}`;
-    case "devcontainer-in-progress":
-      return p.environment_disposition === "reused"
-        ? `Reusing repository environment for ${repo} on ${server}`
-        : `Preparing devcontainer for ${repo} on ${server}`;
-    case "available":
-      return `Repository session available for ${repo} on ${server}`;
-    case "failed":
-      return `${p.retry_origin === "devcontainer" ? "Devcontainer" : "Clone"} failed for ${repo} on ${server}: ${p.failure_code ?? "error"}`;
-    case "cancelled":
-      return `Cancelled at ${p.retry_origin ?? "clone"} for ${repo} on ${server}`;
-    default:
-      return `Preparation ${p.stage} for ${repo} on ${server}`;
-  }
-}
-
-function reducePreparation(
-  state: RepositoryPickerState,
-  preparation: HostPreparation,
-): RepositoryPickerState {
-  const prev = state.preparation;
-  const stageChanged =
-    !prev || prev.stage !== preparation.stage || prev.revision !== preparation.revision;
-  const next: RepositoryPickerState = {
-    ...state,
-    preparation,
-    phase:
-      preparation.stage === "failed" || preparation.stage === "cancelled" ? "retry" : "preparing",
-  };
-  return stageChanged ? announce(next, stageAnnouncement(preparation)) : next;
 }
 
 export function reduceRepositoryPicker(
@@ -383,9 +323,20 @@ export function reduceRepositoryPicker(
 ): RepositoryPickerState {
   switch (event.type) {
     case "open":
-      return { ...emptyPickerState(), sourceFilter: "all" };
+      return emptyPickerState();
     case "setQuery":
       return recoverFocus({ ...state, query: event.query });
+    case "setSourceFilter":
+      return recoverFocus({ ...state, sourceFilter: event.sourceFilter, activeKey: null });
+    case "syncProject": {
+      const project = state.projects.find((p) => p.key === event.key);
+      if (!project) return state;
+      return {
+        ...state,
+        selected: project,
+        selectedServerId: project.serverId,
+      };
+    }
     case "applyProjection": {
       let next: RepositoryPickerState = {
         ...state,
@@ -396,28 +347,13 @@ export function reduceRepositoryPicker(
         repositories: repositoryRows(event.projection.targets, event.projection.catalog),
       };
       if (event.servers) next = applyServers(next, event.servers);
-      // In-flight preparation/retry: update matching preparation only. Do not run
-      // clearInvalidSelection — it resets phase to target-select when the catalog
-      // transiently omits the selected repository (UAC-prep retain).
       if (next.phase === "settings-auth") return next;
-      if (next.phase === "preparing" || next.phase === "retry") {
-        const prep = event.projection.preparations.find(
-          (p) => p.preparation_id === next.preparation?.preparation_id,
-        );
-        return prep ? reducePreparation(next, prep) : next;
-      }
       next = clearInvalidSelection(next);
       return recoverFocus(next, next.activeKey ?? next.focusReturnKey);
     }
     case "activate":
       return { ...state, activeKey: event.key };
     case "select": {
-      // Palette value-sync and clicks must not clobber an in-flight prep view.
-      if (state.phase === "preparing" || state.phase === "retry") return state;
-      if (state.phase === "server-select") {
-        const id = event.key.startsWith("server:") ? event.key.slice(7) : event.key;
-        return reduceRepositoryPicker(state, { type: "selectServer", serverId: id });
-      }
       const project = state.projects.find((p) => p.key === event.key);
       if (project) {
         return {
@@ -431,57 +367,22 @@ export function reduceRepositoryPicker(
       }
       const repo = state.repositories.find((r) => r.key === event.key);
       if (!repo) return state;
-      const first = state.servers.find((s) => s.available);
-      return recoverFocus(
-        {
-          ...state,
-          selected: repo,
-          selectedServerId: null,
-          activeKey: repo.key,
-          focusReturnKey: repo.key,
-          phase: "server-select",
-        },
-        first ? serverKey(first.serverId) : null,
-      );
-    }
-    case "selectServer": {
-      if (state.phase === "preparing" || state.phase === "retry") return state;
-      if (state.selected?.source !== "repository") return state;
-      const server = state.servers.find((s) => s.serverId === event.serverId);
-      if (!server?.available) {
-        return announce(
-          recoverFocus({ ...state, selectedServerId: null }, null),
-          server?.reason ?? "Server unavailable",
-        );
-      }
       return {
         ...state,
-        selectedServerId: server.serverId,
-        activeKey: serverKey(server.serverId),
-        phase: "server-select",
+        selected: repo,
+        selectedServerId: null,
+        activeKey: repo.key,
+        focusReturnKey: repo.key,
+        phase: "target-select",
       };
     }
     case "back": {
-      if (state.phase === "server-select" && state.selected?.source === "repository") {
-        return recoverFocus(
-          { ...state, phase: "target-select", selectedServerId: null },
-          state.focusReturnKey ?? state.selected.key,
-        );
-      }
       if (state.phase === "settings-auth") {
         return {
           ...state,
           phase: "target-select",
           activeKey: GITHUB_ENTRY_KEY,
           settingsReturn: null,
-        };
-      }
-      if (state.phase === "retry") {
-        return {
-          ...state,
-          phase: "target-select",
-          preparation: null,
-          activeKey: state.focusReturnKey,
         };
       }
       return state;
@@ -497,6 +398,7 @@ export function reduceRepositoryPicker(
       const selected = state.selected?.source === "repository" ? null : state.selected;
       return {
         ...state,
+        sourceFilter: "github",
         phase: "target-select",
         selected,
         selectedServerId: selected?.source === "project" ? selected.serverId : null,
@@ -505,53 +407,6 @@ export function reduceRepositoryPicker(
         focusReturnKey: GITHUB_ENTRY_KEY,
       };
     }
-    case "startPreparation":
-      return announce(
-        {
-          ...state,
-          phase: "preparing",
-          preparation: event.preparation,
-          selectedServerId: event.preparation.server_id,
-        },
-        stageAnnouncement(event.preparation),
-      );
-    case "preparationUpdate":
-      return reducePreparation(state, event.preparation);
-    case "cancelPreparation": {
-      if (!state.preparation) return state;
-      const cancelled: HostPreparation = {
-        ...state.preparation,
-        stage: "cancelled",
-        retry_origin:
-          state.preparation.stage === "devcontainer-in-progress" ||
-          state.preparation.stage === "clone-ready"
-            ? "devcontainer"
-            : "clone",
-        revision: state.preparation.revision + 1,
-      };
-      return announce(
-        { ...state, phase: "retry", preparation: cancelled },
-        `Cancelled at ${cancelled.retry_origin} for ${cancelled.repository.owner}/${cancelled.repository.name} on ${cancelled.server_id}`,
-      );
-    }
-    case "retryPreparation": {
-      if (!state.preparation) return state;
-      const origin = state.preparation.retry_origin ?? "clone";
-      const prep: HostPreparation = {
-        ...state.preparation,
-        stage: origin === "devcontainer" ? "devcontainer-in-progress" : "clone-in-progress",
-        failure_code: undefined,
-        revision: state.preparation.revision + 1,
-      };
-      return announce({ ...state, phase: "preparing", preparation: prep }, stageAnnouncement(prep));
-    }
-    case "exitRetry":
-      return {
-        ...state,
-        phase: "target-select",
-        preparation: null,
-        activeKey: state.focusReturnKey,
-      };
     case "validateSearch":
       return {
         ...state,

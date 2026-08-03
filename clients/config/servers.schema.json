@@ -21,6 +21,10 @@
           },
           "display_name": { "type": "string", "minLength": 1 },
           "enabled": { "type": "boolean" },
+          "default_execution": {
+            "type": "boolean",
+            "description": "Marks the enabled server selected by default for new sessions. Older files without this field use the first enabled entry until saved."
+          },
           "url": {
             "type": "string",
             "format": "uri",

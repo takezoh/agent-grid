@@ -1,8 +1,10 @@
+import type { CreateRepositorySessionPayload } from "../api/sessions";
 import { desktopBaseUrl } from "../auth";
 import { PROTOCOL_VERSION, protocolMismatchReason } from "../protocol-version";
 import type {
   GitHubAction,
   GitHubActionResult,
+  HostPreparation,
   HostRepositoryProjection,
 } from "../store/repository_picker";
 import type { FleetSnapshot } from "./session-protocol";
@@ -10,6 +12,7 @@ import type { FleetSnapshot } from "./session-protocol";
 export interface FleetConfigOutcome {
   serverId: string;
   serverLabel: string;
+  isDefaultExecution?: boolean;
   state: "connected" | "unavailable" | "incompatible_protocol";
   reason?: string;
   config?: Record<string, unknown>;
@@ -26,15 +29,12 @@ export interface FleetProvider {
   repositoryProjection(): Promise<HostRepositoryProjection>;
   /** Settings/account actions; host-only — never returns credentials. */
   githubAction(action: GitHubAction): Promise<GitHubActionResult>;
+  /** Workspace-only navigation to the host-owned GitHub account settings. */
+  openGitHubSettings?(): Promise<void>;
   /** Start repository preparation on an execution server (host-mediated). */
   createRepositorySession(
     serverId: string,
-    payload: {
-      repository_id: string;
-      owner: string;
-      name: string;
-      intent_id?: string;
-    },
+    payload: CreateRepositorySessionPayload & { intent_id?: string },
   ): Promise<unknown>;
   apiUrl(serverId: string, pathname: string): string;
   wsUrl(serverId: string, ticket: string): string;
@@ -51,7 +51,12 @@ export interface FleetProvider {
 }
 
 type HostProjection = {
-  servers?: Array<{ serverId?: unknown; displayName?: unknown; enabled?: unknown }>;
+  servers?: Array<{
+    serverId?: unknown;
+    displayName?: unknown;
+    enabled?: unknown;
+    defaultExecution?: unknown;
+  }>;
 };
 
 function explicitServerId(): string | null {
@@ -113,6 +118,7 @@ function webProvider(fetchImpl: typeof fetch): FleetProvider {
                 return {
                   serverId,
                   serverLabel,
+                  isDefaultExecution: server.defaultExecution === true,
                   state: "incompatible_protocol",
                   reason: protocolMismatchReason(capabilities.protocolVersion),
                 };
@@ -122,6 +128,7 @@ function webProvider(fetchImpl: typeof fetch): FleetProvider {
                 return {
                   serverId,
                   serverLabel,
+                  isDefaultExecution: server.defaultExecution === true,
                   state: "unavailable",
                   reason: `HTTP ${response.status}`,
                 };
@@ -129,6 +136,7 @@ function webProvider(fetchImpl: typeof fetch): FleetProvider {
               return {
                 serverId,
                 serverLabel,
+                isDefaultExecution: server.defaultExecution === true,
                 state: "connected",
                 config: (await response.json()) as Record<string, unknown>,
               };
@@ -136,6 +144,7 @@ function webProvider(fetchImpl: typeof fetch): FleetProvider {
               return {
                 serverId,
                 serverLabel,
+                isDefaultExecution: server.defaultExecution === true,
                 state: "unavailable",
                 reason: error instanceof Error ? error.message : String(error),
               };
@@ -209,6 +218,7 @@ function webProvider(fetchImpl: typeof fetch): FleetProvider {
 function workspaceProvider(bridge: NonNullable<Window["agentGridWorkspace"]>): FleetProvider {
   const fleet = bridge.sessionFleet;
   if (!fleet) throw new Error("Workspace FleetProvider is unavailable");
+  const trackedPreparations = new Map<string, { serverId: string; preparation: HostPreparation }>();
   return {
     initialServerId: explicitServerId,
     subscribe(listener) {
@@ -254,6 +264,24 @@ function workspaceProvider(bridge: NonNullable<Window["agentGridWorkspace"]>): F
         status.account.state === "authenticated" ||
         status.account.state === "authorizing" ||
         (status.catalog.repositories?.length ?? 0) > 0;
+      const preparations = await Promise.all(
+        [...trackedPreparations.values()].map(async (tracked) => {
+          if (!fleet.request) return tracked.preparation;
+          try {
+            const result = await fleet.request(
+              tracked.serverId,
+              `/api/repository-preparations/${encodeURIComponent(tracked.preparation.preparation_id)}`,
+              { method: "GET" },
+            );
+            if (result.status < 200 || result.status >= 300) return tracked.preparation;
+            const preparation = JSON.parse(result.body) as HostPreparation;
+            tracked.preparation = preparation;
+            return preparation;
+          } catch {
+            return tracked.preparation;
+          }
+        }),
+      );
       return {
         sources: [
           { id: "projects", available: true },
@@ -272,18 +300,47 @@ function workspaceProvider(bridge: NonNullable<Window["agentGridWorkspace"]>): F
           repositories: status.catalog.repositories ?? [],
         },
         targets,
-        preparations: [],
+        preparations,
       };
     },
     async githubAction(action) {
       if (!bridge.github) throw new Error("Workspace GitHub bridge is unavailable");
       return bridge.github.action(action);
     },
+    async openGitHubSettings() {
+      if (!bridge.openSettings) throw new Error("Workspace Settings bridge is unavailable");
+      await bridge.openSettings("github");
+    },
     async createRepositorySession(serverId, payload) {
+      let result: unknown;
       if (fleet.createRepositorySession) {
-        return fleet.createRepositorySession(serverId, payload);
+        result = await fleet.createRepositorySession(serverId, payload);
+      } else {
+        result = await fleet.create(serverId, { kind: "repository", ...payload });
       }
-      return fleet.create(serverId, { kind: "repository", ...payload });
+      const preparation = result as Partial<HostPreparation>;
+      if (typeof preparation.preparation_id === "string" && preparation.preparation_id) {
+        trackedPreparations.set(preparation.preparation_id, {
+          serverId,
+          preparation: {
+            preparation_id: preparation.preparation_id,
+            intent_id: String(preparation.intent_id ?? ""),
+            server_id: serverId,
+            repository: preparation.repository ?? {
+              repository_id: payload.repository_id,
+              owner: payload.owner,
+              name: payload.name,
+            },
+            stage: String(preparation.stage ?? "confirmed"),
+            revision: Number(preparation.revision ?? 1),
+            failure_code: preparation.failure_code,
+            retry_origin: preparation.retry_origin,
+            environment_disposition: preparation.environment_disposition,
+            session_id: preparation.session_id,
+          },
+        });
+      }
+      return result;
     },
     apiUrl(_serverId, pathname) {
       const baseUrl = desktopBaseUrl();

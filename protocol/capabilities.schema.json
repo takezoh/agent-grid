@@ -9,7 +9,7 @@
   "properties": {
     "protocolVersion": {
       "type": "string",
-      "const": "protocol-2",
+      "const": "protocol-3",
       "description": "Exact daemon/client contract version from protocol-version.json."
     },
     "capabilities": {

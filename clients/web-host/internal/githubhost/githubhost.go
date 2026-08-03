@@ -17,7 +17,6 @@ import (
 )
 
 const (
-	FixedClientID, ScopeReadUser, ScopeRepo                   = "Ov23liAgentGridDeviceFlow", "read:user", "repo"
 	RefreshDeadline                                           = 120 * time.Second
 	MaxPages, MaxRepositories, MaxResponseBytes, MaxCacheBytes = 100, 10_000, 32 << 20, 16 << 20
 	deviceCodeURL                                             = "https://github.com/login/device/code"

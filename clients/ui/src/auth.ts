@@ -44,11 +44,13 @@ declare global {
        */
       setTitleBarTheme?: (theme: "dark" | "light", mode?: "system" | "light" | "dark") => void;
       serverHealth?: { list(): Promise<FleetHealth> };
+      openSettings?: (section: "github") => Promise<void>;
       /** Credential-free GitHub Settings actions (Workspace main/preload). */
       github?: {
         action(
           action: import("./store/repository_picker").GitHubAction,
         ): Promise<import("./store/repository_picker").GitHubActionResult>;
+        openAuthorization(): Promise<void>;
       };
       sessionFleet?: {
         listConfigs(): Promise<unknown>;

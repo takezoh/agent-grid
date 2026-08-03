@@ -1,5 +1,6 @@
 import type { ServerConfig } from "./desktop-config.js";
 import { PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER } from "./protocol-version.js";
+import { connectionFailureReason } from "./server-health.js";
 
 export interface FleetSessionRef {
   serverId: string;
@@ -131,7 +132,7 @@ export class FleetSessionRuntime {
         if (this.stopped) return;
         this.replace(server, generation, {
           state: "reconnecting",
-          reason: error instanceof Error ? error.message : String(error),
+          reason: connectionFailureReason(error),
           sessions: [],
         });
         await new Promise((resolve) => setTimeout(resolve, 1_000));

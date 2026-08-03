@@ -14,15 +14,17 @@ type Event interface {
 
 // Event type constants for dispatch by reduceEvent.
 const (
-	EventCreateSession       = "create-session"
-	EventStopSession         = "stop-session"
-	EventListSessions        = "list-sessions"
-	EventShutdown            = "shutdown"
-	EventPushDriver          = "push-driver"
-	EventForkSession         = "fork-session"
-	EventSetHeadFrame        = "set-head-frame"
-	EventListSessionMessages = "list-session-messages"
-	EventReadSessionMessages = "read-session-messages"
+	EventCreateSession            = "create-session"
+	EventStopSession              = "stop-session"
+	EventListSessions             = "list-sessions"
+	EventShutdown                 = "shutdown"
+	EventPushDriver               = "push-driver"
+	EventForkSession              = "fork-session"
+	EventSetHeadFrame             = "set-head-frame"
+	EventListSessionMessages      = "list-session-messages"
+	EventReadSessionMessages      = "read-session-messages"
+	EventCreateRepositorySession  = "create-repository-session"
+	EventGetRepositoryPreparation = "get-repository-preparation"
 )
 
 // === IPC commands (caller → daemon) ===

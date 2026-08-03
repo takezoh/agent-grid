@@ -16,7 +16,7 @@ $OutDir = [System.IO.Path]::GetFullPath($OutDir)
 try {
   $localClients = Join-Path $localRoot "clients"
   New-Item -ItemType Directory -Force -Path $localClients | Out-Null
-  foreach ($name in @("ui", "workspace")) {
+  foreach ($name in @("config", "ui", "web-host", "workspace")) {
     $source = Join-Path $repo "clients\$name"
     $destination = Join-Path $localClients $name
     & robocopy $source $destination /E /XD node_modules dist .git `

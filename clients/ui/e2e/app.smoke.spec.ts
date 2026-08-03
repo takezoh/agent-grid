@@ -1,6 +1,143 @@
 import { installFakeBackend, makeSessionInfo } from "./support/fake-backend";
 import { expect, test } from "./support/test";
 
+test("keeps 16px horizontal palette margins on a narrow Workspace viewport", async ({ page }) => {
+  const activeSession = makeSessionInfo({
+    id: "palette-margin-session",
+    project: "/repo/app",
+    command: "claude",
+    title: "Palette margin session",
+    status: "running",
+  });
+  const backend = await installFakeBackend(page, {
+    sessions: [activeSession],
+    sessionConfig: {
+      project_roots: ["/repo/app"],
+      project_paths: ["/repo/app"],
+      projects: [{ path: "/repo/app", isGit: true, isSandboxed: false }],
+      commands: ["claude"],
+      push_commands: [],
+    },
+  });
+  await page.setViewportSize({ width: 375, height: 720 });
+  const sessionConfigResponse = page.waitForResponse((response) =>
+    response.url().includes("session-config"),
+  );
+  await page.goto("/?server=test-server#token=test");
+  await sessionConfigResponse;
+  await backend.waitForSocketOpen();
+  await backend.emit({
+    k: "h",
+    sessions: [activeSession],
+    activeSessionID: activeSession.id,
+    features: ["surface"],
+    serverTime: 1_720_000_000_000,
+  });
+  await page.keyboard.press("Control+K");
+  await expect(page.getByRole("dialog", { name: "Command Palette" })).toBeVisible();
+
+  const sheet = await page.locator("[data-role='palette-sheet']").boundingBox();
+  if (!sheet) throw new Error("palette sheet is not visible");
+  expect(sheet.x).toBeCloseTo(16, 2);
+  expect(375 - sheet.x - sheet.width).toBeCloseTo(16, 2);
+  const overlayPadding = await page.locator(".palette-overlay").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return [style.paddingInlineStart, style.paddingInlineEnd];
+  });
+  expect(overlayPadding).toEqual(["0px", "0px"]);
+});
+
+test("New Session keeps Execution Server compact above Command and changes to a healthy server", async ({
+  page,
+}) => {
+  const activeSession = makeSessionInfo({
+    id: "execution-server-session",
+    project: "/repo/app",
+    command: "claude",
+    title: "Execution server session",
+    status: "running",
+  });
+  const backend = await installFakeBackend(page, {
+    sessions: [activeSession],
+    sessionConfig: {
+      project_roots: ["/repo/app"],
+      project_paths: ["/repo/app"],
+      projects: [{ path: "/repo/app", isGit: true, isSandboxed: false }],
+      commands: ["claude"],
+      push_commands: [],
+    },
+  });
+  await page.route("**/host/config", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        schema_version: 2,
+        servers: [
+          { serverId: "srv-connected", displayName: "Connected", enabled: true },
+          {
+            serverId: "srv-unavailable",
+            displayName: "Build Server",
+            enabled: true,
+            defaultExecution: true,
+          },
+          { serverId: "srv-incompatible", displayName: "Old Server", enabled: true },
+        ],
+      }),
+    });
+  });
+  await page.route("**/host/servers/srv-unavailable/api/session-config", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: "{invalid" });
+  });
+  await page.route("**/host/servers/srv-incompatible/api/capabilities", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ protocolVersion: "old-protocol" }),
+    });
+  });
+
+  await page.goto("/?server=srv-connected#token=test");
+  await backend.waitForSocketOpen();
+  await backend.emit({
+    k: "h",
+    sessions: [activeSession],
+    activeSessionID: activeSession.id,
+    features: ["surface"],
+    serverTime: 1_720_000_000_000,
+  });
+  await page.getByRole("button", { name: "Open command menu" }).click();
+  await page.getByTestId("palette-input").press("Enter");
+  await page.getByRole("tab", { name: "Projects" }).click();
+  await page.getByTestId("palette-param-project-filter").press("Enter");
+
+  const selector = page.getByTestId("execution-server-selector");
+  const command = page.getByRole("group", { name: "Command" });
+  await expect(selector).toBeVisible();
+  await expect(page.getByTestId("execution-server-current")).toHaveText("Build Server");
+  expect(
+    await selector.evaluate((element, commandId) => {
+      const commandElement = document.querySelector(commandId);
+      return (
+        commandElement !== null &&
+        Boolean(element.compareDocumentPosition(commandElement) & Node.DOCUMENT_POSITION_FOLLOWING)
+      );
+    }, "[data-param-id='command']"),
+  ).toBe(true);
+  await expect(command).toBeVisible();
+  await expect(selector).not.toContainText(/unavailable|incompatible|invalid|old-protocol|error/i);
+  await expect(page.getByRole("button", { name: "Connected" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Build Server/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Old Server" })).toHaveCount(0);
+
+  await selector.getByRole("button", { name: "Change" }).click();
+  await expect(page.getByRole("button", { name: "Connected" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: /Build Server/ })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Old Server" })).toBeDisabled();
+  await page.getByRole("button", { name: "Connected" }).click();
+  await expect(page.getByTestId("execution-server-current")).toHaveText("Connected");
+});
+
 test("renders live sessions and completes a new-session submission against the fake gateway", async ({
   page,
 }) => {
@@ -63,6 +200,7 @@ test("renders live sessions and completes a new-session submission against the f
 
   await page.getByTestId("palette-input").press("Enter");
   await expect(page.getByTestId("palette-param-project-filter")).toBeVisible();
+  await page.getByRole("tab", { name: "Projects" }).click();
   await page.getByTestId("palette-param-project-filter").press("Enter");
   await expect(page.getByTestId("palette-param-command-filter")).toBeVisible();
   // Enter on the final field moves focus to the explicit confirm button —
@@ -166,6 +304,7 @@ test("project and command candidate lists remain scrollable while their filters 
   });
   await page.getByRole("button", { name: "Open command menu" }).click();
   await page.getByTestId("palette-input").press("Enter");
+  await page.getByRole("tab", { name: "Projects" }).click();
 
   const projectFilter = page.getByTestId("palette-param-project-filter");
   const projectList = page.locator("#palette-param-project");

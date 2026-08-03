@@ -13,13 +13,13 @@ describe("FleetProvider host parity", () => {
         return Response.json({
           schema_version: 2,
           servers: [
-            { serverId: "srv-a", displayName: "A", enabled: true },
-            { serverId: "srv-b", displayName: "B", enabled: true },
+            { serverId: "srv-a", displayName: "A", enabled: true, defaultExecution: false },
+            { serverId: "srv-b", displayName: "B", enabled: true, defaultExecution: true },
           ],
         });
       }
       if (url.includes("/api/capabilities")) {
-        return Response.json({ protocolVersion: "protocol-2" });
+        return Response.json({ protocolVersion: "protocol-3" });
       }
       if (url.includes("srv-a")) return Response.json({ projects: ["/a"] });
       return new Response("not ready", { status: 503, headers: { "Retry-After": "1" } });
@@ -31,12 +31,14 @@ describe("FleetProvider host parity", () => {
       {
         serverId: "srv-a",
         serverLabel: "A",
+        isDefaultExecution: false,
         state: "connected",
         config: { projects: ["/a"] },
       },
       {
         serverId: "srv-b",
         serverLabel: "B",
+        isDefaultExecution: true,
         state: "unavailable",
         reason: "HTTP 503",
       },
@@ -49,7 +51,7 @@ describe("FleetProvider host parity", () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       if (String(input) === "/host/config") {
         return Response.json({
-          servers: [{ serverId: "srv-a", displayName: "A", enabled: true }],
+          servers: [{ serverId: "srv-a", displayName: "A", enabled: true, defaultExecution: true }],
         });
       }
       return Response.json({ protocolVersion: "old" });
@@ -59,8 +61,9 @@ describe("FleetProvider host parity", () => {
       {
         serverId: "srv-a",
         serverLabel: "A",
+        isDefaultExecution: true,
         state: "incompatible_protocol",
-        reason: "incompatible protocol: client protocol-2, server old",
+        reason: "incompatible protocol: client protocol-3, server old",
       },
     ]);
     expect(fetchImpl).not.toHaveBeenCalledWith("/host/servers/srv-a/api/session-config");
@@ -75,6 +78,27 @@ describe("FleetProvider host parity", () => {
         config: { projects: [{ path: "/a" }] },
       },
     ];
+    const openSettings = vi.fn().mockResolvedValue(undefined);
+    const createRepositorySession = vi.fn().mockResolvedValue({
+      preparation_id: "prep-1",
+      intent_id: "intent-1",
+      stage: "confirmed",
+      revision: 1,
+    });
+    const request = vi.fn().mockResolvedValue({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        preparation_id: "prep-1",
+        intent_id: "intent-1",
+        server_id: "srv-a",
+        repository: { repository_id: "1", owner: "alice", name: "demo" },
+        stage: "failed",
+        failure_code: "clone_failed",
+        retry_origin: "clone",
+        revision: 3,
+      }),
+    });
     window.agentGridWorkspace = {
       hostedModeInfo: {
         hosted: true,
@@ -82,9 +106,12 @@ describe("FleetProvider host parity", () => {
         baseUrl: "https://gateway.invalid",
         token: "renderer-token",
       },
+      openSettings,
       sessionFleet: {
         listConfigs: vi.fn().mockResolvedValue(projected),
         create: vi.fn(),
+        createRepositorySession,
+        request,
       },
       github: {
         action: vi.fn().mockResolvedValue({
@@ -96,19 +123,46 @@ describe("FleetProvider host parity", () => {
             repositories: [{ repository_id: "1", owner: "alice", name: "demo" }],
           },
         }),
+        openAuthorization: vi.fn(),
       },
     };
 
-    const outcomes = await makeFleetProvider().listConfigs();
+    const provider = makeFleetProvider();
+    const outcomes = await provider.listConfigs();
 
     expect(outcomes).toEqual(projected);
     expect(JSON.stringify(outcomes)).not.toContain("renderer-token");
 
-    const repo = await makeFleetProvider().repositoryProjection();
+    const repo = await provider.repositoryProjection();
     expect(repo.targets.some((t) => t.source === "project")).toBe(true);
     expect(repo.targets.some((t) => t.source === "repository")).toBe(true);
     expect(JSON.stringify(repo)).not.toContain("renderer-token");
     expect(JSON.stringify(repo)).not.toMatch(/gho_|ghu_|github_pat/i);
+    await provider.openGitHubSettings?.();
+    expect(openSettings).toHaveBeenCalledWith("github");
+    await provider.createRepositorySession("srv-a", {
+      repository_id: "1",
+      owner: "alice",
+      name: "demo",
+      version: 2,
+      profile_id: "shell",
+      profile_revision: "revision-shell",
+    });
+    expect(createRepositorySession).toHaveBeenCalledWith("srv-a", {
+      repository_id: "1",
+      owner: "alice",
+      name: "demo",
+      version: 2,
+      profile_id: "shell",
+      profile_revision: "revision-shell",
+    });
+    const updated = await provider.repositoryProjection();
+    expect(request).toHaveBeenCalledWith("srv-a", "/api/repository-preparations/prep-1", {
+      method: "GET",
+    });
+    expect(updated.preparations).toMatchObject([
+      { preparation_id: "prep-1", stage: "failed", failure_code: "clone_failed", revision: 3 },
+    ]);
   });
 
   it("Web repositoryProjection treats 404 as transient failure (not empty wipe)", async () => {

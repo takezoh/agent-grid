@@ -16,6 +16,7 @@ public sealed class DesktopConfigTests : IDisposable
         Assert.Equal(
             ["srv_ca5ed80c77e645b7c7ec83189f36bfa835128debf18096e46c6300fdc17e8c3a"],
             config.Servers.Select(s => s.Id));
+        Assert.True(Assert.Single(config.Servers).DefaultExecution);
         Assert.Equal("default", config.Appearance.Theme);
         Assert.Equal("agent-grid-workspace", config.Shell.WorkspaceExecutable);
         Assert.All(
@@ -64,6 +65,69 @@ public sealed class DesktopConfigTests : IDisposable
                 "srv_f1e2c7da767e6e0fc3eac0819fdd3a622967f18748c6f0a875c3a5b0a165031e",
             ],
             config.Servers.Select(s => s.Id));
+        Assert.Equal([true, false], config.Servers.Select(s => s.DefaultExecution));
+    }
+
+    [Fact]
+    public void Explicit_default_execution_server_is_loaded()
+    {
+        DesktopConfigLoader.LoadOrCreate(_directory);
+        var path = Path.Combine(_directory, "servers.json");
+        File.WriteAllText(path, JsonSerializer.Serialize(new
+        {
+            schema_version = 2,
+            servers = new object[]
+            {
+                Server("one", "http://127.0.0.1:8443"),
+                new
+                {
+                    display_name = "two",
+                    enabled = true,
+                    default_execution = true,
+                    url = "https://example.test",
+                    auth = new { mode = "bearer", token = "token" },
+                },
+            },
+        }));
+
+        var config = DesktopConfigLoader.LoadOrCreate(_directory);
+
+        Assert.Equal([false, true], config.Servers.Select(s => s.DefaultExecution));
+    }
+
+    [Fact]
+    public void Invalid_default_execution_server_is_rejected()
+    {
+        DesktopConfigLoader.LoadOrCreate(_directory);
+        var path = Path.Combine(_directory, "servers.json");
+        File.WriteAllText(path, JsonSerializer.Serialize(new
+        {
+            schema_version = 2,
+            servers = new object[]
+            {
+                new
+                {
+                    display_name = "one",
+                    enabled = true,
+                    default_execution = true,
+                    url = "http://127.0.0.1:8443",
+                    auth = new { mode = "bearer", token = "token" },
+                },
+                new
+                {
+                    display_name = "two",
+                    enabled = true,
+                    default_execution = true,
+                    url = "https://example.test",
+                    auth = new { mode = "bearer", token = "token" },
+                },
+            },
+        }));
+
+        var error = Assert.Throws<DesktopConfigException>(
+            () => DesktopConfigLoader.LoadOrCreate(_directory));
+
+        Assert.Contains("at most one", error.Message);
     }
 
     [Fact]

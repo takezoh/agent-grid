@@ -558,7 +558,15 @@ describe("App", () => {
           new Response(
             JSON.stringify({
               commands: ["claude"],
-              projects: [{ path: "/repo/a", isGit: true, isSandboxed: false }],
+              base_command_profiles: [],
+              projects: [
+                {
+                  path: "/repo/a",
+                  isGit: true,
+                  isSandboxed: false,
+                  command_profiles: [],
+                },
+              ],
               push_commands: ["/clear", "/exit"],
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
@@ -566,7 +574,7 @@ describe("App", () => {
         );
       }
       if (u.endsWith("/host/servers/test-server/api/capabilities")) {
-        return Promise.resolve(Response.json({ protocolVersion: "protocol-2" }));
+        return Promise.resolve(Response.json({ protocolVersion: "protocol-3" }));
       }
       return new Promise(() => {}); // hang ws-ticket forever
     });

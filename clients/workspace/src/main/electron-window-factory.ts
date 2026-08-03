@@ -18,7 +18,7 @@ import type { WindowBounds, WindowFactory, WindowHandle } from "./window-registr
 import type { DaemonConfigResolver, HostedModeInfo } from "./daemon-config.js";
 import type { AppearanceConfig, WorkspaceAppConfig } from "./desktop-config.js";
 import type { SessionRef } from "../shared/session-ref.js";
-import { settingsPageUrl } from "./settings-page.js";
+import { settingsPageUrl, type SettingsSection } from "./settings-page.js";
 import {
   CHROME_COLORS,
   layoutChrome,
@@ -95,7 +95,11 @@ export interface ElectronFactoryOptions {
 
 export interface ElectronWindowFactory extends WindowFactory {
   createHome(serverId: string): WindowHandle;
-  createSettings(): WindowHandle;
+  createSettings(section?: SettingsSection): SettingsWindowHandle;
+}
+
+export interface SettingsWindowHandle extends WindowHandle {
+  showSection(section: SettingsSection): void;
 }
 
 export function sessionPageUrl(uiEntryUrl: string, sessionId?: string): string {
@@ -121,6 +125,7 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Elect
     serverId: string,
     sessionId?: string,
     bounds?: WindowBounds,
+    settingsSection: SettingsSection = "connections",
   ): WindowHandle => {
       const appearance = opts.getAppearance?.() ?? opts.appearance;
       const workspace = opts.getWorkspace?.() ?? opts.workspace;
@@ -187,7 +192,7 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Elect
       });
 
       if (kind === "settings") {
-        void content.webContents.loadURL(settingsPageUrl());
+        void content.webContents.loadURL(settingsPageUrl(settingsSection));
         return {
           id: "settings",
           focus: () => {
@@ -207,7 +212,13 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Elect
           setBounds: (b) => {
             if (!win.isDestroyed()) win.setBounds(b);
           },
-        };
+          showSection: (section: SettingsSection) => {
+            if (win.isDestroyed()) return;
+            void content.webContents.executeJavaScript(
+              `window.location.hash=${JSON.stringify(`#${section}`)}`,
+            );
+          },
+        } as SettingsWindowHandle;
       }
 
       if (kind === "home") {
@@ -332,8 +343,14 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Elect
     createHome(serverId: string): WindowHandle {
       return createWindow("home", serverId);
     },
-    createSettings(): WindowHandle {
-      return createWindow("settings", "__settings__");
+    createSettings(section: SettingsSection = "connections"): SettingsWindowHandle {
+      return createWindow(
+        "settings",
+        "__settings__",
+        undefined,
+        undefined,
+        section,
+      ) as SettingsWindowHandle;
     },
   };
 }

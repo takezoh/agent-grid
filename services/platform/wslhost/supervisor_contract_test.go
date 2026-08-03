@@ -202,3 +202,18 @@ func TestBuildLaunchSpecBoundTarget(t *testing.T) {
 		t.Fatalf("probe fingerprint argv = %v, want %v", gotArgv, wantArgv)
 	}
 }
+
+// TestContractLaunchSpecSelectsExplicitNoAuth pins the Local WSL client/server
+// authentication contract. The registered Workspace endpoint uses auth.mode=none,
+// while the server refuses to start unless exactly one explicit authentication
+// selector is supplied. The supervisor therefore has to launch this loopback
+// endpoint with -no-auth; TLS selection alone is not an auth selector.
+//
+// rejects counterexample: a supervised server exits before listening with
+// "authentication mode is required" even though direct operator launch works.
+func TestContractLaunchSpecSelectsExplicitNoAuth(t *testing.T) {
+	spec := BuildLaunchSpec(testSnap(t))
+	if !slices.Contains(spec.ServerArgs, "-no-auth") {
+		t.Fatalf("supervised server args %v omit required -no-auth selector", spec.ServerArgs)
+	}
+}

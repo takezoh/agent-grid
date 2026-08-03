@@ -1,7 +1,7 @@
 {
   "id": "fixture-approval-round-trip-v1",
   "description": "Deterministic approval request → accept sequence with fixed IDs/timestamps",
-  "protocolVersion": "protocol-2",
+  "protocolVersion": "protocol-3",
   "events": [
     {
       "t": 0,

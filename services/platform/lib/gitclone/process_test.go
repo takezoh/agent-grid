@@ -80,7 +80,9 @@ func TestCloneCredentialProcessBoundaryContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer p2.Cleanup()
-	b2.BindGit(1, 1)
+	// PID/PGID 1 can be the test process group inside a containerized runner.
+	// Negative identities cannot match a real peer and keep this contract deterministic.
+	b2.BindGit(-1, -1)
 	c, err := net.Dial("unix", p2.SockPath)
 	if err != nil {
 		t.Fatal(err)

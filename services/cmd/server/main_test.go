@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -100,6 +101,49 @@ func TestRunMainDaemonErrorLogsAndPrints(t *testing.T) {
 	if !strings.Contains(string(data), "main failed") {
 		t.Fatalf("log = %q, want main failed entry", string(data))
 	}
+}
+
+func TestMainDaemonStartupErrorSurvivesFD2Redirect(t *testing.T) {
+	dir := t.TempDir()
+	cmd := exec.Command(os.Args[0], "-test.run=^TestMainDaemonStartupErrorHelper$")
+	cmd.Env = append(os.Environ(),
+		"AG_TEST_MAIN_DAEMON_STARTUP_ERROR=1",
+		"AG_TEST_MAIN_DATA_DIR="+dir,
+		"AG_DATA_DIR=",
+		"HOME="+t.TempDir(),
+	)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+		t.Fatalf("exit error = %v, want exit code 1 (stderr=%q)", err, stderr.String())
+	}
+	const cause = "authentication mode is required"
+	if !strings.Contains(stderr.String(), cause) {
+		t.Fatalf("parent stderr = %q, want startup cause %q", stderr.String(), cause)
+	}
+	logData, readErr := os.ReadFile(filepath.Join(dir, "server.log"))
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if !strings.Contains(string(logData), cause) {
+		t.Fatalf("server.log = %q, want startup cause %q", string(logData), cause)
+	}
+}
+
+func TestMainDaemonStartupErrorHelper(_ *testing.T) {
+	if os.Getenv("AG_TEST_MAIN_DAEMON_STARTUP_ERROR") != "1" {
+		return
+	}
+	os.Args = []string{
+		"server",
+		"-data-dir", os.Getenv("AG_TEST_MAIN_DATA_DIR"),
+		"-addr", "127.0.0.1:0",
+		"-insecure",
+	}
+	main()
 }
 
 func TestRunMainUnknownCommandDoesNotRunDaemon(t *testing.T) {
