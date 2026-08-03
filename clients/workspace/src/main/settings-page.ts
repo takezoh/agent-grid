@@ -394,6 +394,10 @@ export function buildSettingsPageHtml(): string {
             <span>Workspace</span>
             <span class="tree__count"></span>
           </button>
+          <button type="button" data-target="shell" aria-current="false">
+            <span>Shell</span>
+            <span class="tree__count"></span>
+          </button>
           <button type="button" data-target="github" aria-current="false"><span>GitHub</span><span id="github-status-count" class="tree__count"></span></button>
         </nav>
       </aside>
@@ -502,6 +506,26 @@ export function buildSettingsPageHtml(): string {
           </div>
         </section>
 
+        <section id="shell" class="section" data-active="false">
+          <div class="group">
+            <div class="group__header">
+              <h2>Shell</h2>
+              <p>Behavior of the Windows Shell surface.</p>
+            </div>
+            <div class="group__body">
+              <div class="form-grid">
+                <div class="field">
+                  <label for="shell-display">Display</label>
+                  <select id="shell-display">
+                    <option value="">System primary (default)</option>
+                  </select>
+                  <small>Takes effect the next time Windows Shell starts.</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section id="github" class="section" data-active="false">
           <div class="group">
             <div class="group__header"><h2>GitHub connection</h2><p>Connect Workspace directly with GitHub using the device authorization flow.</p></div>
@@ -548,6 +572,7 @@ export function buildSettingsPageHtml(): string {
 
     <script>
       const workspaceApi = window.agentGridWorkspace?.desktopConfig;
+      const displayApi = window.agentGridWorkspace?.displays;
       const healthApi = window.agentGridWorkspace?.serverHealth;
       const fleetApi = window.agentGridWorkspace?.sessionFleet;
       const githubApi = window.agentGridWorkspace?.github;
@@ -565,6 +590,10 @@ export function buildSettingsPageHtml(): string {
           title: "Workspace",
           description: "Tune Workspace-specific window behavior without affecting the server list.",
         },
+        shell: {
+          title: "Shell",
+          description: "Configure behavior specific to the Windows Shell surface.",
+        },
         github: { title: "GitHub", description: "Workspace-owned GitHub device flow. Credentials stay in the desktop client." },
       };
       const state = {
@@ -572,6 +601,7 @@ export function buildSettingsPageHtml(): string {
         activeSection: "connections",
         health: new Map(),
         reconnecting: new Set(),
+        displays: [],
       };
 
       const els = {
@@ -590,6 +620,7 @@ export function buildSettingsPageHtml(): string {
         density: document.getElementById("density"),
         fontScale: document.getElementById("font-scale"),
         idleQuitSeconds: document.getElementById("idle-quit-seconds"),
+        shellDisplay: document.getElementById("shell-display"),
         windowWidth: document.getElementById("window-width"),
         windowHeight: document.getElementById("window-height"),
         ghState: document.getElementById("github-account-state"),
@@ -782,12 +813,33 @@ export function buildSettingsPageHtml(): string {
         els.density.value = snapshot.appearance.density;
         els.fontScale.value = String(snapshot.appearance.font_scale);
         els.idleQuitSeconds.value = String(snapshot.workspace.idle_quit_seconds);
+        renderDisplays();
         els.windowWidth.value = String(snapshot.workspace.default_window.width);
         els.windowHeight.value = String(snapshot.workspace.default_window.height);
         els.ghAppId.value = snapshot.github.app_id;
         els.ghClientId.value = snapshot.github.client_id;
         renderServers();
         syncNativeTheme();
+      }
+
+      function renderDisplays() {
+        const saved = state.snapshot?.shell?.display_anchor ?? null;
+        const selected = state.displays.find((display) =>
+          saved && display.anchor.x === saved.x && display.anchor.y === saved.y
+        );
+        const options = [
+          '<option value="">System primary (default)</option>',
+          ...state.displays.map((display) =>
+            '<option value="' + escapeHtml(display.id) + '">' +
+            escapeHtml(display.label + (display.primary ? " (Primary)" : "")) +
+            '</option>'
+          ),
+        ];
+        if (saved && !selected) {
+          options.push('<option value="__saved__">Unavailable saved display (primary fallback)</option>');
+        }
+        els.shellDisplay.innerHTML = options.join("");
+        els.shellDisplay.value = selected?.id ?? (saved ? "__saved__" : "");
       }
 
       function updateServer(index, field, value) {
@@ -841,6 +893,11 @@ export function buildSettingsPageHtml(): string {
             density: els.density.value,
             font_scale: Number(els.fontScale.value),
           },
+          shell: {
+            display_anchor: els.shellDisplay.value === "__saved__"
+              ? state.snapshot.shell.display_anchor
+              : state.displays.find((display) => display.id === els.shellDisplay.value)?.anchor ?? null,
+          },
           workspace: {
             idle_quit_seconds: Number(els.idleQuitSeconds.value),
             default_window: {
@@ -862,7 +919,11 @@ export function buildSettingsPageHtml(): string {
           return;
         }
         try {
-          const snapshot = await workspaceApi.load();
+          const [snapshot, displays] = await Promise.all([
+            workspaceApi.load(),
+            displayApi?.list ? displayApi.list() : Promise.resolve([]),
+          ]);
+          state.displays = Array.isArray(displays) ? displays : [];
           applySnapshot(snapshot);
           setStatus("info", "Loaded desktop client settings.");
           await refreshHealth();

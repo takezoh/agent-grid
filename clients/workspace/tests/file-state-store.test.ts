@@ -31,11 +31,15 @@ describe("file-state-store", () => {
     return p;
   }
 
-  it("round-trips v2 server-scoped state", async () => {
+  it("round-trips v3 server-scoped and last-display state", async () => {
     const p = tmp();
     const state = {
-      schema_version: 2 as const,
+      schema_version: 3 as const,
       windows: { local: { "sess-a": { x: 10, y: 20, width: 800, height: 600 } } },
+      last_display: {
+        id: "2",
+        bounds: { x: 1920, y: 0, width: 1920, height: 1080 },
+      },
     };
     await writeWorkspaceStateFile(p, state);
     const loaded = await readWorkspaceStateFile(p);
@@ -44,8 +48,9 @@ describe("file-state-store", () => {
     const store = new FileStateStore(p);
     expect(store.load()).toEqual(state);
     store.save({
-      schema_version: 2,
+      schema_version: 3,
       windows: { local: { "sess-b": { x: 0, y: 0, width: 1, height: 1 } } },
+      last_display: state.last_display,
     });
     expect(store.load()?.windows.local?.["sess-b"]?.width).toBe(1);
   });

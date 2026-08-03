@@ -12,12 +12,14 @@ describe("settings page", () => {
     expect(html).toContain(">Connections<");
     expect(html).toContain(">Appearance<");
     expect(html).toContain(">Workspace<");
+    expect(html).toContain(">Shell<");
     expect(html).toContain("Save settings");
     expect(html).toContain("Default execution server");
     expect(html).toContain('id="default-execution-server"');
     expect(html).toContain("GitHub App configuration");
     expect(html).toContain('id="github-app-id"');
     expect(html).toContain('id="github-client-id"');
+    expect(html).toContain('id="shell-display"');
     expect(html).toContain("No client secret is required");
     expect(html).toContain(">Close<");
     expect(html).toContain("desktopConfig");
@@ -167,6 +169,11 @@ describe("settings page", () => {
               },
             ],
             appearance: { theme: "dark", density: "comfortable", font_scale: 1 },
+            shell: {
+              workspace_executable: "agent-grid-workspace",
+              health_poll_interval_seconds: 5,
+              display_anchor: null,
+            },
             workspace: {
               idle_quit_seconds: 300,
               default_window: { width: 1280, height: 800 },
@@ -210,6 +217,14 @@ describe("settings page", () => {
               },
             ],
           }),
+        },
+        displays: {
+          list: async () => [{
+            id: "primary",
+            label: "Primary",
+            primary: true,
+            anchor: { x: 960, y: 540 },
+          }],
         },
         github: {
           action: async () => ({
@@ -438,6 +453,30 @@ describe("settings page", () => {
     });
     await close();
   });
+
+  it("lists displays in the Shell section and saves the selected Shell display anchor", async () => {
+    const { window, savedSettings, close } = await loadSettingsPage();
+    const select = window.document.querySelector<HTMLSelectElement>("#shell-display")!;
+    expect(select.closest("section")?.id).toBe("shell");
+    expect(window.document.querySelector("#workspace #shell-display")).toBeNull();
+    expect([...select.options].map((option) => option.textContent)).toEqual([
+      "System primary (default)",
+      "Built-in (Primary)",
+      "External",
+    ]);
+
+    select.value = "external";
+    select.dispatchEvent(new window.Event("change", { bubbles: true }));
+    window.document.querySelector<HTMLButtonElement>("#save-button")?.click();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(savedSettings()).toMatchObject({
+      shell: {
+        display_anchor: { x: 3200, y: 720 },
+      },
+    });
+    await close();
+  });
 });
 
 async function loadSettingsPage(
@@ -495,6 +534,11 @@ async function loadSettingsPage(
             auth: { mode: "none" },
           }],
           appearance: { theme: "dark", density: "comfortable", font_scale: 1 },
+          shell: {
+            workspace_executable: "agent-grid-workspace",
+            health_poll_interval_seconds: 5,
+            display_anchor: null,
+          },
           workspace: {
             idle_quit_seconds: 300,
             default_window: { width: 1280, height: 800 },
@@ -525,6 +569,19 @@ async function loadSettingsPage(
             }],
           };
         },
+      },
+      displays: {
+        list: async () => [{
+          id: "built-in",
+          label: "Built-in",
+          primary: true,
+          anchor: { x: 960, y: 540 },
+        }, {
+          id: "external",
+          label: "External",
+          primary: false,
+          anchor: { x: 3200, y: 720 },
+        }],
       },
       sessionFleet: { reconnect },
       github: { action: githubAction, openAuthorization },

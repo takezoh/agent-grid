@@ -22,6 +22,10 @@ responsibilities:
   statement: Manage desktop lifecycle — background start, idle-quit after the
     configured window-less period, and default window geometry from workspace
     config.
+- id: RESP-006
+  statement: Own desktop display selection UX, persist the display containing the
+    most recently moved Workspace window, restore new windows to that display, and
+    write the physical display anchor consumed by Windows Shell.
 invariants:
 - id: INV-001
   statement: The SPA bundle is copied verbatim from clients/ui dist; the workspace
@@ -41,6 +45,11 @@ invariants:
     focuses in response to control messages under the shell's delegated rights
     (see design-windows-shell cap:workspace-activation-delegation).
   enforcement: review
+- id: INV-005
+  statement: Cross-process display selection uses a physical screen-coordinate
+    anchor; Electron Display.id is Workspace-internal and is never interpreted as
+    a Windows App SDK DisplayId.
+  enforcement: test
 boundaries:
   provides:
   - Per-session desktop windows over the shared SPA with hosted token injection.

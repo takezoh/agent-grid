@@ -19,6 +19,7 @@ import {
   type ElectronWebContentsViewConstructor,
 } from "./electron-window-factory.js";
 import { FileStateStore, defaultWorkspaceStatePath } from "./file-state-store.js";
+import { WorkspaceDisplayController, type DisplayScreenLike } from "./display-placement.js";
 import { IdleQuitController } from "./idle-quit.js";
 import { WindowRegistry } from "./window-registry.js";
 
@@ -56,6 +57,7 @@ export interface AppEntryOptions {
   registerRendererInfo?: ElectronFactoryOptions["registerRendererInfo"];
   configureServerTransport?: ElectronFactoryOptions["configureServerTransport"];
   registerWindowChrome?: ElectronFactoryOptions["registerWindowChrome"];
+  screen?: DisplayScreenLike;
   onDesktopConfigLoaded?: (config: DesktopConfig) => void;
 }
 
@@ -80,6 +82,7 @@ export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
   opts.onDesktopConfigLoaded?.(desktopConfig);
   let config = DaemonConfigResolver.fromServers(desktopConfig.servers);
   const store = new FileStateStore(opts.statePath ?? defaultWorkspaceStatePath());
+  const displays = opts.screen ? new WorkspaceDisplayController(store, opts.screen) : null;
   const factory = createElectronWindowFactory({
     config: {
       resolve: (serverId) => config.resolve(serverId),
@@ -97,6 +100,8 @@ export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
     registerRendererInfo: opts.registerRendererInfo,
     configureServerTransport: opts.configureServerTransport,
     registerWindowChrome: opts.registerWindowChrome,
+    resolveWindowBounds: (bounds, size) => displays?.initialBounds(bounds, size) ?? bounds,
+    trackWindowDisplay: (window) => displays?.track(window),
   });
   const registry = new WindowRegistry(factory, store);
   let defaultServer = desktopConfig.servers.find((server) => server.enabled);

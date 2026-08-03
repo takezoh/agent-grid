@@ -37,6 +37,7 @@ describe("desktop config", () => {
       density: "comfortable",
       font_scale: 1,
     });
+    expect(config.shell.display_anchor).toBeNull();
     expect(config.github).toEqual({
       app_id: "4460068",
       client_id: "Iv23li471HWU8jxRwlK7",
@@ -178,6 +179,9 @@ describe("desktop config", () => {
         density: "compact",
         font_scale: 1.2,
       },
+      shell: {
+        display_anchor: { x: 3000, y: 700 },
+      },
       workspace: {
         idle_quit_seconds: 42,
         default_window: { width: 1440, height: 900 },
@@ -205,6 +209,7 @@ describe("desktop config", () => {
       idle_quit_seconds: 42,
       default_window: { width: 1440, height: 900 },
     });
+    expect(updated.shell.display_anchor).toEqual({ x: 3000, y: 700 });
     expect(updated.github).toEqual({
       app_id: "9000001",
       client_id: "Iv23liUpdatedClient99",
@@ -220,6 +225,12 @@ describe("desktop config", () => {
       schema_version: 1,
       idle_quit_seconds: 42,
       default_window: { width: 1440, height: 900 },
+    });
+    expect(JSON.parse(fs.readFileSync(path.join(directory, "shell.json"), "utf8"))).toEqual({
+      schema_version: 1,
+      workspace_executable: "agent-grid-workspace",
+      health_poll_interval_seconds: 5,
+      display_anchor: { x: 3000, y: 700 },
     });
     expect(JSON.parse(fs.readFileSync(path.join(directory, "github.json"), "utf8"))).toEqual({
       schema_version: 1,

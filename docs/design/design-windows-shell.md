@@ -24,6 +24,9 @@ responsibilities:
     documents under the config directory) consumed by both shell and workspace.
 - id: RESP-006
   statement: Route agent-grid:// deep links to panel focus, session open, or jump-back.
+- id: RESP-007
+  statement: Consume the optional physical display anchor written by Workspace and
+    place the panel on the resolved display at startup, with primary-display fallback.
 invariants:
 - id: INV-001
   statement: Layering is one-way — Shell.Core (pure, net8.0) references neither
@@ -69,6 +72,10 @@ invariants:
 - id: INV-009
   statement: Desktop configuration files are the single source of connection truth;
     environment variables do not override servers.json.
+  enforcement: review
+- id: INV-010
+  statement: Shell consumes display placement but owns no display settings surface;
+    display selection and persistence remain Workspace responsibilities.
   enforcement: review
 boundaries:
   provides:

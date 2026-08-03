@@ -7,6 +7,7 @@ import {
   clipboard,
   ipcMain,
   nativeTheme,
+  screen,
   shell,
   webContents,
   type MenuItemConstructorOptions,
@@ -26,6 +27,7 @@ import type {
   ElectronBaseWindowConstructor,
   ElectronWebContentsViewConstructor,
 } from "./electron-window-factory.js";
+import { listDisplayChoices } from "./display-placement.js";
 import {
   connectionFailureReason,
   legacyFleetHealthFromSnapshot,
@@ -216,6 +218,8 @@ ipcMain.handle("agent-grid:desktop-config-load", () => {
   if (!desktopConfig) throw new Error("desktop config is not ready");
   return loadEditableDesktopSettings(desktopConfig.configDirectory);
 });
+
+ipcMain.handle("agent-grid:display-list", () => listDisplayChoices(screen));
 
 ipcMain.handle("agent-grid:desktop-config-save", (_event, settings: EditableDesktopSettings) => {
   if (!desktopConfig) throw new Error("desktop config is not ready");
@@ -652,6 +656,7 @@ void startWorkspaceApp({
   WebContentsView: WebContentsView as unknown as ElectronWebContentsViewConstructor,
   preloadPath,
   titleBarPreloadPath,
+  screen,
   onDesktopConfigLoaded: (config) => {
     desktopConfig = config;
     replaceFleetRuntime(config);

@@ -9,6 +9,7 @@
 import type { DesktopConfig, EditableDesktopSettings } from "../main/desktop-config.js";
 import type { FleetHealth } from "../main/server-health.js";
 import type { GitHubAction, GitHubActionResult } from "../main/repository-lease.js";
+import type { DisplayChoice } from "../main/display-placement.js";
 
 export interface HostedModeInfo {
   hosted: boolean;
@@ -22,6 +23,10 @@ export interface HostedModeInfo {
 export interface DesktopConfigBridge {
   load(): Promise<DesktopConfig>;
   save(settings: EditableDesktopSettings): Promise<DesktopConfig>;
+}
+
+export interface DisplaySettingsBridge {
+  list(): Promise<DisplayChoice[]>;
 }
 
 export interface WindowControls {
@@ -40,6 +45,7 @@ export interface WorkspacePreloadApi {
   hostedModeInfo: HostedModeInfo | null;
   requestJumpBack(sessionId: string): Promise<void>;
   desktopConfig?: DesktopConfigBridge;
+  displays?: DisplaySettingsBridge;
   serverHealth?: { list(): Promise<FleetHealth> };
   openSettings?: (section: "github") => Promise<void>;
   github?: GitHubSettingsBridge;
@@ -78,6 +84,7 @@ export function buildPreloadApi(opts: {
   windowControls: WindowControls;
   requestJumpBack: (sessionId: string) => Promise<void>;
   desktopConfig?: DesktopConfigBridge;
+  displays?: DisplaySettingsBridge;
   serverHealth?: { list(): Promise<FleetHealth> };
   openSettings?: (section: "github") => Promise<void>;
   github?: GitHubSettingsBridge;
@@ -88,6 +95,7 @@ export function buildPreloadApi(opts: {
     hostedModeInfo: opts.hostedModeInfo,
     requestJumpBack: opts.requestJumpBack,
     desktopConfig: opts.desktopConfig,
+    displays: opts.displays,
     serverHealth: opts.serverHealth,
     openSettings: opts.openSettings,
     github: opts.github,

@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld("agentGridWorkspace", {
     load: () => ipcRenderer.invoke("agent-grid:desktop-config-load"),
     save: (settings) => ipcRenderer.invoke("agent-grid:desktop-config-save", settings),
   },
+  displays: {
+    list: () => ipcRenderer.invoke("agent-grid:display-list"),
+  },
   serverHealth: {
     list: () => ipcRenderer.invoke("agent-grid:server-health-list"),
   },

@@ -34,7 +34,12 @@ public sealed record ServerAuthConfig(ServerAuthMode Mode, string? Token)
 
 public sealed record AppearanceConfig(string Theme, string Density, double FontScale);
 
-public sealed record ShellAppConfig(string WorkspaceExecutable, int HealthPollIntervalSeconds);
+public sealed record DisplayAnchor(int X, int Y);
+
+public sealed record ShellAppConfig(
+    string WorkspaceExecutable,
+    int HealthPollIntervalSeconds,
+    DisplayAnchor? DisplayAnchor);
 
 public sealed record WorkspaceAppConfig(
     int IdleQuitSeconds,
@@ -134,7 +139,12 @@ public static class DesktopConfigLoader
         return new DesktopConfig(
             mappedServers,
             new AppearanceConfig(appearance.Theme, appearance.Density, appearance.FontScale),
-            new ShellAppConfig(shell.WorkspaceExecutable, shell.HealthPollIntervalSeconds),
+            new ShellAppConfig(
+                shell.WorkspaceExecutable,
+                shell.HealthPollIntervalSeconds,
+                shell.DisplayAnchor is null
+                    ? null
+                    : new DisplayAnchor(shell.DisplayAnchor.X, shell.DisplayAnchor.Y)),
             new WorkspaceAppConfig(
                 workspace.IdleQuitSeconds,
                 workspace.DefaultWindow.Width,
@@ -314,7 +324,7 @@ public static class DesktopConfigLoader
                         new AuthDocument("none", null))
                 ]),
             ["appearance.json"] = new AppearanceDocument(SchemaVersion, "default", "comfortable", 1.0),
-            ["shell.json"] = new ShellDocument(SchemaVersion, "agent-grid-workspace", 5),
+            ["shell.json"] = new ShellDocument(SchemaVersion, "agent-grid-workspace", 5, null),
             ["workspace.json"] = new WorkspaceDocument(
                 SchemaVersion,
                 300,
@@ -355,7 +365,12 @@ public static class DesktopConfigLoader
     private sealed record ShellDocument(
         [property: JsonPropertyName("schema_version")] int SchemaVersion,
         [property: JsonPropertyName("workspace_executable")] string WorkspaceExecutable,
-        [property: JsonPropertyName("health_poll_interval_seconds")] int HealthPollIntervalSeconds);
+        [property: JsonPropertyName("health_poll_interval_seconds")] int HealthPollIntervalSeconds,
+        [property: JsonPropertyName("display_anchor")] DisplayAnchorDocument? DisplayAnchor = null);
+
+    private sealed record DisplayAnchorDocument(
+        [property: JsonPropertyName("x")] int X,
+        [property: JsonPropertyName("y")] int Y);
 
     private sealed record WorkspaceDocument(
         [property: JsonPropertyName("schema_version")] int SchemaVersion,

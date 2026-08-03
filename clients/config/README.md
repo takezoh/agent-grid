@@ -8,7 +8,9 @@ contract. Desktop hosts additionally read appearance and process settings.
   New Session. Exactly one enabled entry is selected in Settings; legacy files
   without the marker temporarily use their first enabled entry until saved.
 - `appearance.json`: theme, density, and UI font scale
-- `shell.json`: Shell process settings
+- `shell.json`: Shell process settings, including the optional Workspace-selected
+  physical `display_anchor` used to place the Shell panel. Workspace owns the
+  display picker; Shell only consumes the saved anchor at startup.
 - `workspace.json`: Workspace process settings
 - `github.schema.json` / `fixtures/github-oauth-valid.json`: release defaults for
   the public GitHub OAuth App device-flow registration (`app_id`, `client_id`,
@@ -64,3 +66,7 @@ Once routed to a server connection, only `sessionId` is sent to that server.
 
 Workspace loads the UI bundled in the application. Server entries therefore
 contain only the backend `url`; they do not contain a UI origin.
+
+Workspace also persists its own last-used display in `workspace-state.json`, not
+in shared configuration. This runtime state is independent from the explicit
+Shell display selection in `shell.json`.

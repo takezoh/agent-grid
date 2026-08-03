@@ -4,7 +4,7 @@ import {
   loadWorkspaceState,
   type WindowFactory,
   type WindowHandle,
-  type WorkspaceStateV2,
+  type WorkspaceStateV3,
 } from "../src/main/window-registry.js";
 import type { SessionRef } from "../src/shared/session-ref.js";
 
@@ -83,14 +83,30 @@ describe("window-registry", () => {
 });
 
 describe("workspace-state schema evolution", () => {
-  it("loads v2", () => {
+  it("upgrades v2 without inventing a last display", () => {
     const raw = {
       schema_version: 2,
       windows: { one: { s1: { x: 1, y: 2, width: 3, height: 4 } } },
     };
-    const s = loadWorkspaceState(raw) as WorkspaceStateV2;
-    expect(s.schema_version).toBe(2);
+    const s = loadWorkspaceState(raw) as WorkspaceStateV3;
+    expect(s.schema_version).toBe(3);
     expect(s.windows.one?.s1?.width).toBe(3);
+    expect(s.last_display).toBeNull();
+  });
+
+  it("loads v3 last-display state", () => {
+    const state = loadWorkspaceState({
+      schema_version: 3,
+      windows: {},
+      last_display: {
+        id: "22",
+        bounds: { x: 1920, y: 0, width: 1920, height: 1080 },
+      },
+    });
+    expect(state?.last_display).toEqual({
+      id: "22",
+      bounds: { x: 1920, y: 0, width: 1920, height: 1080 },
+    });
   });
 
   it("refuses unknown version without silent corruption", () => {

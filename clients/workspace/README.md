@@ -43,8 +43,15 @@ Shell and Workspace share the files documented in
 set. Shell forwards the argument when it launches Workspace.
 
 Workspace window identity and persisted bounds use `{serverId, sessionId}`.
+`workspace-state.json` schema version 3 also records the display containing the
+most recently moved Workspace window. The next process start places its first
+window on that display, with a primary-display fallback when it was disconnected.
 After routing to a configured server connection, hosted SPA/server calls still
 receive only `sessionId`.
+
+Settings > Shell owns the Windows Shell display picker. It writes a physical
+screen-coordinate `display_anchor` to `shell.json`; Shell consumes the anchor at
+its next start but does not own a separate settings surface.
 
 ### Repository session storage
 
@@ -71,6 +78,8 @@ npm run lint:browserwindow
 ```
 
 Electron binary is optional for unit tests (vitest + memory factory).
+On Windows, `AG_E2E_WORKSPACE_DISPLAY=1 npm test -- display-placement-real`
+runs the opt-in `FakeVsReal` backstop against Electron's real `screen` API.
 
 `npm run build` builds the shared UI and copies it into `dist/ui`. Workspace
 loads `dist/ui/index.html` locally; it never obtains UI content from a Server.

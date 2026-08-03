@@ -86,6 +86,12 @@ describe("Workspace GitHub action IPC", () => {
         on: vi.fn(),
       },
       nativeTheme: { shouldUseDarkColors: true, themeSource: "system" },
+      screen: {
+        getAllDisplays: vi.fn(() => []),
+        getPrimaryDisplay: vi.fn(() => ({ id: 1 })),
+        getDisplayMatching: vi.fn(() => ({ id: 1 })),
+        dipToScreenPoint: vi.fn((point) => point),
+      },
       shell: { openExternal: vi.fn(async () => undefined) },
       webContents: { fromId: vi.fn(() => undefined) },
     }));

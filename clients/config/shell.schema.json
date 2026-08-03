@@ -7,6 +7,16 @@
   "properties": {
     "schema_version": { "const": 1 },
     "workspace_executable": { "type": "string", "minLength": 1 },
-    "health_poll_interval_seconds": { "type": "integer", "minimum": 1, "maximum": 300 }
+    "health_poll_interval_seconds": { "type": "integer", "minimum": 1, "maximum": 300 },
+    "display_anchor": {
+      "description": "Workspace-selected physical screen point used to resolve the Shell display.",
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "integer" },
+        "y": { "type": "integer" }
+      }
+    }
   }
 }

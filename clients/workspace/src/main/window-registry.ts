@@ -37,14 +37,20 @@ export interface WindowBounds {
   height: number;
 }
 
-export interface WorkspaceStateV2 {
-  schema_version: 2;
+export interface WorkspaceDisplayState {
+  id: string;
+  bounds: WindowBounds;
+}
+
+export interface WorkspaceStateV3 {
+  schema_version: 3;
   windows: Record<string, Record<string, WindowBounds>>;
+  last_display: WorkspaceDisplayState | null;
 }
 
 export interface StateStore {
-  load(): WorkspaceStateV2 | null;
-  save(state: WorkspaceStateV2): void;
+  load(): WorkspaceStateV3 | null;
+  save(state: WorkspaceStateV3): void;
 }
 
 /**
@@ -175,7 +181,8 @@ export class WindowRegistry {
 
   private persistAll(): void {
     if (!this.store) return;
-    const state = emptyState();
+    const state = this.store.load() ?? emptyState();
+    state.windows = {};
     const window = this.windows.get(WindowRegistry.fleetWindowKey);
     if (window && !window.isDestroyed() && this.activeSession) {
       const { serverId, sessionId } = this.activeSession;
@@ -195,15 +202,15 @@ export class WindowRegistry {
   }
 }
 
-function emptyState(): WorkspaceStateV2 {
-  return { schema_version: 2, windows: {} };
+function emptyState(): WorkspaceStateV3 {
+  return { schema_version: 3, windows: {}, last_display: null };
 }
 
 /**
  * Load workspace-state.json with schema-version fail-safe
  * (contract-workspace-state-schema-evolution).
  */
-export function loadWorkspaceState(raw: unknown): WorkspaceStateV2 | null {
+export function loadWorkspaceState(raw: unknown): WorkspaceStateV3 | null {
   if (raw === null || typeof raw !== "object") return null;
   const obj = raw as Record<string, unknown>;
   const version = obj.schema_version;
@@ -211,10 +218,36 @@ export function loadWorkspaceState(raw: unknown): WorkspaceStateV2 | null {
     const windows = obj.windows;
     if (windows === null || typeof windows !== "object") return emptyState();
     return {
-      schema_version: 2,
+      schema_version: 3,
       windows: windows as Record<string, Record<string, WindowBounds>>,
+      last_display: null,
+    };
+  }
+  if (version === 3) {
+    const windows = obj.windows;
+    if (windows === null || typeof windows !== "object") return emptyState();
+    const lastDisplay = loadDisplayState(obj.last_display);
+    return {
+      schema_version: 3,
+      windows: windows as Record<string, Record<string, WindowBounds>>,
+      last_display: lastDisplay,
     };
   }
   // Unknown / future version: refuse silent corruption; start empty.
   return null;
+}
+
+function loadDisplayState(raw: unknown): WorkspaceDisplayState | null {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw !== "object") return null;
+  const value = raw as Record<string, unknown>;
+  if (typeof value.id !== "string" || !validBounds(value.bounds)) return null;
+  return { id: value.id, bounds: { ...value.bounds } };
+}
+
+function validBounds(raw: unknown): raw is WindowBounds {
+  if (raw === null || typeof raw !== "object") return false;
+  const value = raw as Record<string, unknown>;
+  return [value.x, value.y, value.width, value.height].every(Number.isFinite) &&
+    Number(value.width) > 0 && Number(value.height) > 0;
 }

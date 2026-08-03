@@ -58,6 +58,7 @@ export interface ElectronBaseWindowLike {
   setBounds(bounds: ChromeRect): void;
   getContentBounds(): ChromeRect;
   on(event: "resize", listener: () => void): void;
+  on(event: "moved", listener: () => void): void;
   contentView: { addChildView(view: ElectronWebContentsViewLike): void };
 }
 
@@ -91,6 +92,11 @@ export interface ElectronFactoryOptions {
   configureServerTransport?: (webContentsId: number, baseUrl: string) => void;
   /** Lets the entry answer title-bar menu IPC / repaint chrome per window. */
   registerWindowChrome?: (handles: WindowChromeHandles) => void;
+  resolveWindowBounds?: (
+    requested: WindowBounds | undefined,
+    size: { width: number; height: number },
+  ) => WindowBounds | undefined;
+  trackWindowDisplay?: (window: ElectronBaseWindowLike) => void;
 }
 
 export interface ElectronWindowFactory extends WindowFactory {
@@ -134,17 +140,23 @@ export function createElectronWindowFactory(opts: ElectronFactoryOptions): Elect
         opts.systemPrefersDark?.() ?? true,
       );
       const overlay = titleBarOverlayFor(chromeTheme);
-      const win = new BaseWindow({
-        x: bounds?.x,
-        y: bounds?.y,
+      const size = {
         width: bounds?.width ?? workspace?.default_window.width ?? 1280,
         height: bounds?.height ?? workspace?.default_window.height ?? 800,
+      };
+      const initialBounds = opts.resolveWindowBounds?.(bounds, size) ?? bounds;
+      const win = new BaseWindow({
+        x: initialBounds?.x,
+        y: initialBounds?.y,
+        width: initialBounds?.width ?? size.width,
+        height: initialBounds?.height ?? size.height,
         show: true,
         titleBarStyle: "hidden",
         titleBarOverlay: overlay,
         // Pre-load background matching the theme so no white frame flashes.
         backgroundColor: overlay.color,
       });
+      opts.trackWindowDisplay?.(win);
 
       const titleBar = new WebContentsView({
         webPreferences: {

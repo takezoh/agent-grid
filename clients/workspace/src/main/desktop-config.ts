@@ -42,6 +42,11 @@ export interface AppearanceConfig {
 export interface ShellAppConfig {
   workspace_executable: string;
   health_poll_interval_seconds: number;
+  display_anchor?: { x: number; y: number } | null;
+}
+
+export interface EditableShellSettings {
+  display_anchor: { x: number; y: number } | null;
 }
 
 export interface WorkspaceAppConfig {
@@ -67,6 +72,7 @@ export interface DesktopConfig {
 export interface EditableDesktopSettings {
   servers: readonly ServerConfig[];
   appearance: AppearanceConfig;
+  shell?: EditableShellSettings;
   workspace: WorkspaceAppConfig;
   github: GitHubAppConfig;
 }
@@ -128,6 +134,7 @@ export function loadOrCreateDesktopConfig(configDirectory: string): DesktopConfi
     shell: {
       workspace_executable: shellDoc.workspace_executable,
       health_poll_interval_seconds: shellDoc.health_poll_interval_seconds,
+      display_anchor: shellDoc.display_anchor ? { ...shellDoc.display_anchor } : null,
     },
     workspace: {
       idle_quit_seconds: workspaceDoc.idle_quit_seconds,
@@ -150,7 +157,7 @@ export function saveEditableDesktopSettings(
   settings: EditableDesktopSettings,
 ): DesktopConfig {
   const directory = path.resolve(configDirectory);
-  loadOrCreateDesktopConfig(directory);
+  const current = loadOrCreateDesktopConfig(directory);
   // Persist only config fields. Runtime health projections must never be written
   // into servers.json even when a settings payload accidentally carries them.
   const serversDoc: Versioned<{ servers: readonly ServerDocument[] }> = {
@@ -175,6 +182,14 @@ export function saveEditableDesktopSettings(
     density: settings.appearance.density,
     font_scale: settings.appearance.font_scale,
   };
+  const shellDoc: Versioned<ShellAppConfig> = {
+    schema_version: CONFIG_SCHEMA_VERSION,
+    workspace_executable: current.shell.workspace_executable,
+    health_poll_interval_seconds: current.shell.health_poll_interval_seconds,
+    display_anchor: settings.shell === undefined
+      ? current.shell.display_anchor ? { ...current.shell.display_anchor } : null
+      : settings.shell.display_anchor ? { ...settings.shell.display_anchor } : null,
+  };
   const workspaceDoc: Versioned<WorkspaceAppConfig> = {
     schema_version: CONFIG_SCHEMA_VERSION,
     idle_quit_seconds: settings.workspace.idle_quit_seconds,
@@ -191,10 +206,12 @@ export function saveEditableDesktopSettings(
   };
   validateServers([...serversDoc.servers]);
   validateAppearance(appearanceDoc);
+  validateShell(shellDoc);
   validateWorkspace(workspaceDoc);
   validateGitHub(githubDoc);
   writeJson(path.join(directory, "servers.json"), serversDoc);
   writeJson(path.join(directory, "appearance.json"), appearanceDoc);
+  writeJson(path.join(directory, "shell.json"), shellDoc);
   writeJson(path.join(directory, "workspace.json"), workspaceDoc);
   writeJson(path.join(directory, "github.json"), githubDoc);
   return loadOrCreateDesktopConfig(directory);
@@ -340,6 +357,12 @@ function validateShell(value: Versioned<ShellAppConfig>): void {
       value.health_poll_interval_seconds > 300) {
     throw new Error("shell.json: health_poll_interval_seconds must be between 1 and 300");
   }
+  if (value.display_anchor !== null && value.display_anchor !== undefined &&
+      (!isRecord(value.display_anchor) ||
+       !Number.isInteger(value.display_anchor.x) ||
+       !Number.isInteger(value.display_anchor.y))) {
+    throw new Error("shell.json: display_anchor must contain integer x and y coordinates");
+  }
 }
 
 function validateWorkspace(value: Versioned<WorkspaceAppConfig>): void {
@@ -440,6 +463,7 @@ function defaultDocuments(): Record<string, unknown> {
       schema_version: CONFIG_SCHEMA_VERSION,
       workspace_executable: "agent-grid-workspace",
       health_poll_interval_seconds: 5,
+      display_anchor: null,
     },
     "workspace.json": {
       schema_version: CONFIG_SCHEMA_VERSION,

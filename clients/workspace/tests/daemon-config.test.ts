@@ -75,7 +75,11 @@ describe("buildPreloadApi", () => {
         configDirectory: "C:\\config",
         servers: [],
         appearance: { theme: "dark", density: "compact", font_scale: 1 },
-        shell: { workspace_executable: "agent-grid-workspace", health_poll_interval_seconds: 5 },
+        shell: {
+          workspace_executable: "agent-grid-workspace",
+          health_poll_interval_seconds: 5,
+          display_anchor: null,
+        },
         workspace: { idle_quit_seconds: 300, default_window: { width: 1280, height: 800 } },
         github: { app_id: "4460068", client_id: "Iv23li471HWU8jxRwlK7", scopes: ["read:user", "repo"] },
       });
@@ -85,9 +89,11 @@ describe("buildPreloadApi", () => {
       windowControls: { minimize() {}, maximize() {}, close() {} },
       requestJumpBack: async () => {},
       desktopConfig: { load, save },
+      displays: { list: async () => [] },
     });
 
     expect(api.desktopConfig).toBeDefined();
+    expect(api.displays).toBeDefined();
     await expect(api.desktopConfig?.load()).resolves.toMatchObject({
       configDirectory: "C:\\config",
       appearance: { theme: "dark" },

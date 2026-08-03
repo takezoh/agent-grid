@@ -19,6 +19,7 @@ public sealed class DesktopConfigTests : IDisposable
         Assert.True(Assert.Single(config.Servers).DefaultExecution);
         Assert.Equal("default", config.Appearance.Theme);
         Assert.Equal("agent-grid-workspace", config.Shell.WorkspaceExecutable);
+        Assert.Null(config.Shell.DisplayAnchor);
         Assert.All(
             ["servers.json", "appearance.json", "shell.json", "workspace.json"],
             name => Assert.True(File.Exists(Path.Combine(_directory, name))));
@@ -30,6 +31,24 @@ public sealed class DesktopConfigTests : IDisposable
         Assert.False(servers.RootElement
             .GetProperty("servers")[0]
             .TryGetProperty("id", out _));
+    }
+
+    [Fact]
+    public void Workspace_selected_display_anchor_is_loaded_for_shell_placement()
+    {
+        DesktopConfigLoader.LoadOrCreate(_directory);
+        var path = Path.Combine(_directory, "shell.json");
+        File.WriteAllText(path, JsonSerializer.Serialize(new
+        {
+            schema_version = 1,
+            workspace_executable = "agent-grid-workspace",
+            health_poll_interval_seconds = 5,
+            display_anchor = new { x = 3200, y = 720 },
+        }));
+
+        var config = DesktopConfigLoader.LoadOrCreate(_directory);
+
+        Assert.Equal(new DisplayAnchor(3200, 720), config.Shell.DisplayAnchor);
     }
 
     [Fact]

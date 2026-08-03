@@ -55,7 +55,7 @@ public sealed partial class PanelWindow : Window
         ConfigureIslandChrome();
         AttachDragSurface(CompactBar);
         AttachDragSurface(HeaderBar);
-        MoveResizeTop(CurrentModeSize());
+        MoveResizeTop(CurrentModeSize(), ConfiguredWorkArea(root.Config.Shell.DisplayAnchor));
 
         _root.SnapshotChanged += snap =>
             DispatcherQueue.TryEnqueue(() => Render(PanelGlanceView.From(snap)));
@@ -552,13 +552,19 @@ public sealed partial class PanelWindow : Window
     /// Fit to the top screen edge, horizontally anchored at the drag center
     /// (default: screen center) and clamped inside the work area.
     /// </summary>
-    private void MoveResizeTop(IslandSize size) => MoveResizeTop(size.Width, size.Height);
+    private void MoveResizeTop(
+        IslandSize size,
+        Windows.Graphics.RectInt32? preferredWorkArea = null) =>
+        MoveResizeTop(size.Width, size.Height, preferredWorkArea);
 
-    private void MoveResizeTop(int width, int height)
+    private void MoveResizeTop(
+        int width,
+        int height,
+        Windows.Graphics.RectInt32? preferredWorkArea = null)
     {
         try
         {
-            var work = WorkArea();
+            var work = preferredWorkArea ?? WorkArea();
             // Fit before clamping: on a small/heavily-scaled display the
             // expanded island itself can be wider than the work area.
             (width, height) = IslandLayout.Fit(
@@ -681,6 +687,29 @@ public sealed partial class PanelWindow : Window
         Microsoft.UI.Windowing.DisplayArea
             .GetFromWindowId(AppWindow.Id, Microsoft.UI.Windowing.DisplayAreaFallback.Nearest)
             .WorkArea;
+
+    private static Windows.Graphics.RectInt32? ConfiguredWorkArea(DisplayAnchor? anchor)
+    {
+        try
+        {
+            if (anchor is null)
+                return Microsoft.UI.Windowing.DisplayArea.Primary.WorkArea;
+            return Microsoft.UI.Windowing.DisplayArea.GetFromPoint(
+                new Windows.Graphics.PointInt32(anchor.X, anchor.Y),
+                Microsoft.UI.Windowing.DisplayAreaFallback.Primary).WorkArea;
+        }
+        catch
+        {
+            try
+            {
+                return Microsoft.UI.Windowing.DisplayArea.Primary.WorkArea;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+    }
 
     /// <summary>Move to x (physical), clamped on-screen, glued to the top edge.</summary>
     private void MoveDragTo(int x)
