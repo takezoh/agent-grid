@@ -9,6 +9,7 @@ import "./css/palette.css";
 import "./css/shell.css";
 import "./css/status-icon.css";
 import "./css/view.css";
+import "./css/connections.css";
 
 const root = document.getElementById("root");
 if (root) {

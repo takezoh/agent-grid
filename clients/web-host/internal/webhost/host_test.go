@@ -192,6 +192,8 @@ func TestQualifiedWebSocketOriginAndRoundTrip(t *testing.T) {
 func TestFleetRuntimePublishesSameCompoundSnapshotToEveryView(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/api/capabilities":
+			_ = json.NewEncoder(w).Encode(map[string]string{"protocolVersion": protocolVersion})
 		case "/api/ws-ticket":
 			_ = json.NewEncoder(w).Encode(map[string]string{"ticket": "fleet-ticket"})
 		case "/ws":
@@ -203,6 +205,7 @@ func TestFleetRuntimePublishesSameCompoundSnapshotToEveryView(t *testing.T) {
 			_ = connection.Write(r.Context(), websocket.MessageText, []byte(
 				`{"k":"h","sessions":[{"id":"same","project":"/p","command":"codex"}]}`,
 			))
+			<-r.Context().Done()
 		default:
 			http.NotFound(w, r)
 		}
@@ -233,6 +236,8 @@ func TestFleetRuntimePublishesSameCompoundSnapshotToEveryView(t *testing.T) {
 func TestFleetCreateConfirmsOnlyAfterLifecycleObservation(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/api/capabilities":
+			_ = json.NewEncoder(w).Encode(map[string]string{"protocolVersion": protocolVersion})
 		case "/api/sessions":
 			w.WriteHeader(http.StatusCreated)
 			_, _ = io.WriteString(w, `{"id":"created"}`)
@@ -247,6 +252,7 @@ func TestFleetCreateConfirmsOnlyAfterLifecycleObservation(t *testing.T) {
 			_ = connection.Write(r.Context(), websocket.MessageText, []byte(
 				`{"k":"h","sessions":[{"id":"created","project":"/p","command":"codex"}]}`,
 			))
+			<-r.Context().Done()
 		default:
 			http.NotFound(w, r)
 		}

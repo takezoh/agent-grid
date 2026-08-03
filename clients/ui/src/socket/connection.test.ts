@@ -42,7 +42,8 @@ describe("Connection", () => {
     useSubscriptionStore.getState().reset();
   });
 
-  it("starts → fetches ticket → opens ws → sets status open", async () => {
+  it("starts → fetches ticket → opens ws → sets status open only after daemon hello", async () => {
+    // rejects counterexample: handleOpen → setStatus("open") (UAC-002)
     const fetchFn = vi.fn(async () => ({
       ok: true,
       status: 200,
@@ -58,6 +59,10 @@ describe("Connection", () => {
     });
     await conn.start();
     FakeWS.instances[0]?.open();
+    expect(useDaemonStore.getState().status).toBe("connecting");
+    FakeWS.instances[0]?.receive(
+      JSON.stringify({ k: "h", sessions: [], features: [], serverTime: 1 }),
+    );
     expect(useDaemonStore.getState().status).toBe("open");
   });
 
@@ -285,6 +290,80 @@ describe("Connection", () => {
     expect(() => ws.receive(JSON.stringify({ k: "zz", data: "unknown" }))).not.toThrow();
   });
 
+  it("fleet mode: first authoritative hello seeds status signals without rebinding membership", async () => {
+    const fetchFn = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ ticket: "tkt" }),
+    })) as unknown as typeof fetch;
+    const fleetId = '["srv-a","s1"]';
+    const conn = new Connection({
+      ticketEndpoint: "/api/ws-ticket",
+      wsUrl: (t) => `ws://h/ws?ticket=${t}`,
+      bearerToken: "tok",
+      publishSessions: false,
+      serverId: "srv-a",
+      wsFactory: (u) => new FakeWS(u) as unknown as WebSocket,
+      sleep: async () => {},
+      fetchFn,
+    });
+    await conn.start();
+    const ws1 = FakeWS.instances[0];
+    if (!ws1) throw new Error("expected ws1");
+    ws1.open();
+
+    // Fleet membership is installed before the first daemon hello (host-owned list).
+    useDaemonStore.getState().applyViewUpdate({
+      k: "v",
+      sessions: [
+        {
+          id: fleetId,
+          upstreamSessionId: "s1",
+          serverId: "srv-a",
+          project: "p",
+          command: "codex",
+          created_at: "2026-07-26T00:00:00Z",
+          status: {
+            lifecycle: "idle",
+            human_input: false,
+            failure: "none",
+          },
+          view: { card: { title: "done" } },
+        },
+      ],
+    });
+    expect(useDaemonStore.getState().sessions[0]?.status.signal).toBeUndefined();
+
+    // First authoritative hello overlays Idle; Notification without rebinding keys.
+    ws1.receive(
+      JSON.stringify({
+        k: "h",
+        sessions: [
+          {
+            id: "s1",
+            project: "p",
+            command: "codex",
+            created_at: "2026-07-26T00:00:00Z",
+            status: {
+              lifecycle: "idle",
+              human_input: false,
+              failure: "none",
+              signal: { kind: "bell", epoch: "e1", sequence: 1 },
+            },
+            view: { card: { title: "done" } },
+          },
+        ],
+        features: [],
+        serverTime: 1,
+      }),
+    );
+
+    const afterFirst = useDaemonStore.getState().sessions;
+    expect(afterFirst).toHaveLength(1);
+    expect(afterFirst[0]?.id).toBe(fleetId);
+    expect(afterFirst[0]?.status.signal).toEqual({ kind: "bell", epoch: "e1", sequence: 1 });
+  });
+
   it("fleet mode: reconnect hello suppresses replayed bells without replacing membership", async () => {
     const fetchFn = vi.fn(async () => ({
       ok: true,
@@ -307,7 +386,7 @@ describe("Connection", () => {
     if (!ws1) throw new Error("expected ws1");
     ws1.open();
 
-    // First hello is ignored for membership (fleet owns it).
+    // First hello is ignored for membership (fleet owns it) but still seeds signals.
     ws1.receive(
       JSON.stringify({
         k: "h",
@@ -377,6 +456,72 @@ describe("Connection", () => {
     expect(after[0]?.id).toBe(fleetId);
     expect(after[0]?.status.human_input).toBe(true);
     expect(after[0]?.status.signal).toBeUndefined();
+  });
+
+  it("fleet mode: view-update overlays gateway status onto fleet membership", async () => {
+    const fetchFn = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ ticket: "tkt" }),
+    })) as unknown as typeof fetch;
+    const fleetId = '["srv-a","s1"]';
+    const conn = new Connection({
+      ticketEndpoint: "/api/ws-ticket",
+      wsUrl: (t) => `ws://h/ws?ticket=${t}`,
+      bearerToken: "tok",
+      publishSessions: false,
+      serverId: "srv-a",
+      wsFactory: (u) => new FakeWS(u) as unknown as WebSocket,
+      sleep: async () => {},
+      fetchFn,
+    });
+    await conn.start();
+    const ws = FakeWS.instances[0];
+    if (!ws) throw new Error("expected ws");
+    ws.open();
+    ws.receive(JSON.stringify({ k: "h", sessions: [], features: [], serverTime: 1 }));
+
+    useDaemonStore.getState().applyViewUpdate({
+      k: "v",
+      sessions: [
+        {
+          id: fleetId,
+          upstreamSessionId: "s1",
+          serverId: "srv-a",
+          project: "p",
+          command: "codex",
+          created_at: "2026-07-26T00:00:00Z",
+          status: { lifecycle: "idle", human_input: false, failure: "none" },
+          view: { card: { title: "done" } },
+        },
+      ],
+    });
+
+    ws.receive(
+      JSON.stringify({
+        k: "v",
+        sessions: [
+          {
+            id: "s1",
+            project: "p",
+            command: "codex",
+            created_at: "2026-07-26T00:00:00Z",
+            status: {
+              lifecycle: "idle",
+              human_input: false,
+              failure: "none",
+              signal: { kind: "bell", epoch: "e1", sequence: 1 },
+            },
+            view: { card: { title: "done" } },
+          },
+        ],
+      }),
+    );
+
+    const sessions = useDaemonStore.getState().sessions;
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]?.id).toBe(fleetId);
+    expect(sessions[0]?.status.signal).toEqual({ kind: "bell", epoch: "e1", sequence: 1 });
   });
 
   it("brokers frame messaging summaries from hello/view-update into the dedicated store", async () => {

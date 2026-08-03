@@ -110,13 +110,24 @@ describe("Workspace GitHub action IPC", () => {
       })),
     }));
     vi.doMock("../src/main/server-health.js", () => ({
-      FleetHealthMonitor: vi.fn(function MockFleetHealthMonitor() { return {
-        invalidate: vi.fn(),
-        list: vi.fn(),
-      }; }),
+      connectionFailureReason: vi.fn(() => "Could not connect to server"),
+      legacyFleetHealthFromSnapshot: vi.fn(() => ({ checkedAt: "", servers: [] })),
     }));
     vi.doMock("../src/main/fleet-session-runtime.js", () => ({
-      FleetSessionRuntime: vi.fn(function MockFleetSessionRuntime() {}),
+      FleetSessionRuntime: vi.fn(function MockFleetSessionRuntime() {
+        return {
+          start: vi.fn(),
+          stop: vi.fn(),
+          subscribe: vi.fn(() => () => undefined),
+          subscribeHealth: vi.fn(() => () => undefined),
+          healthSnapshot: vi.fn(() => ({
+            schemaVersion: 1,
+            hostInstanceId: "test",
+            revision: 0,
+            servers: [],
+          })),
+        };
+      }),
     }));
 
     await import("../src/main/electron-entry.js");

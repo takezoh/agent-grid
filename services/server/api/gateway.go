@@ -286,6 +286,12 @@ func encodeHelloFrame(sc proto.EvtSessionsChanged, serverTime int64, clientInsta
 func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn, clientInstanceID string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	// Real-binary fidelity seam: daemon_disconnect upgrades the production WS
+	// path then withholds hello so the host observes hello timeout/read failure.
+	if fleetHealthFault() == "daemon_disconnect" {
+		<-ctx.Done()
+		return ctx.Err()
+	}
 	ch, err := sess.SubscribeLifecycle(ctx)
 	if err != nil {
 		writeTypedClose(c, "lifecycle-subscribe-failed")

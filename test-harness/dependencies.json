@@ -74,6 +74,13 @@
       "fake": {"path":"services/platform/wslhost/process.go","symbol":"FakeWSLRunner"},
       "contract": {"path":"services/platform/wslhost/supervisor_contract_test.go","test":"TestContractNoShutdownAndBoundTarget","invariant":"force actions target only the registered distribution","assertion":"--shutdown"},
       "fidelity": {"path":"services/platform/wslhost/wsl_runtime_e2e_test.go","test":"TestE2E_FakeVsRealWSLBoundDistribution","shared_input":"BuildWSLExecArgv","real_marker":"wsl.exe","suite_id":"wsl-runtime"}
+    },
+    {
+      "id": "fleet-health-gateway", "strategy": "triple",
+      "seam": {"path":"services/internal/harnesspolicy/testsupport/fleet_health_gateway.go","symbol":"ProbeFleetHealthGateway"},
+      "fake": {"path":"services/internal/harnesspolicy/testsupport/fleet_health_gateway.go","symbol":"NewFleetHealthGatewayFake"},
+      "contract": {"path":"services/internal/harnesspolicy/testsupport/fleet_health_gateway_test.go","test":"TestFleetHealthGatewayContract_ProbeEvidenceShape","invariant":"capabilities ticket and hello preserve fleet health probe evidence","assertion":"assert fleet-health-probe-evidence"},
+      "fidelity": {"path":"services/server/api/fleet_health_e2e_test.go","test":"TestFakeVsRealFleetHealthProbeEvidence","shared_input":"fleetHealthProbeScript","real_marker":"AG_E2E_SERVER_BIN","suite_id":"fleet-health-gateway"}
     }
   ]
 }

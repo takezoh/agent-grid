@@ -1,83 +1,62 @@
-import { type JSX, useEffect, useState } from "react";
-import type { FleetHealth } from "../auth";
-import { summarizeFleet } from "../fleet/presentation";
-import { makeFleetProvider } from "../fleet/provider";
+import { type JSX, useEffect, useRef } from "react";
+import { reduceStatusAxes } from "../fleet/presentation";
+import type { FleetHealthView } from "../fleet/session-protocol";
 import { formatElapsed, useNow1Hz } from "../hooks/useNow1Hz";
 import { type ConnectionStatus, useDaemonStore } from "../store/daemon";
+import "../css/connections.css";
 import "../css/view.css";
 
 export type StatusBarProps = {
   statusLine?: string;
   statusChangedAt?: string;
   onRetry?: () => void;
+  health?: FleetHealthView | null;
+  onOpenConnections?: () => void;
 };
 
-function isConnectionNominal(status: ConnectionStatus, daemonDisconnected: boolean): boolean {
-  return status === "open" && !daemonDisconnected;
-}
-
-function connectionLabel(
-  status: ConnectionStatus,
-  daemonDisconnected: boolean,
-  fleet: FleetHealth | null,
-): string {
-  if (status === "closed") return "connection closed";
-  if (daemonDisconnected) return "daemon disconnected, reconnecting…";
-  if (status === "reconnecting") return "reconnecting to server…";
-  if (status === "connecting") return "connecting…";
-  return summarizeFleet(fleet?.servers ?? []) ?? "connected";
-}
-
 /**
- * FR-023: 26px bottom status bar — status_line left, connection state right.
- * Always visible while a session is active: the bar is the shell's ground
- * line ("connected" when nominal), never a sometimes-there surface.
+ * FR-023 / FR-REC-004: persistent StatusBar owns active recovery Retry and
+ * enabled-fleet aggregate/Connections. No listConfigs polling.
  */
 export function StatusBar({
   statusLine,
   statusChangedAt,
   onRetry,
-}: StatusBarProps): JSX.Element | null {
+  health = null,
+  onOpenConnections,
+}: StatusBarProps): JSX.Element {
   const now = useNow1Hz();
-  const status = useDaemonStore((s) => s.status);
+  const status = useDaemonStore((s) => s.status) as ConnectionStatus;
   const daemonDisconnected = useDaemonStore((s) => s.daemonDisconnected);
-  const [fleet, setFleet] = useState<FleetHealth | null>(null);
+  const rootRef = useRef<HTMLElement | null>(null);
+  const retryWasFocused = useRef(false);
+
+  const axes = reduceStatusAxes({
+    connectionStatus: status,
+    daemonDisconnected,
+    health,
+  });
+
   useEffect(() => {
-    const provider = makeFleetProvider();
-    let active = true;
-    const refresh = () => {
-      void provider
-        .listConfigs()
-        .then((outcomes) => {
-          if (active) {
-            setFleet({
-              checkedAt: new Date().toISOString(),
-              servers: outcomes.map((outcome) => ({
-                serverId: outcome.serverId,
-                displayName: outcome.serverLabel,
-                state: outcome.state,
-                ...(outcome.reason ? { reason: outcome.reason } : {}),
-              })),
-            });
-          }
-        })
-        .catch(() => {});
-    };
-    refresh();
-    const timer = window.setInterval(refresh, 5000);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
-  }, []);
-  const fleetDegraded = summarizeFleet(fleet?.servers ?? []) !== null;
-  const nominal = isConnectionNominal(status, daemonDisconnected) && !fleetDegraded;
-  const conn = connectionLabel(status, daemonDisconnected, fleet);
+    if (!axes.showRetry) {
+      // Transfer only when Retry was focused at the moment it disappears.
+      if (retryWasFocused.current) {
+        rootRef.current?.focus();
+      }
+      retryWasFocused.current = false;
+    }
+  }, [axes.showRetry]);
 
   const elapsed = statusChangedAt ? formatElapsed(now - new Date(statusChangedAt).getTime()) : "";
 
   return (
-    <footer className="status-bar" data-role="status-bar" aria-label="session status">
+    <footer
+      ref={rootRef}
+      className="status-bar"
+      data-role="status-bar"
+      aria-label="session status"
+      tabIndex={-1}
+    >
       <div className="status-bar__left">
         {statusLine?.trim() && <span className="status-bar__line">{statusLine}</span>}
         {elapsed && (
@@ -87,16 +66,37 @@ export function StatusBar({
         )}
       </div>
       <div className="status-bar__connection-group">
-        <span
+        <output
           className="status-bar__connection font-mono"
+          aria-live="polite"
           aria-label="connection state"
-          data-nominal={nominal ? "true" : "false"}
+          data-nominal={axes.nominal ? "true" : "false"}
         >
-          {conn}
-        </span>
-        {status === "closed" && onRetry && (
-          <button type="button" className="status-bar__retry" onClick={onRetry}>
+          {axes.activeText}
+        </output>
+        {axes.showRetry && onRetry && (
+          <button
+            type="button"
+            className="status-bar__retry"
+            onClick={() => {
+              onRetry();
+            }}
+            onFocus={() => {
+              retryWasFocused.current = true;
+            }}
+            onBlur={(event) => {
+              // Clear only when focus actually left Retry while it remains mounted.
+              // Unmount blur keeps the flag so the disappearance effect can transfer.
+              if (!event.currentTarget.isConnected) return;
+              retryWasFocused.current = false;
+            }}
+          >
             Retry
+          </button>
+        )}
+        {axes.showConnections && onOpenConnections && (
+          <button type="button" className="status-bar__connections" onClick={onOpenConnections}>
+            Connections
           </button>
         )}
       </div>

@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "hostInstanceId": "host-fixture-1",
+  "revision": 7,
+  "servers": [
+    {
+      "serverId": "alpha",
+      "serverLabel": "Alpha",
+      "enabled": true,
+      "observation": {
+        "kind": "connected",
+        "observedAt": "2026-08-03T00:00:05.000Z"
+      }
+    },
+    {
+      "serverId": "beta",
+      "serverLabel": "Beta",
+      "enabled": true,
+      "observation": {
+        "kind": "unavailable",
+        "observedAt": "2026-08-03T00:00:05.000Z",
+        "reason": "http_error"
+      }
+    },
+    {
+      "serverId": "gamma",
+      "serverLabel": "Gamma",
+      "enabled": false,
+      "observation": {
+        "kind": "disabled"
+      }
+    },
+    {
+      "serverId": "delta",
+      "serverLabel": "Delta",
+      "enabled": true,
+      "observation": {
+        "kind": "health_unavailable",
+        "observedAt": "2026-08-03T00:00:10.000Z",
+        "reason": "refresh_failed",
+        "prior": {
+          "kind": "connected",
+          "observedAt": "2026-08-03T00:00:05.000Z"
+        }
+      }
+    },
+    {
+      "serverId": "epsilon",
+      "serverLabel": "Epsilon",
+      "enabled": true,
+      "observation": {
+        "kind": "incompatible_protocol",
+        "observedAt": "2026-08-03T00:00:05.000Z",
+        "reason": "protocol_mismatch",
+        "detail": "incompatible protocol: client protocol-3, server protocol-1"
+      }
+    },
+    {
+      "serverId": "zeta",
+      "serverLabel": "Zeta",
+      "enabled": true,
+      "observation": {
+        "kind": "checking",
+        "observedAt": "2026-08-03T00:00:00.000Z"
+      }
+    }
+  ]
+}

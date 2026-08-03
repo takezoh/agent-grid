@@ -46,6 +46,8 @@ export interface WorkspacePreloadApi {
   sessionFleet?: {
     listConfigs(): Promise<unknown>;
     subscribe(listener: (snapshot: unknown) => void): () => void;
+    subscribeHealth?(listener: (snapshot: unknown) => void): () => void;
+    configPath?(): Promise<string | null>;
     openChannel(
       serverId: string,
       listener: (event: { channelId: string; kind: string; data?: unknown }) => void,

@@ -42,15 +42,32 @@ type Pending = {
   resolve: (resp: RespOKFrame | RespErrFrame) => void;
 };
 
+/** Private dual-fence authority for one ticket/socket attempt. */
+type AttemptAuth = {
+  lifecycle: number;
+  attempt: number;
+};
+
 export class Connection {
   private cfg: ConnectionConfig;
   private ws: WebSocket | null = null;
   private pending = new Map<string, Pending>();
+  /** Automatic retries completed or in-flight within the current lifecycle (0..MAX_ATTEMPTS). */
   private reconnectAttempt = 0;
   private closedByUser = false;
+  /**
+   * True while a lifecycle owns automatic recovery or an in-flight attempt.
+   * Exhaustion and user close clear it so Retry can start a fresh lifecycle.
+   */
+  private lifecycleActive = false;
+  /** Monotonic lifecycle generation — bumped on start/Retry/close/server-switch. */
+  private lifecycle = 0;
+  /** Monotonic attempt sequence within the Connection instance. */
+  private attempt = 0;
+  /** True while a reconnect delay is scheduled or a close is being handled once. */
   private reconnecting = false;
-  /** True after the first hello on this Connection instance (fleet reconnect boundary). */
-  private hasSeenHello = false;
+  /** Cancels a pending injected-sleep reconnect without depending on timer abort APIs. */
+  private cancelScheduledRetry: (() => void) | null = null;
   private reqIdCounter = 0;
   private terminalSubscriptions: TerminalSubscriptionController;
 
@@ -79,29 +96,32 @@ export class Connection {
     // can leave closedByUser=true on a Connection reused across remounts
     // (the useMemo instance is preserved). Reset it so the next disconnect
     // triggers handleClose() reconnect logic instead of permanently halting.
-    this.closedByUser = false;
-    useDaemonStore.getState().setStatus("connecting");
+    this.beginLifecycle("connecting");
     try {
       await this.connect();
     } catch {
       // Initial ticket/socket failure follows the same bounded recovery path
       // as an established socket close; desired state is retained.
-      this.handleClose();
+      this.handleClose({ lifecycle: this.lifecycle, attempt: this.attempt });
     }
   }
 
   /** Restarts a connection whose bounded automatic recovery has stopped. */
   retry(): void {
-    if (this.reconnecting || this.ws?.readyState === 1) return;
-    this.reconnectAttempt = 0;
+    // Single-flight: while a lifecycle is active (connecting/reconnecting/open),
+    // additional Retry activations are no-ops.
+    if (this.lifecycleActive) return;
     void this.start();
   }
 
   close(): void {
     this.closedByUser = true;
+    this.lifecycleActive = false;
+    this.lifecycle += 1;
+    this.cancelRetryDelay();
+    this.reconnecting = false;
     this.drainPending();
-    this.ws?.close();
-    this.ws = null;
+    this.retireSocket();
     this.terminalSubscriptions.onClose();
     useDaemonStore.getState().setStatus("closed");
   }
@@ -125,6 +145,42 @@ export class Connection {
    *  confirmed terminal subscription exists. */
   forceTerminalRenewal(): void {
     this.terminalSubscriptions.forceRenewal();
+  }
+
+  private beginLifecycle(status: "connecting"): void {
+    this.cancelRetryDelay();
+    this.reconnecting = false;
+    this.lifecycle += 1;
+    this.reconnectAttempt = 0;
+    this.closedByUser = false;
+    this.lifecycleActive = true;
+    this.drainPending();
+    this.retireSocket();
+    useDaemonStore.getState().setStatus(status);
+  }
+
+  private isCurrent(auth: AttemptAuth): boolean {
+    return auth.lifecycle === this.lifecycle && auth.attempt === this.attempt;
+  }
+
+  private cancelRetryDelay(): void {
+    this.cancelScheduledRetry?.();
+    this.cancelScheduledRetry = null;
+  }
+
+  private retireSocket(): void {
+    const ws = this.ws;
+    this.ws = null;
+    if (!ws) return;
+    ws.onopen = null;
+    ws.onmessage = null;
+    ws.onclose = null;
+    ws.onerror = null;
+    try {
+      ws.close();
+    } catch {
+      // ignore
+    }
   }
 
   private async subscribeOnce(
@@ -193,6 +249,8 @@ export class Connection {
   }
 
   private async connect(): Promise<void> {
+    this.attempt += 1;
+    const auth: AttemptAuth = { lifecycle: this.lifecycle, attempt: this.attempt };
     const fetchFn = this.cfg.fetchFn ?? fetch;
     const resp = await fetchFn(this.cfg.ticketEndpoint, {
       method: "POST",
@@ -201,20 +259,17 @@ export class Connection {
         [PROTOCOL_VERSION_HEADER]: PROTOCOL_VERSION,
       },
     });
+    // close()/Retry/server-switch may have advanced authority while the ticket
+    // was in flight — fence the result rather than depending on fetch abort.
+    if (!this.isCurrent(auth) || this.closedByUser) return;
     if (!resp.ok) {
       throw new Error(`ws-ticket failed: ${resp.status}`);
     }
     const body = (await resp.json()) as { ticket: string };
-    // close() may have fired between the fetch await and here; if so, the
-    // user has explicitly torn the connection down — do not create a fresh
-    // WebSocket that nobody references (would leak the live socket and
-    // keep emitting onopen/onclose handlers that touch a torn-down store).
-    if (this.closedByUser) return;
+    if (!this.isCurrent(auth) || this.closedByUser) return;
     const wsFactory = this.cfg.wsFactory ?? ((u) => new WebSocket(u));
     const ws = wsFactory(this.cfg.wsUrl(body.ticket));
-    // Symmetric guard: close() between the previous check and now races
-    // with the wsFactory call. Belt-and-braces.
-    if (this.closedByUser) {
+    if (!this.isCurrent(auth) || this.closedByUser) {
       try {
         ws.close();
       } catch {
@@ -222,22 +277,26 @@ export class Connection {
       }
       return;
     }
+    // At most one live active socket: detach any prior handle before install.
+    this.retireSocket();
     this.ws = ws;
-    this.ws.onopen = () => this.handleOpen();
-    this.ws.onmessage = (ev) => this.handleMessage(String(ev.data));
-    this.ws.onclose = () => this.handleClose();
+    this.ws.onopen = () => this.handleOpen(auth);
+    this.ws.onmessage = (ev) => this.handleMessage(String(ev.data), auth);
+    this.ws.onclose = () => this.handleClose(auth);
     // onerror is intentionally a noop: browsers always fire onclose after onerror,
     // so letting onerror also call handleClose would trigger reconnect twice.
     this.ws.onerror = () => {};
   }
 
-  private handleOpen(): void {
-    useDaemonStore.getState().setStatus("open");
-    useWorkspaceActivityStore.getState().setTransportDegraded(false);
+  private handleOpen(auth: AttemptAuth): void {
+    if (!this.isCurrent(auth)) return;
+    // WebSocket open is internal transport state only (FR-REC-002 / UAC-002).
+    // Terminal subscription reopen still keys off transport open.
     this.terminalSubscriptions.onOpen();
   }
 
-  private handleMessage(raw: string): void {
+  private handleMessage(raw: string, auth: AttemptAuth): void {
+    if (!this.isCurrent(auth)) return;
     const frame = parseServerFrame(raw);
     if (!frame) return;
     if (Array.isArray(frame)) {
@@ -255,9 +314,12 @@ export class Connection {
       case "h":
         // A socket handshake only proves that the gateway is reachable.
         // Hello is the first daemon-derived lifecycle frame and therefore the
-        // authoritative recovery boundary.
+        // authoritative recovery boundary (contract-daemon-hello-proof).
+        if (!this.isCurrent(auth)) return;
         this.reconnectAttempt = 0;
         useDaemonStore.getState().setDaemonDisconnected(false);
+        useDaemonStore.getState().setStatus("open");
+        useWorkspaceActivityStore.getState().setTransportDegraded(false);
         if (frame.clientInstanceID) {
           this.terminalSubscriptions.setClientInstanceID(frame.clientInstanceID);
         }
@@ -265,15 +327,16 @@ export class Connection {
         if (this.cfg.publishSessions !== false) {
           useDaemonStore.getState().seedHello(frame);
           useFrameMessagingStore.getState().replaceFromSessions(frame.sessions);
-        } else if (this.hasSeenHello) {
+        } else {
           // FleetRuntime owns membership, so hello must not rebind the session
-          // list. Still treat reconnect hello as the one-shot status-signal
-          // boundary: suppress replayed bells while durable human_input stays.
+          // list. Every authoritative hello — including the first — is still
+          // the one-shot status-signal boundary: seed signal maps, overlay
+          // gateway status onto existing membership, and suppress replayed
+          // bells while durable human_input stays.
           useDaemonStore
             .getState()
             .seedReconnectStatusSignals(this.qualifyHelloSessions(frame.sessions));
         }
-        this.hasSeenHello = true;
         break;
       case "v":
         if (frame.sessions !== undefined) frame.sessions = tagSessions(frame.sessions);
@@ -282,15 +345,22 @@ export class Connection {
           if (frame.sessions !== undefined) {
             useFrameMessagingStore.getState().replaceFromSessions(frame.sessions);
           }
-        } else if (frame.activity_events?.length) {
-          // FleetRuntime owns session membership, but gateway view-updates
-          // still carry workspace activity; ingest activity without rebinding
-          // the fleet session list.
-          useDaemonStore.getState().applyViewUpdate({
-            k: "v",
-            activity_session_id: frame.activity_session_id,
-            activity_events: frame.activity_events,
-          });
+        } else {
+          if (frame.sessions !== undefined) {
+            // Fleet owns membership keys; still fold gateway status into the
+            // existing fleet-qualified rows so Idle; Notification is live.
+            useDaemonStore
+              .getState()
+              .applyGatewaySessionStatus(this.qualifyHelloSessions(frame.sessions));
+          }
+          if (frame.activity_events?.length) {
+            // Workspace activity remains independent of membership rebind.
+            useDaemonStore.getState().applyViewUpdate({
+              k: "v",
+              activity_session_id: frame.activity_session_id,
+              activity_events: frame.activity_events,
+            });
+          }
         }
         break;
       case "tt":
@@ -374,30 +444,53 @@ export class Connection {
     this.pending.clear();
   }
 
-  private handleClose(): void {
+  private handleClose(auth: AttemptAuth): void {
     if (this.closedByUser) return;
-    // Guard: onerror + onclose both fire in real browsers. Only run once.
+    // Stale attempt/generation: late close must not schedule competing work.
+    if (!this.isCurrent(auth)) return;
+    // Guard: onerror + onclose both fire in real browsers. Only run once per attempt.
     if (this.reconnecting) return;
     this.reconnecting = true;
     this.drainPending();
+    // Detach the closed socket so its late callbacks cannot re-enter.
+    if (this.ws) {
+      const ws = this.ws;
+      this.ws = null;
+      ws.onopen = null;
+      ws.onmessage = null;
+      ws.onclose = null;
+      ws.onerror = null;
+    }
     this.terminalSubscriptions.onClose();
     useDaemonStore.getState().setStatus("reconnecting");
     useWorkspaceActivityStore.getState().setTransportDegraded(true);
     if (exceededAttempts(this.reconnectAttempt)) {
       useDaemonStore.getState().setStatus("closed");
+      this.lifecycleActive = false;
       this.reconnecting = false;
       return;
     }
     const delay = backoffDelay(this.reconnectAttempt);
     this.reconnectAttempt += 1;
+    const scheduledLifecycle = this.lifecycle;
     const sleep = this.cfg.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+    this.cancelRetryDelay();
+    // Pair injected sleep with a cancel flag (discretion-cancelable-scheduler):
+    // correctness fences on lifecycle even if the sleep promise still settles.
+    let canceled = false;
+    this.cancelScheduledRetry = () => {
+      canceled = true;
+    };
     void sleep(delay).then(() => {
+      this.cancelScheduledRetry = null;
       this.reconnecting = false;
-      if (!this.closedByUser) {
-        this.connect().catch(() => {
-          this.handleClose();
-        });
-      }
+      if (canceled) return;
+      if (this.closedByUser) return;
+      if (scheduledLifecycle !== this.lifecycle) return;
+      if (!this.lifecycleActive) return;
+      this.connect().catch(() => {
+        this.handleClose({ lifecycle: this.lifecycle, attempt: this.attempt });
+      });
     });
   }
 

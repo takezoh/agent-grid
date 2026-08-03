@@ -88,6 +88,145 @@ describe("settings page", () => {
     await close();
   });
 
+  it("assembles complete Connections diagnosis through the settings surface", async () => {
+    // User-visible assembled rows: duplicates, health_unavailable+prior, incompatible,
+    // config path, editable controls, and persistence boundary (no health in save).
+    const browser = new Browser({
+      settings: { disableJavaScriptEvaluation: false },
+      console,
+    });
+    const page = browser.newPage();
+    const window = page.mainFrame.window;
+    let lastSaved: unknown = null;
+    Object.assign(window, {
+      agentGridWorkspace: {
+        desktopConfig: {
+          load: async () => ({
+            configDirectory: "C:\\agent-grid\\config",
+            servers: [
+              {
+                id: "srv_a",
+                display_name: "Twin",
+                enabled: true,
+                default_execution: true,
+                url: "http://127.0.0.1:1",
+                auth: { mode: "none" },
+              },
+              {
+                id: "srv_b",
+                display_name: "Twin",
+                enabled: true,
+                default_execution: false,
+                url: "http://127.0.0.1:2",
+                auth: { mode: "none" },
+              },
+              {
+                id: "srv_c",
+                display_name: "Legacy",
+                enabled: true,
+                default_execution: false,
+                url: "http://127.0.0.1:3",
+                auth: { mode: "none" },
+              },
+            ],
+            appearance: { theme: "dark", density: "comfortable", font_scale: 1 },
+            workspace: {
+              idle_quit_seconds: 300,
+              default_window: { width: 1280, height: 800 },
+            },
+            github: {
+              app_id: "4460068",
+              client_id: "Iv23li471HWU8jxRwlK7",
+              scopes: ["read:user", "repo"],
+            },
+          }),
+          save: async (settings: unknown) => {
+            lastSaved = settings;
+            return {
+              ...(settings as object),
+              configDirectory: "C:\\agent-grid\\config",
+              shell: {
+                workspace_executable: "agent-grid-workspace",
+                health_poll_interval_seconds: 5,
+              },
+            };
+          },
+        },
+        serverHealth: {
+          list: async () => ({
+            servers: [
+              {
+                serverId: "srv_a",
+                state: "health_unavailable",
+                reason: "Health delivery lost",
+                stale: true,
+              },
+              {
+                serverId: "srv_b",
+                state: "connected",
+                reason: "",
+              },
+              {
+                serverId: "srv_c",
+                state: "incompatible_protocol",
+                reason: "incompatible protocol: client protocol-3, server protocol-1",
+              },
+            ],
+          }),
+        },
+        github: {
+          action: async () => ({
+            outcome: "unauthenticated",
+            account: { state: "unauthenticated" },
+            catalog: { outcome: "empty", generation: 0, stale: false, repositories: [] },
+          }),
+          openAuthorization: async () => undefined,
+        },
+        setTitleBarTheme: () => undefined,
+        windowControls: { close: () => undefined },
+      },
+    });
+    const html = buildSettingsPageHtml();
+    const scriptMatch = html.match(/<script>([\s\S]*)<\/script>/);
+    if (!scriptMatch) throw new Error("settings page script is missing");
+    page.content = html.replace(scriptMatch[0], "");
+    page.evaluate(scriptMatch[1]);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    const cards = [...window.document.querySelectorAll(".server-card")];
+    expect(cards.length).toBe(3);
+    const healthLabels = cards.map(
+      (card) => card.querySelector('[data-role="server-health"]')?.textContent ?? "",
+    );
+    expect(healthLabels.some((label) => label.includes("Health unavailable"))).toBe(true);
+    expect(healthLabels.some((label) => label.includes("stale prior"))).toBe(true);
+    expect(healthLabels.some((label) => label.includes("Incompatible protocol"))).toBe(true);
+    // Duplicate display names remain distinguishable via server id in the card.
+    const ids = cards.map(
+      (card) => card.querySelector('[data-role="server-id"]')?.textContent ?? "",
+    );
+    expect(ids).toEqual(expect.arrayContaining(["srv_a", "srv_b", "srv_c"]));
+    // Config path / directory is user-visible.
+    expect(window.document.getElementById("config-directory")?.textContent).toContain(
+      "C:\\agent-grid\\config",
+    );
+    // Editable controls remain operable during health failure.
+    const nameInput = window.document.querySelector<HTMLInputElement>(
+      'input[data-field="display_name"]',
+    );
+    expect(nameInput).not.toBeNull();
+    nameInput!.value = "Twin-edited";
+    nameInput!.dispatchEvent(new window.Event("input", { bubbles: true }));
+    window.document.querySelector<HTMLButtonElement>("#save-button")?.click();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(lastSaved).toBeTruthy();
+    const savedText = JSON.stringify(lastSaved);
+    expect(savedText).not.toMatch(/health_unavailable|Health delivery lost|stale prior/i);
+    expect(savedText).not.toMatch(/observation|hostInstanceId|schemaVersion/i);
+    await browser.close();
+  });
+
   it("presents a credential-free typed GitHub host configuration error", async () => {
     const unsafeReason = "status 404 client_id=Ov23liAgentGridDeviceFlow";
     const unsafeDetail = "access_token=gho_renderer_leak";

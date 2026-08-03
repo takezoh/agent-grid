@@ -3,6 +3,18 @@ import type { CreateSessionPayload } from "../../src/api/sessions";
 import { PROTOCOL_VERSION } from "../../src/protocol-version";
 import type { ServerFrame, SessionInfo, ViewUpdateFrame } from "../../src/wire/server";
 
+export type FleetHealthSnapshotFixture = {
+  schemaVersion: number;
+  hostInstanceId: string;
+  revision: number;
+  servers: Array<{
+    serverId: string;
+    serverLabel: string;
+    enabled: boolean;
+    observation: Record<string, unknown>;
+  }>;
+};
+
 export type FakeBackendOptions = {
   sessions: SessionInfo[];
   sessionConfig?: {
@@ -14,11 +26,28 @@ export type FakeBackendOptions = {
   };
   ticket?: string;
   createdSessionId?: string;
+  /** Optional multi-server host config projection. */
+  hostServers?: Array<{
+    serverId: string;
+    displayName: string;
+    enabled: boolean;
+  }>;
+  configPath?: string;
+  /** Initial fleet health snapshot (host authority). */
+  health?: FleetHealthSnapshotFixture | null;
+  /** When true, gateway sockets open but never auto-send traffic. */
+  suppressAutoHello?: boolean;
 };
 
 export type FakeBackend = {
   waitForSocketOpen(): Promise<void>;
+  /** Number of gateway /ws sockets created so far (including closed). */
+  gatewaySocketCount(): Promise<number>;
+  waitForGatewaySocketCount(min: number): Promise<void>;
   emit(frame: ServerFrame): Promise<void>;
+  emitHealth(snapshot: FleetHealthSnapshotFixture): Promise<void>;
+  closeGatewaySockets(): Promise<void>;
+  setRefuseGateway(value: boolean): Promise<void>;
   emittedFrames(): Promise<Array<Record<string, unknown>>>;
   sentFrames(): Promise<Array<Record<string, unknown>>>;
   createSessionRequests(): Promise<CreateSessionPayload[]>;
@@ -70,13 +99,18 @@ export async function installFakeBackend(
       contentType: "application/json",
       body: JSON.stringify({
         schema_version: 2,
-        servers: [{ serverId: "test-server", displayName: "Test", enabled: true }],
+        schemaVersion: 2,
+        configPath: options.configPath ?? "/tmp/agent-grid-e2e/servers.json",
+        config_path: options.configPath ?? "/tmp/agent-grid-e2e/servers.json",
+        servers: options.hostServers ?? [
+          { serverId: "test-server", displayName: "Test", enabled: true },
+        ],
       }),
     });
   });
 
   await page.addInitScript(
-    ({ initialSessions }) => {
+    ({ initialSessions, initialHealth }) => {
       type ClientRecord = { raw: string; parsed: Record<string, unknown> | null };
       type ServerRecord = { raw: string; parsed: Record<string, unknown> | null };
       type SocketHarness = {
@@ -84,8 +118,14 @@ export async function installFakeBackend(
         sent: ClientRecord[];
         emitted: ServerRecord[];
         fleetSessions: SessionInfo[];
+        healthSnapshot: FleetHealthSnapshotFixture | null;
+        /** When true, new gateway sockets open then immediately close (no hello). */
+        refuseGateway: boolean;
         emit(frame: ServerFrame): void;
         emitFleet(): void;
+        emitHealth(snapshot: FleetHealthSnapshotFixture): void;
+        closeGatewaySockets(): void;
+        setRefuseGateway(value: boolean): void;
       };
       const isOpenGatewaySocket = (socket: {
         readyState: number;
@@ -120,8 +160,15 @@ export async function installFakeBackend(
             if (this.readyState !== FakeWebSocket.CONNECTING) return;
             this.readyState = FakeWebSocket.OPEN;
             this.onopen?.(new Event("open"));
-            if (new URL(this.url, "http://127.0.0.1").pathname === "/host/fleet") {
+            const path = new URL(this.url, "http://127.0.0.1").pathname;
+            if (path === "/host/fleet") {
               harness.emitFleet();
+            }
+            if (path === "/host/fleet/health" && harness.healthSnapshot) {
+              harness.emitHealth(harness.healthSnapshot);
+            }
+            if (harness.refuseGateway && isOpenGatewaySocket(this)) {
+              queueMicrotask(() => this.close());
             }
           });
         }
@@ -183,6 +230,11 @@ export async function installFakeBackend(
         sent: [],
         emitted: [],
         fleetSessions: initialSessions,
+        healthSnapshot: initialHealth,
+        refuseGateway: false,
+        setRefuseGateway(value: boolean): void {
+          this.refuseGateway = value;
+        },
         emitFleet(): void {
           const snapshot = {
             revision: this.emitted.length + 1,
@@ -209,6 +261,23 @@ export async function installFakeBackend(
             ) {
               socket.onmessage?.(new MessageEvent("message", { data: JSON.stringify(snapshot) }));
             }
+          }
+        },
+        emitHealth(snapshot: FleetHealthSnapshotFixture): void {
+          this.healthSnapshot = snapshot;
+          for (const socket of this.sockets) {
+            if (
+              socket.readyState === FakeWebSocket.OPEN &&
+              new URL(socket.url, "http://127.0.0.1").pathname === "/host/fleet/health"
+            ) {
+              socket.onmessage?.(new MessageEvent("message", { data: JSON.stringify(snapshot) }));
+            }
+          }
+        },
+        closeGatewaySockets(): void {
+          for (const socket of [...this.sockets]) {
+            if (!isOpenGatewaySocket(socket)) continue;
+            socket.close();
           }
         },
         emit(frame: ServerFrame): void {
@@ -244,7 +313,10 @@ export async function installFakeBackend(
         globalThis as typeof globalThis & { __agentGridHarness?: SocketHarness }
       ).__agentGridHarness = harness;
     },
-    { initialSessions: sessions },
+    {
+      initialSessions: sessions,
+      initialHealth: options.health ?? null,
+    },
   );
 
   await page.route("**/api/ws-ticket", async (route) => {
@@ -360,6 +432,49 @@ export async function installFakeBackend(
         return Boolean(harness?.sockets.some((socket) => isOpenGatewaySocket(socket)));
       });
     },
+    async gatewaySocketCount() {
+      return page.evaluate(() => {
+        const harness = (
+          globalThis as typeof globalThis & {
+            __agentGridHarness?: { sockets: Array<{ url?: string | null }> };
+          }
+        ).__agentGridHarness;
+        if (!harness) return 0;
+        return harness.sockets.filter((socket) => {
+          if (!socket.url) return false;
+          try {
+            const parsed = new URL(socket.url, "http://127.0.0.1");
+            return parsed.pathname.endsWith("/ws") && parsed.searchParams.get("ticket") !== null;
+          } catch {
+            return false;
+          }
+        }).length;
+      });
+    },
+    async waitForGatewaySocketCount(min: number) {
+      await page.waitForFunction(
+        ({ minCount }) => {
+          const harness = (
+            globalThis as typeof globalThis & {
+              __agentGridHarness?: { sockets: Array<{ url?: string | null }> };
+            }
+          ).__agentGridHarness;
+          if (!harness) return false;
+          const count = harness.sockets.filter((socket) => {
+            if (!socket.url) return false;
+            try {
+              const parsed = new URL(socket.url, "http://127.0.0.1");
+              return parsed.pathname.endsWith("/ws") && parsed.searchParams.get("ticket") !== null;
+            } catch {
+              return false;
+            }
+          }).length;
+          return count >= minCount;
+        },
+        { minCount: min },
+        { timeout: 90_000 },
+      );
+    },
     async emit(frame: ServerFrame) {
       await page.evaluate(
         ({ frame }) => {
@@ -371,6 +486,44 @@ export async function installFakeBackend(
           harness?.emit(frame as ServerFrame);
         },
         { frame },
+      );
+    },
+    async emitHealth(snapshot: FleetHealthSnapshotFixture) {
+      await page.evaluate(
+        ({ snapshot }) => {
+          const harness = (
+            globalThis as typeof globalThis & {
+              __agentGridHarness?: {
+                emitHealth(snapshot: FleetHealthSnapshotFixture): void;
+              };
+            }
+          ).__agentGridHarness;
+          harness?.emitHealth(snapshot);
+        },
+        { snapshot },
+      );
+    },
+    async closeGatewaySockets() {
+      await page.evaluate(() => {
+        const harness = (
+          globalThis as typeof globalThis & {
+            __agentGridHarness?: { closeGatewaySockets(): void };
+          }
+        ).__agentGridHarness;
+        harness?.closeGatewaySockets();
+      });
+    },
+    async setRefuseGateway(value: boolean) {
+      await page.evaluate(
+        ({ value }) => {
+          const harness = (
+            globalThis as typeof globalThis & {
+              __agentGridHarness?: { setRefuseGateway(value: boolean): void };
+            }
+          ).__agentGridHarness;
+          harness?.setRefuseGateway(value);
+        },
+        { value },
       );
     },
     async emittedFrames() {

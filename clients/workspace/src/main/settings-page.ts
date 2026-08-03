@@ -666,8 +666,10 @@ export function buildSettingsPageHtml(): string {
           healthState === "connected" ? "Connected" :
           healthState === "incompatible_protocol" ? "Incompatible protocol" :
           healthState === "disabled" ? "Disabled" :
-          healthState === "checking" ? "Checking…" : "Unavailable";
-        const healthDetail = health?.reason ? " — " + health.reason : "";
+          healthState === "checking" ? "Checking…" :
+          healthState === "health_unavailable" ? "Health unavailable" : "Unavailable";
+        const stale = health?.stale ? " (stale prior)" : "";
+        const healthDetail = health?.reason ? " — " + health.reason + stale : stale;
         return {
           state: healthState,
           label: healthLabel + healthDetail,

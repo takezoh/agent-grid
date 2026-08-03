@@ -98,4 +98,5 @@ if ! curl --fail --silent "http://$WEB_ADDR/" >/dev/null; then
 fi
 
 echo "UI/UX E2E stack ready: web=http://$WEB_ADDR backend=http://$BACKEND_ADDR"
-npx playwright test --config playwright.real.config.ts "$@"
+# One worker: real stack shares a single server+uihost; parallel specs corrupt fleet membership.
+npx playwright test --config playwright.real.config.ts --workers=1 "$@"

@@ -238,6 +238,87 @@ describe("desktop config", () => {
     });
   });
 
+  it("save/reload path strips runtime health from a projection-bearing settings payload", () => {
+    // rejects counterexample: building a separate health-free payload that bypasses conversion
+    const directory = tempDir();
+    const initial = loadOrCreateDesktopConfig(directory);
+    const runtimeProjection = {
+      ...initial.servers[0]!,
+      health: {
+        kind: "connected",
+        observedAt: "2026-08-03T00:00:00.000Z",
+      },
+      observation: {
+        kind: "unavailable",
+        reason: "http_error",
+      },
+      hostInstanceId: "host-runtime",
+      revision: 9,
+    };
+
+    saveEditableDesktopSettings(directory, {
+      servers: [runtimeProjection as (typeof initial.servers)[number]],
+      appearance: initial.appearance,
+      workspace: initial.workspace,
+      github: initial.github,
+    });
+
+    const persisted = JSON.parse(fs.readFileSync(path.join(directory, "servers.json"), "utf8")) as {
+      servers: Array<Record<string, unknown>>;
+    };
+    expect(persisted.servers[0]).not.toHaveProperty("health");
+    expect(persisted.servers[0]).not.toHaveProperty("observation");
+    expect(persisted.servers[0]).not.toHaveProperty("hostInstanceId");
+    expect(persisted.servers[0]).not.toHaveProperty("revision");
+    expect(JSON.stringify(persisted)).not.toContain("connected");
+    expect(JSON.stringify(persisted)).not.toContain("http_error");
+
+    const reloaded = loadOrCreateDesktopConfig(directory);
+    expect(JSON.stringify(reloaded.servers)).not.toContain("health");
+    expect(JSON.stringify(reloaded.servers)).not.toContain("observation");
+    expect(reloaded.servers[0]).toMatchObject({
+      display_name: initial.servers[0]!.display_name,
+      enabled: true,
+    });
+  });
+
+  it("never persists runtime health fields into servers.json after save/reload", () => {
+    // rejects counterexample: health projection fields written into configuration
+    const directory = tempDir();
+    const initial = loadOrCreateDesktopConfig(directory);
+    // Runtime may project health alongside config, but editable save only accepts
+    // configuration fields. After save/reload, servers.json stays health-free.
+    const runtimeProjection = {
+      ...initial.servers[0]!,
+      health: { kind: "connected", observedAt: "2026-08-03T00:00:00.000Z" },
+      observation: { kind: "unavailable" },
+      hostInstanceId: "host-1",
+      revision: 9,
+    };
+    expect(runtimeProjection).toHaveProperty("health");
+    const saved = saveEditableDesktopSettings(directory, {
+      servers: [
+        {
+          id: initial.servers[0]!.id,
+          display_name: "Local",
+          enabled: true,
+          default_execution: true,
+          url: initial.servers[0]!.url,
+          auth: initial.servers[0]!.auth,
+        },
+      ],
+      appearance: initial.appearance,
+      workspace: initial.workspace,
+      github: initial.github,
+    });
+    const serversJson = JSON.parse(fs.readFileSync(path.join(directory, "servers.json"), "utf8"));
+    expect(JSON.stringify(serversJson)).not.toMatch(/health|observation|hostInstanceId|"revision"/);
+    const reloaded = loadOrCreateDesktopConfig(directory);
+    expect(reloaded.servers[0]).not.toHaveProperty("health");
+    expect(reloaded.servers[0]).not.toHaveProperty("observation");
+    expect(saved.servers[0]).not.toHaveProperty("health");
+  });
+
   it("derives the cross-client identifier from the canonical URL", () => {
     expect(serverIdentifier("HTTP://Example.TEST:80/api///?token=ignored#fragment")).toBe(
       "srv_36edcc69555ffb4873eb2d2b461c03839096e08cbb4dd60ba5ecc53f8175a5d0",

@@ -50,6 +50,9 @@ func Handler(snapshot clientconfig.Snapshot) (http.Handler, error) {
 	mux.HandleFunc("GET /host/fleet", func(w http.ResponseWriter, r *http.Request) {
 		serveFleet(fleet, w, r)
 	})
+	mux.HandleFunc("GET /host/fleet/health", func(w http.ResponseWriter, r *http.Request) {
+		serveFleetHealth(fleet, w, r)
+	})
 	mux.HandleFunc("POST /host/fleet/servers/", func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasSuffix(r.URL.Path, "/sessions") {
 			http.NotFound(w, r)

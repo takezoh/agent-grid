@@ -30,6 +30,13 @@ contextBridge.exposeInMainWorld("agentGridWorkspace", {
       void ipcRenderer.invoke("agent-grid:session-fleet-subscribe");
       return () => ipcRenderer.removeListener("agent-grid:session-fleet-snapshot", receive);
     },
+    subscribeHealth: (listener) => {
+      const receive = (_event, snapshot) => listener(snapshot);
+      ipcRenderer.on("agent-grid:session-fleet-health", receive);
+      void ipcRenderer.invoke("agent-grid:session-fleet-health-subscribe");
+      return () => ipcRenderer.removeListener("agent-grid:session-fleet-health", receive);
+    },
+    configPath: () => ipcRenderer.invoke("agent-grid:session-fleet-config-path"),
     openChannel: async (serverId, listener) => {
       let channelId = null;
       const pending = [];

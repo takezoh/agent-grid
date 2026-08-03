@@ -4,6 +4,7 @@ import type { ApiHttpError } from "./api/sessions";
 import { hostedSessionId, isHostedMode, readBearerTokenFromHash } from "./auth";
 import { AppShell } from "./components/AppShell";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { ConnectionsPanel } from "./components/ConnectionsPanel";
 import { HeaderBar } from "./components/HeaderBar";
 import { LastPromptBar } from "./components/LastPromptBar";
 import { MainTabs } from "./components/MainTabs";
@@ -16,7 +17,7 @@ import { TerminalPane } from "./components/TerminalPane";
 import { CommandPalette } from "./components/palette/CommandPalette";
 import { WorkspaceDrawer } from "./components/workspace/WorkspaceDrawer";
 import { makeFleetProvider } from "./fleet/provider";
-import { parseSessionKey, sessionKey } from "./fleet/session-protocol";
+import { type FleetHealthView, parseSessionKey, sessionKey } from "./fleet/session-protocol";
 import { useFavicon } from "./hooks/useFavicon";
 import { useGlobalHotkey } from "./hooks/useGlobalHotkey";
 import { useMobileGate } from "./hooks/useMobileGate";
@@ -53,6 +54,9 @@ export function App() {
   const hosted = useMemo(() => isHostedMode(), []);
   const hostedSession = useMemo(() => hostedSessionId(), []);
   const fleet = useMemo(() => makeFleetProvider(), []);
+  const [fleetHealth, setFleetHealth] = useState<FleetHealthView | null>(null);
+  const [connectionsOpen, setConnectionsOpen] = useState(false);
+  const [configPath, setConfigPath] = useState<string | null>(null);
   const pendingExternalSelection = useRef<string | null>(null);
   const activeSessionID = useDaemonStore((state) => state.activeSessionID);
   const activeSessionServerID = useDaemonStore((state) =>
@@ -105,6 +109,13 @@ export function App() {
       }),
     [fleet],
   );
+
+  // Application-lifecycle singleton health subscription (one writer path into SPA state).
+  useEffect(() => fleet.subscribeHealth(setFleetHealth), [fleet]);
+
+  useEffect(() => {
+    void fleet.configPath?.().then((path) => setConfigPath(path));
+  }, [fleet]);
 
   useEffect(() => {
     const select = (event: Event) => {
@@ -372,6 +383,14 @@ export function App() {
           statusLine={activeSession?.view.status_line}
           statusChangedAt={activeSession?.status.changed_at}
           onRetry={() => conn.retry()}
+          health={fleetHealth}
+          onOpenConnections={() => {
+            if (fleet.openConnections) {
+              void fleet.openConnections();
+              return;
+            }
+            setConnectionsOpen(true);
+          }}
         />
       </div>
     </div>
@@ -390,6 +409,12 @@ export function App() {
           {/* Mounted via portal directly under <body>, so the placement of
               this element in the tree is irrelevant (ADR-0036). */}
           <CommandPalette getTerminalGeometry={getTerminalGeometry} />
+          <ConnectionsPanel
+            open={connectionsOpen}
+            health={fleetHealth}
+            configPath={configPath}
+            onClose={() => setConnectionsOpen(false)}
+          />
           <ConfirmDialog
             open={terminationTarget !== null}
             variant={isMobile ? "sheet" : "modal"}

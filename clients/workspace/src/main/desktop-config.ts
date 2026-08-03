@@ -151,9 +151,23 @@ export function saveEditableDesktopSettings(
 ): DesktopConfig {
   const directory = path.resolve(configDirectory);
   loadOrCreateDesktopConfig(directory);
+  // Persist only config fields. Runtime health projections must never be written
+  // into servers.json even when a settings payload accidentally carries them.
   const serversDoc: Versioned<{ servers: readonly ServerDocument[] }> = {
     schema_version: SERVERS_SCHEMA_VERSION,
-    servers: settings.servers.map(({ id: _id, ...server }) => server),
+    servers: settings.servers.map((server) => {
+      const auth =
+        server.auth.mode === "bearer"
+          ? { mode: "bearer" as const, token: server.auth.token }
+          : { mode: "none" as const };
+      return {
+        display_name: server.display_name,
+        enabled: server.enabled,
+        default_execution: server.default_execution,
+        url: server.url,
+        auth,
+      };
+    }),
   };
   const appearanceDoc: Versioned<AppearanceConfig> = {
     schema_version: CONFIG_SCHEMA_VERSION,

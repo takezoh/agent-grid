@@ -22,6 +22,10 @@ responsibilities:
 - id: RESP-901
   statement: Own durable repository preparation separately from Session and publish
     a Session only after clone, repository environment, and launch success.
+- id: RESP-010
+  statement: The existing application-scoped FleetRuntime is the sole host writer
+    of configured-member health revisions; views consume its qualified projection
+    and cannot probe or persist health.
 invariants:
 - id: INV-001
   statement: Domain transitions are decided by a pure reducer; I/O and live handles
@@ -58,6 +62,11 @@ invariants:
 - id: INV-901
   statement: Incomplete, failed, cancelled, interrupted, or corrupt repository preparation
     never appears in the available Sessions collection.
+  enforcement: contract
+- id: INV-010
+  statement: Active client recovery is finite at sixteen automatic retries per manual
+    lifecycle, is proved only by a current lifecycle-and-attempt daemon hello, and
+    fences every retired asynchronous continuation.
   enforcement: contract
 boundaries:
   provides:
@@ -107,6 +116,9 @@ failure_responsibilities:
 - id: FAILURE-005
   statement: Windows supervision may terminate only the registration-bound WSL distribution
     and must preserve the host server SIGTERM drain and health semantics.
+- id: FAILURE-006
+  statement: Host runtimes own member health evidence and revisions; provider adapters
+    own delivery-liveness overlays only and cannot mint or advance host health revisions.
 trust_boundaries:
 - Treat IPC and browser commands as external input requiring validation and authorization
   at ingress.

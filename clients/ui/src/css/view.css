@@ -111,24 +111,8 @@
   font-variant-numeric: tabular-nums;
 }
 
-.status-bar__connection-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.status-bar__retry {
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--accent);
-  font: inherit;
-  cursor: pointer;
-}
-
-.status-bar__retry:hover {
-  text-decoration: underline;
-}
+/* Recovery controls (.status-bar__retry / __connections) and the Connections
+   diagnosis panel live in connections.css so this file stays ≤500 lines. */
 
 /* ─── MainTabs ─────────────────────────────────────────────────────────── */
 /* MainTabs は .terminal (flex column) の flex:1 child として、自分の中で

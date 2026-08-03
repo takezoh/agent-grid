@@ -124,8 +124,14 @@ func handlePendingHumanInput(d *DaemonClient) http.HandlerFunc {
 
 func handleCapabilities() http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
+		version := ProtocolVersion
+		// Real-binary fidelity seam: protocol_mismatch still runs the production
+		// capabilities handler but reports a host-classified older protocol.
+		if fleetHealthFault() == "protocol_mismatch" {
+			version = "protocol-1"
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"protocolVersion": ProtocolVersion,
+			"protocolVersion": version,
 			"capabilities":    BundledCapabilities,
 		})
 	}

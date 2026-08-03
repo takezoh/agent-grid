@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { CAP_MS, INITIAL_MS, MAX_ATTEMPTS, backoffDelay, exceededAttempts } from "./backoff";
+import { describe, expect, it, vi } from "vitest";
+import {
+  CAP_MS,
+  INITIAL_MS,
+  MAX_ATTEMPTS,
+  backoffDelay,
+  exceededAttempts,
+  scheduleDelay,
+} from "./backoff";
 
 describe("backoff", () => {
   it("attempt 0 returns 0..INITIAL_MS with seeded rng", () => {
@@ -50,5 +57,24 @@ describe("backoff", () => {
 
   it("negative attempt returns 0", () => {
     expect(backoffDelay(-1)).toBe(0);
+  });
+
+  it("scheduleDelay cancel prevents fired outcome without wall-clock waits", async () => {
+    let release: (() => void) | undefined;
+    const sleep = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const handle = scheduleDelay(1000, sleep);
+    handle.cancel();
+    release?.();
+    await expect(handle.promise).resolves.toBe("canceled");
+  });
+
+  it("scheduleDelay resolves fired when not canceled", async () => {
+    const handle = scheduleDelay(0, async () => {});
+    await expect(handle.promise).resolves.toBe("fired");
   });
 });

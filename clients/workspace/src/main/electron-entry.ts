@@ -26,7 +26,10 @@ import type {
   ElectronBaseWindowConstructor,
   ElectronWebContentsViewConstructor,
 } from "./electron-window-factory.js";
-import { connectionFailureReason, FleetHealthMonitor } from "./server-health.js";
+import {
+  connectionFailureReason,
+  legacyFleetHealthFromSnapshot,
+} from "./server-health.js";
 import { FleetSessionRuntime } from "./fleet-session-runtime.js";
 import {
   Account, Catalog, FileCacheStore, FileCredentialStore, fixedOAuthApp, type HttpDoer,
@@ -56,9 +59,17 @@ const rendererInfo = new Map<number, import("./daemon-config.js").HostedModeInfo
 let desktopConfig: DesktopConfig | null = null;
 let updateDesktopConfig: ((config: DesktopConfig) => void) | null = null;
 let openSettingsWindow: ((section?: SettingsSection) => void) | null = null;
-const serverHealth = new FleetHealthMonitor(() => desktopConfig?.servers ?? []);
 let fleetRuntime: FleetSessionRuntime | null = null;
-const fleetUnsubscribeByRenderer = new Map<number, () => void>();
+/** Session fleet subscription: renderer id → { sender, unsubscribe }. */
+const fleetSessionByRenderer = new Map<
+  number,
+  { sender: WebContents; unsubscribe: () => void }
+>();
+/** Health subscription: renderer id → { sender, unsubscribe }. */
+const fleetHealthByRenderer = new Map<
+  number,
+  { sender: WebContents; unsubscribe: () => void }
+>();
 const activeChannels = new Map<string, { owner: number; socket: WebSocket }>();
 
 const nodeFetchDoer: HttpDoer = {
@@ -127,12 +138,56 @@ function githubConfigChanged(current: GitHubAppConfig, next: GitHubAppConfig): b
     JSON.stringify(current.scopes) !== JSON.stringify(next.scopes);
 }
 
+function attachFleetSession(sender: WebContents): void {
+  if (!fleetRuntime || sender.isDestroyed()) return;
+  const previous = fleetSessionByRenderer.get(sender.id);
+  previous?.unsubscribe();
+  const unsubscribe = fleetRuntime.subscribe((snapshot) => {
+    if (!sender.isDestroyed()) sender.send("agent-grid:session-fleet-snapshot", snapshot);
+  });
+  fleetSessionByRenderer.set(sender.id, { sender, unsubscribe });
+  sender.once("destroyed", () => {
+    const current = fleetSessionByRenderer.get(sender.id);
+    if (current?.unsubscribe === unsubscribe) {
+      unsubscribe();
+      fleetSessionByRenderer.delete(sender.id);
+    }
+  });
+}
+
+function attachFleetHealth(sender: WebContents): void {
+  if (!fleetRuntime || sender.isDestroyed()) return;
+  const previous = fleetHealthByRenderer.get(sender.id);
+  previous?.unsubscribe();
+  const unsubscribe = fleetRuntime.subscribeHealth((snapshot) => {
+    if (!sender.isDestroyed()) sender.send("agent-grid:session-fleet-health", snapshot);
+  });
+  fleetHealthByRenderer.set(sender.id, { sender, unsubscribe });
+  sender.once("destroyed", () => {
+    const current = fleetHealthByRenderer.get(sender.id);
+    if (current?.unsubscribe === unsubscribe) {
+      unsubscribe();
+      fleetHealthByRenderer.delete(sender.id);
+    }
+  });
+}
+
+/**
+ * Replace the host fleet runtime and rebind every mounted renderer subscription
+ * so config save/replacement does not drop health delivery.
+ */
 function replaceFleetRuntime(config: DesktopConfig): void {
-  for (const unsubscribe of fleetUnsubscribeByRenderer.values()) unsubscribe();
-  fleetUnsubscribeByRenderer.clear();
+  const sessionSenders = [...fleetSessionByRenderer.values()].map((entry) => entry.sender);
+  const healthSenders = [...fleetHealthByRenderer.values()].map((entry) => entry.sender);
+  for (const entry of fleetSessionByRenderer.values()) entry.unsubscribe();
+  fleetSessionByRenderer.clear();
+  for (const entry of fleetHealthByRenderer.values()) entry.unsubscribe();
+  fleetHealthByRenderer.clear();
   fleetRuntime?.stop();
   fleetRuntime = new FleetSessionRuntime(config.servers);
   fleetRuntime.start();
+  for (const sender of sessionSenders) attachFleetSession(sender);
+  for (const sender of healthSenders) attachFleetHealth(sender);
 }
 
 ipcMain.on("agent-grid:renderer-bootstrap", (event) => {
@@ -168,19 +223,20 @@ ipcMain.handle("agent-grid:desktop-config-save", (_event, settings: EditableDesk
   const next = saveEditableDesktopSettings(desktopConfig.configDirectory, settings);
   desktopConfig = next;
   if (githubConfigChanged(previousGitHub, next.github)) replaceGitHubRuntime(next.github);
-  serverHealth.invalidate();
   replaceFleetRuntime(next);
   updateDesktopConfig?.(next);
   return next;
 });
 
 ipcMain.handle("agent-grid:server-health-list", () => {
-  if (!desktopConfig) throw new Error("desktop config is not ready");
-  return serverHealth.list();
+  if (!fleetRuntime) throw new Error("fleet runtime is not ready");
+  return legacyFleetHealthFromSnapshot(fleetRuntime.healthSnapshot());
 });
 
 ipcMain.handle("agent-grid:open-settings", (_event, section: unknown) => {
-  if (section !== "github") throw new Error("unsupported settings section");
+  if (section !== "github" && section !== "connections") {
+    throw new Error("unsupported settings section");
+  }
   openSettingsWindow?.(section);
 });
 
@@ -258,16 +314,17 @@ ipcMain.handle("agent-grid:session-fleet-configs", async () => {
 
 ipcMain.handle("agent-grid:session-fleet-subscribe", (event) => {
   if (!fleetRuntime) throw new Error("fleet runtime is not ready");
-  fleetUnsubscribeByRenderer.get(event.sender.id)?.();
-  const sender = event.sender;
-  const unsubscribe = fleetRuntime.subscribe((snapshot) => {
-    if (!sender.isDestroyed()) sender.send("agent-grid:session-fleet-snapshot", snapshot);
-  });
-  fleetUnsubscribeByRenderer.set(sender.id, unsubscribe);
-  sender.once("destroyed", () => {
-    unsubscribe();
-    fleetUnsubscribeByRenderer.delete(sender.id);
-  });
+  attachFleetSession(event.sender);
+});
+
+ipcMain.handle("agent-grid:session-fleet-health-subscribe", (event) => {
+  if (!fleetRuntime) throw new Error("fleet runtime is not ready");
+  attachFleetHealth(event.sender);
+});
+
+ipcMain.handle("agent-grid:session-fleet-config-path", () => {
+  if (!desktopConfig) throw new Error("desktop config is not ready");
+  return `${desktopConfig.configDirectory.replace(/\\/g, "/")}/servers.json`;
 });
 
 ipcMain.handle(

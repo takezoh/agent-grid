@@ -1,0 +1,186 @@
+{
+  "cases": [
+    {
+      "name": "unknown_schema_version",
+      "payload": {
+        "schemaVersion": 99,
+        "hostInstanceId": "host-1",
+        "revision": 1,
+        "servers": []
+      }
+    },
+    {
+      "name": "unknown_observation_kind",
+      "payload": {
+        "schemaVersion": 1,
+        "hostInstanceId": "host-1",
+        "revision": 1,
+        "servers": [
+          {
+            "serverId": "a",
+            "serverLabel": "A",
+            "enabled": true,
+            "observation": { "kind": "mystery", "observedAt": "2026-08-03T00:00:00.000Z" }
+          }
+        ]
+      }
+    },
+    {
+      "name": "disabled_with_observedAt",
+      "payload": {
+        "schemaVersion": 1,
+        "hostInstanceId": "host-1",
+        "revision": 1,
+        "servers": [
+          {
+            "serverId": "a",
+            "serverLabel": "A",
+            "enabled": false,
+            "observation": { "kind": "disabled", "observedAt": "2026-08-03T00:00:00.000Z" }
+          }
+        ]
+      }
+    },
+    {
+      "name": "checking_prior_forbidden",
+      "payload": {
+        "schemaVersion": 1,
+        "hostInstanceId": "host-1",
+        "revision": 1,
+        "servers": [
+          {
+            "serverId": "a",
+            "serverLabel": "A",
+            "enabled": true,
+            "observation": {
+              "kind": "health_unavailable",
+              "observedAt": "2026-08-03T00:00:00.000Z",
+              "prior": { "kind": "checking", "observedAt": "2026-08-03T00:00:00.000Z" }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "checking_with_reason_forbidden",
+      "payload": {
+        "schemaVersion": 1,
+        "hostInstanceId": "host-1",
+        "revision": 1,
+        "servers": [
+          {
+            "serverId": "a",
+            "serverLabel": "A",
+            "enabled": true,
+            "observation": {
+              "kind": "checking",
+              "observedAt": "2026-08-03T00:00:00.000Z",
+              "reason": "connection_failed"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "connected_with_prior_forbidden",
+      "payload": {
+        "schemaVersion": 1,
+        "hostInstanceId": "host-1",
+        "revision": 1,
+        "servers": [
+          {
+            "serverId": "a",
+            "serverLabel": "A",
+            "enabled": true,
+            "observation": {
+              "kind": "connected",
+              "observedAt": "2026-08-03T00:00:00.000Z",
+              "prior": { "kind": "connected", "observedAt": "2026-08-03T00:00:00.000Z" }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "unavailable_nested_prior_forbidden",
+      "payload": {
+        "schemaVersion": 1,
+        "hostInstanceId": "host-1",
+        "revision": 1,
+        "servers": [
+          {
+            "serverId": "a",
+            "serverLabel": "A",
+            "enabled": true,
+            "observation": {
+              "kind": "unavailable",
+              "observedAt": "2026-08-03T00:00:00.000Z",
+              "reason": "http_error",
+              "prior": { "kind": "connected", "observedAt": "2026-08-03T00:00:00.000Z" }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid_nested_prior_shape",
+      "payload": {
+        "schemaVersion": 1,
+        "hostInstanceId": "host-1",
+        "revision": 1,
+        "servers": [
+          {
+            "serverId": "a",
+            "serverLabel": "A",
+            "enabled": true,
+            "observation": {
+              "kind": "health_unavailable",
+              "observedAt": "2026-08-03T00:00:00.000Z",
+              "prior": { "kind": "connected" }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "stale_as_current_forbidden",
+      "payload": {
+        "schemaVersion": 1,
+        "hostInstanceId": "host-1",
+        "revision": 1,
+        "servers": [
+          {
+            "serverId": "a",
+            "serverLabel": "A",
+            "enabled": true,
+            "observation": {
+              "kind": "connected",
+              "observedAt": "2026-08-03T00:00:00.000Z",
+              "stale": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown_reason",
+      "payload": {
+        "schemaVersion": 1,
+        "hostInstanceId": "host-1",
+        "revision": 1,
+        "servers": [
+          {
+            "serverId": "a",
+            "serverLabel": "A",
+            "enabled": true,
+            "observation": {
+              "kind": "unavailable",
+              "observedAt": "2026-08-03T00:00:00.000Z",
+              "reason": "raw_socket_error_with_token_xyz"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

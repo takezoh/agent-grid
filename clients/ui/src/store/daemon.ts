@@ -73,12 +73,18 @@ export type DaemonState = {
   // actions
   seedHello: (frame: HelloFrame) => void;
   /**
-   * Fleet owns membership (`publishSessions: false`). Still apply reconnect
-   * hello as the one-shot status-signal boundary: mark replayed bells from
-   * the hello payload, then re-project the current membership so durable
-   * human-input stays while Notification is cleared.
+   * Fleet owns membership (`publishSessions: false`). Still apply every
+   * authoritative hello as the one-shot status-signal boundary: mark
+   * replayed bells from the hello payload, overlay gateway status onto the
+   * existing fleet-qualified membership, then re-project so durable
+   * human-input stays while Notification is cleared on reconnect replay.
    */
   seedReconnectStatusSignals: (helloSessions: readonly SessionInfo[]) => void;
+  /**
+   * Fleet owns membership keys. Fold gateway view-update status onto the
+   * existing rows without rebinding the session list (Idle; Notification).
+   */
+  applyGatewaySessionStatus: (gatewaySessions: readonly SessionInfo[]) => void;
   applyViewUpdate: (frame: ViewUpdateFrame) => void;
   selectSession: (id: string | null) => void;
   setStatus: (status: ConnectionStatus) => void;
@@ -267,6 +273,21 @@ export function selectDaemonSnapshot(state: DaemonSnapshotSource): DaemonSnapsho
   };
 }
 
+/** Keep prior SessionInfo object identity when JSON shape is unchanged. */
+function preserveSessionIdentity(
+  previous: readonly SessionInfo[],
+  next: readonly SessionInfo[],
+): SessionInfo[] {
+  const byId = new Map(previous.map((session) => [session.id, session]));
+  return next.map((incoming) => {
+    const prev = byId.get(incoming.id);
+    if (prev && JSON.stringify(prev) === JSON.stringify(incoming)) {
+      return prev;
+    }
+    return incoming;
+  });
+}
+
 export const useDaemonStore = create<DaemonState>()((set, get) => ({
   ...initialState,
   seedHello: (frame) => {
@@ -304,17 +325,24 @@ export const useDaemonStore = create<DaemonState>()((set, get) => ({
     seedStatusSignals(helloSessions);
     const s = get();
     if (s.sessions.length === 0) return;
-    const projected = consumeStatusSignals(s.sessions);
-    const byId = new Map(s.sessions.map((x) => [x.id, x]));
-    set({
-      sessions: projected.map((incoming) => {
-        const prev = byId.get(incoming.id);
-        if (prev && JSON.stringify(prev) === JSON.stringify(incoming)) {
-          return prev;
-        }
-        return incoming;
-      }),
+    const fromHello = new Map(helloSessions.map((session) => [session.id, session]));
+    const merged = s.sessions.map((session) => {
+      const hello = fromHello.get(session.id);
+      if (!hello) return session;
+      return { ...session, status: hello.status };
     });
+    set({ sessions: preserveSessionIdentity(s.sessions, consumeStatusSignals(merged)) });
+  },
+  applyGatewaySessionStatus: (gatewaySessions) => {
+    const s = get();
+    if (s.sessions.length === 0) return;
+    const fromGateway = new Map(gatewaySessions.map((session) => [session.id, session]));
+    const merged = s.sessions.map((session) => {
+      const gateway = fromGateway.get(session.id);
+      if (!gateway) return session;
+      return { ...session, status: gateway.status, view: gateway.view ?? session.view };
+    });
+    set({ sessions: preserveSessionIdentity(s.sessions, consumeStatusSignals(merged)) });
   },
   applyViewUpdate: (frame) => {
     const s = get();

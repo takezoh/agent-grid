@@ -7,7 +7,16 @@ import type {
   HostPreparation,
   HostRepositoryProjection,
 } from "../store/repository_picker";
-import type { FleetSnapshot } from "./session-protocol";
+import {
+  type FleetHealthSnapshotV1,
+  type FleetHealthView,
+  type FleetSnapshot,
+  applyHealthDeliveryLoss,
+  decodeFleetHealthSnapshotV1,
+  deliveryLostWithoutSnapshot,
+  healthViewFromSnapshot,
+  initialHealthView,
+} from "./session-protocol";
 
 export interface FleetConfigOutcome {
   serverId: string;
@@ -23,6 +32,10 @@ export type { GitHubAction, GitHubActionResult, HostRepositoryProjection };
 export interface FleetProvider {
   initialServerId(): string | null;
   subscribe(listener: (snapshot: FleetSnapshot) => void): () => void;
+  /** Host health subscription with consumer delivery-liveness overlay. */
+  subscribeHealth(listener: (view: FleetHealthView) => void): () => void;
+  /** Credential-free host-reported servers.json path when available. */
+  configPath?(): Promise<string | null>;
   listConfigs(): Promise<FleetConfigOutcome[]>;
   create(serverId: string, payload: unknown): Promise<unknown>;
   /** Credential-free host projection of projects + GitHub catalog + preparations. */
@@ -31,6 +44,8 @@ export interface FleetProvider {
   githubAction(action: GitHubAction): Promise<GitHubActionResult>;
   /** Workspace-only navigation to the host-owned GitHub account settings. */
   openGitHubSettings?(): Promise<void>;
+  /** Workspace-only navigation to Connections settings. */
+  openConnections?(): Promise<void>;
   /** Start repository preparation on an execution server (host-mediated). */
   createRepositorySession(
     serverId: string,
@@ -48,6 +63,160 @@ export interface FleetProvider {
     wsFactory?: (url: string) => WebSocket;
   };
   request(serverId: string, pathname: string, init?: RequestInit): Promise<Response>;
+}
+
+/** Bounded automatic reconnect window for host health delivery. */
+export const HEALTH_DELIVERY_MAX_AUTO_RETRIES = 16;
+export const HEALTH_DELIVERY_RETRY_BASE_MS = 250;
+export const HEALTH_DELIVERY_RETRY_CAP_MS = 2_000;
+/** Cooldown between capped retry windows so long outages remain recoverable. */
+export const HEALTH_DELIVERY_COOLDOWN_MS = HEALTH_DELIVERY_RETRY_CAP_MS;
+
+export type ConfiguredHealthServer = {
+  serverId: string;
+  serverLabel: string;
+  enabled: boolean;
+};
+
+function createHealthSubscription(options: {
+  open: (onMessage: (raw: unknown) => void, onClose: () => void) => () => void;
+  now?: () => string;
+  sleep?: (ms: number) => Promise<void>;
+  /** When false, delivery close is terminal (Workspace IPC). Default true for Web. */
+  reconnect?: boolean;
+  random?: () => number;
+  /**
+   * Configured fleet authority (credential-free ids/labels/enabled only).
+   * Seeds checking/lost rows before a host snapshot is accepted.
+   */
+  configuredServers?: () => Promise<ConfiguredHealthServer[]>;
+}): (listener: (view: FleetHealthView) => void) => () => void {
+  return (listener) => {
+    let lastAccepted: FleetHealthSnapshotV1 | null = null;
+    let seededServers: ConfiguredHealthServer[] = [];
+    let deliveryLostWithoutAccept = false;
+    let unsubscribed = false;
+    let generation = 0;
+    let closeCurrent: (() => void) | null = null;
+    let reconnecting = false;
+    let reconnectAttempt = 0;
+    let cancelScheduledRetry: (() => void) | null = null;
+    const now = options.now ?? (() => new Date().toISOString());
+    const sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+    const reconnect = options.reconnect !== false;
+    const random = options.random ?? Math.random;
+
+    const publishLost = () => {
+      if (lastAccepted) {
+        listener(applyHealthDeliveryLoss(lastAccepted, now()));
+        return;
+      }
+      deliveryLostWithoutAccept = true;
+      if (seededServers.length > 0) {
+        listener(deliveryLostWithoutSnapshot(seededServers, now()));
+        return;
+      }
+      listener({
+        hostInstanceId: null,
+        revision: null,
+        delivery: "lost",
+        servers: [],
+      });
+    };
+
+    const cancelRetry = () => {
+      cancelScheduledRetry?.();
+      cancelScheduledRetry = null;
+      reconnecting = false;
+    };
+
+    const scheduleReconnect = (scheduledGeneration: number) => {
+      if (!reconnect || unsubscribed || reconnecting) return;
+      reconnecting = true;
+      let delay: number;
+      if (reconnectAttempt >= HEALTH_DELIVERY_MAX_AUTO_RETRIES) {
+        // Cap the exponential window, cool down, then open a fresh attempt cycle.
+        delay = HEALTH_DELIVERY_COOLDOWN_MS;
+        reconnectAttempt = 0;
+      } else {
+        delay = Math.floor(
+          random() *
+            Math.min(
+              HEALTH_DELIVERY_RETRY_CAP_MS,
+              HEALTH_DELIVERY_RETRY_BASE_MS * 2 ** reconnectAttempt,
+            ),
+        );
+        reconnectAttempt += 1;
+      }
+      let canceled = false;
+      cancelScheduledRetry = () => {
+        canceled = true;
+      };
+      void sleep(delay).then(() => {
+        cancelScheduledRetry = null;
+        reconnecting = false;
+        if (canceled || unsubscribed) return;
+        if (scheduledGeneration !== generation) return;
+        openSocket();
+      });
+    };
+
+    const openSocket = () => {
+      if (unsubscribed) return;
+      const auth = ++generation;
+      closeCurrent?.();
+      closeCurrent = options.open(
+        (raw) => {
+          // Late callbacks from a retired socket generation are ignored.
+          if (unsubscribed || auth !== generation) return;
+          try {
+            const decoded = decodeFleetHealthSnapshotV1(raw);
+            if (
+              lastAccepted &&
+              lastAccepted.hostInstanceId === decoded.hostInstanceId &&
+              decoded.revision < lastAccepted.revision
+            ) {
+              return;
+            }
+            lastAccepted = decoded;
+            deliveryLostWithoutAccept = false;
+            reconnectAttempt = 0;
+            listener(healthViewFromSnapshot(decoded));
+          } catch {
+            // Invalid wire payloads are ignored; delivery remains on last accepted view.
+          }
+        },
+        () => {
+          if (unsubscribed || auth !== generation) return;
+          publishLost();
+          scheduleReconnect(auth);
+        },
+      );
+    };
+
+    if (options.configuredServers) {
+      void options.configuredServers().then((servers) => {
+        if (unsubscribed) return;
+        seededServers = servers;
+        if (lastAccepted || servers.length === 0) return;
+        if (deliveryLostWithoutAccept) {
+          listener(deliveryLostWithoutSnapshot(servers, now()));
+        } else {
+          listener(initialHealthView(servers, now()));
+        }
+      });
+    }
+
+    openSocket();
+
+    return () => {
+      unsubscribed = true;
+      cancelRetry();
+      closeCurrent?.();
+      closeCurrent = null;
+      generation += 1;
+    };
+  };
 }
 
 type HostProjection = {
@@ -91,6 +260,54 @@ function webProvider(fetchImpl: typeof fetch): FleetProvider {
         listener(snapshot);
       };
       return () => socket.close();
+    },
+    subscribeHealth: createHealthSubscription({
+      open(onMessage, onClose) {
+        const url = new URL("/host/fleet/health", window.location.origin);
+        url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+        const socket = new WebSocket(url);
+        socket.onmessage = (event) => {
+          onMessage(JSON.parse(String(event.data)));
+        };
+        socket.onclose = () => onClose();
+        socket.onerror = () => onClose();
+        return () => socket.close();
+      },
+      async configuredServers() {
+        try {
+          const response = await fetchImpl("/host/config");
+          if (!response.ok) return [];
+          const projection = (await response.json()) as HostProjection;
+          const servers = Array.isArray(projection.servers) ? projection.servers : [];
+          return servers
+            .filter((server) => typeof server.serverId === "string" && server.serverId)
+            .map((server) => ({
+              serverId: server.serverId as string,
+              serverLabel:
+                typeof server.displayName === "string" && server.displayName
+                  ? server.displayName
+                  : (server.serverId as string),
+              enabled: server.enabled === true,
+            }));
+        } catch {
+          return [];
+        }
+      },
+    }),
+    async configPath() {
+      try {
+        const response = await fetchImpl("/host/config");
+        if (!response.ok) return null;
+        const projection = (await response.json()) as {
+          configPath?: unknown;
+          config_path?: unknown;
+        };
+        if (typeof projection.configPath === "string") return projection.configPath;
+        if (typeof projection.config_path === "string") return projection.config_path;
+        return null;
+      } catch {
+        return null;
+      }
     },
     async listConfigs() {
       const projectionResponse = await fetchImpl("/host/config");
@@ -224,6 +441,26 @@ function workspaceProvider(bridge: NonNullable<Window["agentGridWorkspace"]>): F
     subscribe(listener) {
       if (!fleet.subscribe) throw new Error("Workspace fleet subscription is unavailable");
       return fleet.subscribe((snapshot) => listener(snapshot as FleetSnapshot));
+    },
+    subscribeHealth: createHealthSubscription({
+      // Workspace IPC remains open for the renderer lifetime; delivery loss is
+      // only reported when the host subscription cannot be established.
+      reconnect: false,
+      open(onMessage, onClose) {
+        if (!fleet.subscribeHealth) {
+          queueMicrotask(onClose);
+          return () => undefined;
+        }
+        return fleet.subscribeHealth((snapshot) => onMessage(snapshot));
+      },
+    }),
+    async configPath() {
+      if (fleet.configPath) return fleet.configPath();
+      return null;
+    },
+    async openConnections() {
+      if (!bridge.openSettings) throw new Error("Workspace Settings bridge is unavailable");
+      await bridge.openSettings("connections");
     },
     listConfigs: () => fleet.listConfigs() as Promise<FleetConfigOutcome[]>,
     create: (serverId, payload) => fleet.create(serverId, payload),

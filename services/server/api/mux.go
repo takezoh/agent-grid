@@ -238,6 +238,15 @@ func apiHandler(d *DaemonClient, tickets *ticketStore, dependencies muxDependenc
 	mux.HandleFunc("GET /api/sessions/{id}/workspace/diff", handleWorkspaceDiff(d))
 	mux.HandleFunc("GET /api/session-config", handleSessionConfig(dependencies.sessionConfigLoader))
 	mux.HandleFunc("POST /api/ws-ticket", func(w http.ResponseWriter, _ *http.Request) {
+		// Real-binary fidelity seam: empty_ticket still enters the production
+		// ticket route and returns the same HTTP shape with an empty ticket.
+		if fleetHealthFault() == "empty_ticket" {
+			writeJSON(w, http.StatusOK, map[string]string{
+				"ticket":             "",
+				"client_instance_id": "e2e-empty-ticket",
+			})
+			return
+		}
 		ticket, ci := tickets.mint()
 		writeJSON(w, http.StatusOK, map[string]string{
 			"ticket":             ticket,

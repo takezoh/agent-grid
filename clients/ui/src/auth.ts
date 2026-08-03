@@ -17,11 +17,20 @@ export interface HostedModeInfo {
 
 export interface FleetHealth {
   checkedAt: string;
+  hostInstanceId?: string;
+  revision?: number;
   servers: Array<{
     serverId: string;
     displayName: string;
-    state: "connected" | "unavailable" | "incompatible_protocol" | "disabled";
+    state:
+      | "connected"
+      | "unavailable"
+      | "incompatible_protocol"
+      | "disabled"
+      | "checking"
+      | "health_unavailable";
     reason?: string;
+    stale?: boolean;
   }>;
 }
 
@@ -44,7 +53,7 @@ declare global {
        */
       setTitleBarTheme?: (theme: "dark" | "light", mode?: "system" | "light" | "dark") => void;
       serverHealth?: { list(): Promise<FleetHealth> };
-      openSettings?: (section: "github") => Promise<void>;
+      openSettings?: (section: "github" | "connections") => Promise<void>;
       /** Credential-free GitHub Settings actions (Workspace main/preload). */
       github?: {
         action(
@@ -55,6 +64,8 @@ declare global {
       sessionFleet?: {
         listConfigs(): Promise<unknown>;
         subscribe?(listener: (snapshot: unknown) => void): () => void;
+        subscribeHealth?(listener: (snapshot: unknown) => void): () => void;
+        configPath?(): Promise<string | null>;
         openChannel?(
           serverId: string,
           listener: (event: { channelId: string; kind: string; data?: unknown }) => void,

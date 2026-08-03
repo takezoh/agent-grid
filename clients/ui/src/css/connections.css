@@ -1,0 +1,86 @@
+/* connections.css — StatusBar recovery controls + Connections diagnosis panel.
+   Split from view.css so the FR-FRAMEWORK-001 500-line cap holds while the
+   connections/recovery surface stays cohesive. */
+
+.status-bar__connection-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-bar__retry,
+.status-bar__connections {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.status-bar__retry:hover,
+.status-bar__connections:hover {
+  text-decoration: underline;
+}
+
+/* ─── Connections panel (browser diagnosis) ─────────────────────────────── */
+.connections-panel {
+  position: fixed;
+  right: var(--space-4);
+  bottom: 40px;
+  z-index: 40;
+  width: min(420px, calc(100vw - 2rem));
+  max-height: min(60vh, 480px);
+  overflow: auto;
+  padding: var(--space-4);
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: var(--shadow-dialog);
+}
+.connections-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.connections-panel__header h2 {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.connections-panel__delivery-loss {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-hairline);
+  font-size: var(--text-xs);
+}
+.connections-panel__delivery-loss p {
+  margin: 0;
+}
+.connections-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.connections-panel__list li {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-hairline);
+  font-size: var(--text-xs);
+}
+.connections-panel__config {
+  margin-top: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+}
+.connections-panel__config code {
+  word-break: break-all;
+}
