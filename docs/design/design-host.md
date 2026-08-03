@@ -492,7 +492,7 @@ On cold start, the bootstrap walks each session's frames in root-to-tail order a
 
 | Path | Format | Contents | Lifecycle |
 |------|--------|----------|-----------|
-| `~/.agent-grid/config.toml` | TOML | User settings (see below) | Created by user. Falls back to default values if absent |
+| `~/.agent-grid/settings.toml` | TOML | User settings, including the optional `data_dir` override | Created by user. Falls back to default values if absent |
 | `~/.agent-grid/sessions.json` | JSON | Session metadata and the frame stack. Each session holds a list of frames; each frame carries its own command, normalized `launch_options`, `subsystem_id`, `target_id`, and driver-interpreted `driver_state` bag. Active frame is not persisted — it is always the tail of the frame list | Written on `EffPersistSnapshot` (on Tick / hook / subsystem event / session lifecycle changes). Read only at daemon startup via `runtime.Bootstrap`. `driver_state` entries are opaque key/value pairs interpreted by the driver; runtime knows none of the key names |
 | `~/.agent-grid/events/{frameID}.log` | Text | Per-frame agent hook event log | Appended via `EffEventLogAppend`. The runtime's EventLogBackend manages file handles with lazy-open |
 | `~/.agent-grid/server.log` | slog | Application log | Created/appended at daemon startup |
@@ -501,7 +501,40 @@ On cold start, the bootstrap walks each session's frames in root-to-tail order a
 | `~/.agent-grid/run/credproxy.sock` | Unix socket | Credential proxy endpoint (single instance per daemon; bearer token per project) | Listens whenever sandbox mode is `devcontainer`. Bind-mounted per project into the container as `/opt/agent-grid/run/credproxy.sock` |
 | `~/.agent-grid/warm/<frameID>.json` | JSON | Per-frame container bearer token (atomic, `0o600`) | Written when a sandboxed frame is launched; replayed by `RecoverSandboxFrames` on warm restart. Wiped at cold start |
 
-Base path can be changed via `Config.DataDir` (set to TempDir during tests).
+The `~/.agent-grid` paths above are defaults. The effective `<dataDir>` is resolved
+in this order:
+
+1. daemon command-line `-data-dir` (the daemon exports it as `AG_DATA_DIR`),
+2. inherited `AG_DATA_DIR`,
+3. `data_dir` in the Execution Server user's `~/.agent-grid/settings.toml`,
+4. the Execution Server user's `~/.agent-grid` directory.
+
+`Config.DataDir` carries the resolved value inside the runtime and is set to a
+temporary directory by tests.
+
+### Repository Session Clone Storage
+
+A GitHub repository selected in New Session is cloned by the selected
+**Execution Server**, not by the browser, Windows Shell, or Workspace process.
+Consequently, all paths below belong to that server's filesystem and use that
+server's effective `<dataDir>`.
+
+```text
+<dataDir>/repository-sessions/staging/<preparationID>
+<dataDir>/repository-sessions/clones/<preparationID>
+```
+
+The preparation worker clones into `staging/<preparationID>` and atomically
+publishes a validated clone to `clones/<preparationID>`. Workspace generates a
+fresh UUID as `preparationID` for each creation request. Repository owner/name is
+used to derive the remote identity but is deliberately not used as the directory
+name; distinct creation intents for the same repository therefore retain
+independent clone workspaces.
+
+There is no separate `clone_dir` setting. To relocate repository clones, change
+the Execution Server's whole `data_dir`. In devcontainer mode the server mounts
+the repository-sessions root and uses the individual session clone as the frame
+working directory; ownership of the host path remains with the Execution Server.
 
 User-facing `settings.toml` fields and defaults live in the source code (`host/config/config.go`).
 

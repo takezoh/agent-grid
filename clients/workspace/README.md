@@ -46,6 +46,21 @@ Workspace window identity and persisted bounds use `{serverId, sessionId}`.
 After routing to a configured server connection, hosted SPA/server calls still
 receive only `sessionId`.
 
+### Repository session storage
+
+When New Session targets a GitHub repository, the selected Execution Server
+performs the clone. Workspace generates the preparation identity and transfers
+the request, but it does not select or own the filesystem destination. The
+server publishes each clone at:
+
+```text
+<dataDir>/repository-sessions/clones/<preparationID>
+```
+
+`<dataDir>` is resolved independently by each Execution Server. See
+[Repository Session Clone Storage](../../docs/design/design-host.md#repository-session-clone-storage)
+for the staging path, configuration precedence, and devcontainer mount boundary.
+
 ## Test
 
 ```sh
