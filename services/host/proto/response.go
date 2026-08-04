@@ -112,6 +112,32 @@ func (si SessionInfo) StateChangedAtTime() time.Time {
 	return *si.Status.ChangedAt
 }
 
+// RespResumeCapsules is the response to list-resume-capsules. The
+// "resume_capsules" key doubles as the DecodeResponse probe discriminator.
+type RespResumeCapsules struct {
+	ResumeCapsules []ResumeCapsuleInfo `json:"resume_capsules"`
+}
+
+func (RespResumeCapsules) isResponse() {}
+
+// ResumeCapsuleInfo is the per-session resume-capsule wire payload.
+// GeneratedAt / status ChangedAt comparison drives client-side staleness
+// display; SourceTurns is provenance for the trust contract.
+type ResumeCapsuleInfo struct {
+	SessionID    string   `json:"session_id"`
+	Project      string   `json:"project"`
+	Workspace    string   `json:"workspace,omitempty"`
+	Title        string   `json:"title,omitempty"`
+	Objective    string   `json:"objective,omitempty"`
+	CurrentState string   `json:"current_state,omitempty"`
+	NextAction   string   `json:"next_action,omitempty"`
+	Unresolved   []string `json:"unresolved,omitempty"`
+	GeneratedAt  string   `json:"generated_at"`
+	SourceTurns  int      `json:"source_turns,omitempty"`
+	FlaggedWrong bool     `json:"flagged_wrong,omitempty"`
+	LastError    string   `json:"last_error,omitempty"`
+}
+
 // RespSurfaceText is the response to surface.read_text.
 type RespSurfaceText struct {
 	Text string `json:"text"`

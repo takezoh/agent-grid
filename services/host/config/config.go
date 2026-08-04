@@ -35,7 +35,12 @@ type CodexConfig struct {
 // CommonDriverConfig holds settings that apply to all drivers.
 type CommonDriverConfig struct {
 	SummarizeCommand string `toml:"summarize_command"`
-	Pager            string `toml:"pager"`
+	// CapsuleCommand is the one-shot LLM command for resume-capsule
+	// generation (e.g. "claude -p"). The reducer-built prompt arrives on
+	// stdin; stdout must contain the capsule JSON. Empty disables
+	// resume capsules entirely.
+	CapsuleCommand string `toml:"capsule_command"`
+	Pager          string `toml:"pager"`
 }
 
 // FeaturesConfig holds the runtime feature-flag table from the TOML config.

@@ -37,6 +37,8 @@ export type FakeBackendOptions = {
   health?: FleetHealthSnapshotFixture | null;
   /** When true, gateway sockets open but never auto-send traffic. */
   suppressAutoHello?: boolean;
+  /** Resume capsules served from GET /api/resume-capsules (cognitive workspace). */
+  resumeCapsules?: Array<Record<string, unknown>>;
 };
 
 export type FakeBackend = {
@@ -51,6 +53,8 @@ export type FakeBackend = {
   emittedFrames(): Promise<Array<Record<string, unknown>>>;
   sentFrames(): Promise<Array<Record<string, unknown>>>;
   createSessionRequests(): Promise<CreateSessionPayload[]>;
+  /** Bodies of POST .../resume-capsule/flag requests, in arrival order. */
+  capsuleFlagRequests(): Array<{ sessionId: string; flagged: boolean }>;
 };
 
 function cloneSession(session: SessionInfo): SessionInfo {
@@ -363,6 +367,30 @@ export async function installFakeBackend(
     });
   });
 
+  const capsuleFlagRequests: Array<{ sessionId: string; flagged: boolean }> = [];
+  await page.route("**/*resume-capsules*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ resume_capsules: options.resumeCapsules ?? [] }),
+    });
+  });
+  await page.route("**/*resume-capsule/flag*", async (route) => {
+    const url = route.request().url();
+    const match = /\/api\/sessions\/([^/]+)\/resume-capsule\/flag/.exec(url);
+    const raw = route.request().postData() ?? "{}";
+    const body = JSON.parse(raw) as { flagged?: boolean };
+    capsuleFlagRequests.push({
+      sessionId: decodeURIComponent(match?.[1] ?? ""),
+      flagged: body.flagged !== false,
+    });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ flagged: body.flagged !== false }),
+    });
+  });
+
   await page.route("**/sessions", async (route) => {
     if (route.request().method() !== "POST") {
       await route.fulfill({ status: 405, body: "method not allowed" });
@@ -552,6 +580,9 @@ export async function installFakeBackend(
     },
     async createSessionRequests() {
       return [...createSessionRequests];
+    },
+    capsuleFlagRequests() {
+      return [...capsuleFlagRequests];
     },
   };
 }

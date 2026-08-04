@@ -17,6 +17,11 @@ func reduceJobResult(s State, e EvJobResult) (State, []Effect) {
 	s.Jobs = cloneJobs(s.Jobs)
 	delete(s.Jobs, e.JobID)
 
+	// Session-level job — resume capsules bypass driver routing.
+	if capResult, ok := e.Result.(CapsuleJobResult); ok {
+		return reduceCapsuleJobResult(s, meta, capResult, e.Err)
+	}
+
 	// Driver job — route to the session's driver Step.
 	next, effs, ok := stepDriver(s, meta.FrameID, DEvJobResult{
 		Result: e.Result,

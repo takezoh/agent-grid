@@ -244,6 +244,9 @@ func DecodeResponseByCommand(env Envelope) (Response, error) {
 		return RespOK{}, nil
 	}
 	switch {
+	case has(probe, "resume_capsules"):
+		var r RespResumeCapsules
+		return decodeResponse(env.Data, &r)
 	case has(probe, "preparation_id"):
 		var r RespRepositoryPreparation
 		return decodeResponse(env.Data, &r)

@@ -126,6 +126,23 @@ type SessionSnapshot struct {
 	Sandbox         state.SandboxOverride          `json:"sandbox,omitempty"`
 	FrameMessaging  *SessionFrameMessagingSnapshot `json:"frame_messaging,omitempty"`
 	FrameGeneration int                            `json:"frame_generation,omitempty"`
+	ResumeCapsule   *ResumeCapsuleSnapshot         `json:"resume_capsule,omitempty"`
+}
+
+// ResumeCapsuleSnapshot is the on-disk shape of a session's resume
+// capsule. Timestamps are RFC3339 strings for sessions.json consistency.
+type ResumeCapsuleSnapshot struct {
+	Objective    string   `json:"objective,omitempty"`
+	CurrentState string   `json:"current_state,omitempty"`
+	NextAction   string   `json:"next_action,omitempty"`
+	Unresolved   []string `json:"unresolved,omitempty"`
+	GeneratedAt  string   `json:"generated_at"`
+	SourceDigest string   `json:"source_digest,omitempty"`
+	SourceTurns  int      `json:"source_turns,omitempty"`
+	FlaggedWrong bool     `json:"flagged_wrong,omitempty"`
+	FlaggedAt    string   `json:"flagged_at,omitempty"`
+	LastError    string   `json:"last_error,omitempty"`
+	LastErrorAt  string   `json:"last_error_at,omitempty"`
 }
 
 type SessionFrameSnapshot struct {

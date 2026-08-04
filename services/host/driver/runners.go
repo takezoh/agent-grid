@@ -8,13 +8,14 @@ import (
 )
 
 // RegisterRunners registers all worker-pool runners for the driver package.
-func RegisterRunners(summarizeCmd string) {
+func RegisterRunners(summarizeCmd, capsuleCmd string) {
 	tp, hs := newTranscriptSummaryRunners(summarizeCmd)
 	worker.RegisterRunner("transcript_parse", tp)
 	worker.RegisterRunner("codex_transcript_parse", newCodexTranscriptParse())
 	worker.RegisterRunner("gemini_transcript_parse", newGeminiTranscriptParse())
 	worker.RegisterRunner("summary_command", hs)
 	worker.RegisterRunner("branch_detect", newBranchDetect())
+	worker.RegisterRunner("resume_capsule", newCapsuleRunner(capsuleCmd))
 }
 
 func newBranchDetect() func(context.Context, BranchDetectInput) (BranchDetectResult, error) {

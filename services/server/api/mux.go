@@ -258,6 +258,7 @@ func apiHandler(d *DaemonClient, tickets *ticketStore, dependencies muxDependenc
 	mux.HandleFunc("GET /api/sessions/{id}/pending-human-input", handlePendingHumanInput(d))
 	mux.HandleFunc("GET /api/capabilities", handleCapabilities())
 	registerRepositoryRoutes(mux, dependencies)
+	registerResumeCapsuleRoutes(mux, dependencies)
 	return mux
 }
 

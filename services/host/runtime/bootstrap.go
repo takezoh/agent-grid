@@ -131,7 +131,62 @@ func restoreSession(snap SessionSnapshot, coldStart bool, now time.Time) (state.
 	sess.MRUFrameIDs = mru
 	sess.FrameGeneration = snap.FrameGeneration
 	sess.FrameMessaging = restoreFrameMessaging(snap.FrameMessaging, liveFrameSet(sess.Frames))
+	sess.ResumeCapsule = restoreResumeCapsule(snap.ResumeCapsule)
 	return sess, true
+}
+
+func snapshotResumeCapsule(in *state.ResumeCapsule) *ResumeCapsuleSnapshot {
+	if in == nil {
+		return nil
+	}
+	out := &ResumeCapsuleSnapshot{
+		Objective:    in.Objective,
+		CurrentState: in.CurrentState,
+		NextAction:   in.NextAction,
+		Unresolved:   in.Unresolved,
+		GeneratedAt:  in.GeneratedAt.UTC().Format(time.RFC3339),
+		SourceDigest: in.SourceDigest,
+		SourceTurns:  in.SourceTurns,
+		FlaggedWrong: in.FlaggedWrong,
+		LastError:    in.LastError,
+	}
+	if !in.FlaggedAt.IsZero() {
+		out.FlaggedAt = in.FlaggedAt.UTC().Format(time.RFC3339)
+	}
+	if !in.LastErrorAt.IsZero() {
+		out.LastErrorAt = in.LastErrorAt.UTC().Format(time.RFC3339)
+	}
+	return out
+}
+
+func restoreResumeCapsule(in *ResumeCapsuleSnapshot) *state.ResumeCapsule {
+	if in == nil {
+		return nil
+	}
+	generatedAt, err := time.Parse(time.RFC3339, in.GeneratedAt)
+	if err != nil || generatedAt.IsZero() {
+		// A capsule without a valid generation timestamp cannot honour the
+		// staleness contract; drop it rather than display it as current.
+		return nil
+	}
+	out := &state.ResumeCapsule{
+		Objective:    in.Objective,
+		CurrentState: in.CurrentState,
+		NextAction:   in.NextAction,
+		Unresolved:   in.Unresolved,
+		GeneratedAt:  generatedAt,
+		SourceDigest: in.SourceDigest,
+		SourceTurns:  in.SourceTurns,
+		FlaggedWrong: in.FlaggedWrong,
+		LastError:    in.LastError,
+	}
+	if t, err := time.Parse(time.RFC3339, in.FlaggedAt); err == nil {
+		out.FlaggedAt = t
+	}
+	if t, err := time.Parse(time.RFC3339, in.LastErrorAt); err == nil {
+		out.LastErrorAt = t
+	}
+	return out
 }
 
 func restoreFrameMessaging(in *SessionFrameMessagingSnapshot, liveFrames map[state.FrameID]struct{}) *state.SessionFrameMessaging {

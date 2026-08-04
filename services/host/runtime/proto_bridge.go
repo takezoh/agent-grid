@@ -105,6 +105,8 @@ func (r *Runtime) translateResponseBody(body any) proto.Response {
 		return r.buildDriverList()
 	case state.SessionMessagesReply:
 		return r.buildSessionMessages(b)
+	case state.ResumeCapsulesReply:
+		return r.buildResumeCapsules()
 	case state.RepositoryPreparationReply:
 		return proto.RespRepositoryPreparation{
 			PreparationID: b.PreparationID, IntentID: b.IntentID, ServerID: b.ServerID,
@@ -548,6 +550,8 @@ func typeNameOf(v any) string {
 		return "state.DriverListReply"
 	case state.SessionMessagesReply:
 		return "state.SessionMessagesReply"
+	case state.ResumeCapsulesReply:
+		return "state.ResumeCapsulesReply"
 	}
 	return "unknown"
 }

@@ -108,7 +108,7 @@ func registerDefaultDrivers(cfg *config.Config, dataDir string, idleThreshold ti
 		SummarizeCommand: cfg.Driver.SummarizeCommand,
 		Pager:            cfg.Driver.Pager,
 	})
-	statedriver.RegisterRunners(cfg.Driver.SummarizeCommand)
+	statedriver.RegisterRunners(cfg.Driver.SummarizeCommand, cfg.Driver.CapsuleCommand)
 }
 
 // agentHookPostCreateSubcmds returns the bridge subcommand list the
@@ -235,6 +235,7 @@ func buildRuntimeWithCloneAuthority(ctx context.Context, cfg *config.Config, dat
 		Pool:                       pool,
 		Tap:                        ptyTap,
 		Features:                   featureSet,
+		ResumeCapsulesEnabled:      cfg.Driver.CapsuleCommand != "",
 		Launcher:                   agentLauncher,
 		StreamDispatcher:           streamDispatcher,
 		StreamReadTimeout:          time.Duration(cfg.Codex.ReadTimeoutMs) * time.Millisecond,

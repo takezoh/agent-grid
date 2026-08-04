@@ -25,6 +25,8 @@ const (
 	EventReadSessionMessages      = "read-session-messages"
 	EventCreateRepositorySession  = "create-repository-session"
 	EventGetRepositoryPreparation = "get-repository-preparation"
+	EventListResumeCapsules       = "list-resume-capsules"
+	EventFlagResumeCapsule        = "flag-resume-capsule"
 )
 
 // === IPC commands (caller → daemon) ===

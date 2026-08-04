@@ -104,6 +104,16 @@ type State struct {
 	// appear as available sessions (FR-GH-INV-001).
 	CreationIntents        map[CreationIntentID]CreationIntent
 	RepositoryPreparations map[PreparationID]RepositoryPreparation
+
+	// ResumeCapsulesEnabled gates capsule generation; set once at startup
+	// from config ([driver] capsule_command non-empty) and never mutated.
+	ResumeCapsulesEnabled bool
+
+	// CapsuleGenerating tracks in-flight capsule generation jobs per
+	// session (value = source digest being generated). Runtime-only:
+	// reset on daemon restart so an interrupted job never blocks
+	// regeneration forever.
+	CapsuleGenerating map[SessionID]string
 }
 
 // Session is the static metadata + driver state of one client session.
@@ -122,6 +132,10 @@ type Session struct {
 	Driver          DriverState
 	FrameMessaging  *SessionFrameMessaging
 	FrameGeneration int // increments on frame push/pop; exposed for workspace-root handle pinning
+	// ResumeCapsule is the automatically regenerated resume state for
+	// this session (nil until first successful generation). Persisted
+	// with the session snapshot; lifecycle is tied to the session.
+	ResumeCapsule *ResumeCapsule
 }
 
 type SessionFrame struct {
@@ -164,6 +178,7 @@ func New() State {
 		StatusSignals:          map[SessionID]uint64{},
 		CreationIntents:        map[CreationIntentID]CreationIntent{},
 		RepositoryPreparations: map[PreparationID]RepositoryPreparation{},
+		CapsuleGenerating:      map[SessionID]string{},
 	}
 }
 

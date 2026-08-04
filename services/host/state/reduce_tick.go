@@ -27,6 +27,10 @@ func reduceTick(s State, e EvTick) (State, []Effect) {
 		effs = append(effs, EffReconcileWindows{})
 	}
 
+	// Resume-capsule regeneration: digest-driven, staggered per session.
+	s, capsuleEffs := maybeEnqueueResumeCapsules(s, e.N)
+	effs = append(effs, capsuleEffs...)
+
 	// Approval/question expiry uses the tick's Now value (never time.Now
 	// inside Reduce) so the transition is a pure function of (state, tick).
 	var aExp, qExp []Effect

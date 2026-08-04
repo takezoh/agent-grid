@@ -422,6 +422,7 @@ func (r *Runtime) snapshotSessions() []SessionSnapshot {
 			Sandbox:         sess.Sandbox,
 			FrameMessaging:  snapshotFrameMessaging(sess.FrameMessaging),
 			FrameGeneration: sess.FrameGeneration,
+			ResumeCapsule:   snapshotResumeCapsule(sess.ResumeCapsule),
 		})
 	}
 	return out

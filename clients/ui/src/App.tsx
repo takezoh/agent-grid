@@ -14,6 +14,14 @@ import { SessionList } from "./components/SessionList";
 import { SidebarBrandRow } from "./components/SidebarBrandRow";
 import { StatusBar } from "./components/StatusBar";
 import { TerminalPane } from "./components/TerminalPane";
+import { CognitivePanel } from "./components/cognitive/CognitivePanel";
+import {
+  WORKSPACE_MODE_STORAGE_KEY,
+  WorkspaceModeSwitch,
+  type WorkspaceUiMode,
+  parseWorkspaceUiMode,
+  validateWorkspaceUiMode,
+} from "./components/cognitive/WorkspaceModeSwitch";
 import { CommandPalette } from "./components/palette/CommandPalette";
 import { WorkspaceDrawer } from "./components/workspace/WorkspaceDrawer";
 import { makeFleetProvider } from "./fleet/provider";
@@ -21,6 +29,7 @@ import { type FleetHealthView, parseSessionKey, sessionKey } from "./fleet/sessi
 import { useFavicon } from "./hooks/useFavicon";
 import { useGlobalHotkey } from "./hooks/useGlobalHotkey";
 import { useMobileGate } from "./hooks/useMobileGate";
+import { usePersistedValue } from "./hooks/usePersistedValue";
 import { useTerminateSession } from "./hooks/useTerminateSession";
 import type { TerminalGeometry } from "./lib/terminalGeometry";
 import { Connection } from "./socket/connection";
@@ -34,6 +43,7 @@ import { useNotificationsStore } from "./store/notifications";
 import { useWorkspaceActivityStore } from "./store/workspaceActivity";
 import { truncateLabel } from "./util/truncate";
 import "./css/workspace.css";
+import "./css/cognitive.css";
 
 export function terminalIdentity(session: { id: string; head_frame_id?: string } | null): string {
   if (!session) return "__none__";
@@ -344,7 +354,27 @@ export function App() {
     [openDrawerTree],
   );
 
-  const headerContent = activeSession ? (
+  // Classic ⇄ Cognitive workspace switcher (plan §2.1): Classic is the
+  // default and the permanent one-click fallback; the choice persists per
+  // client. The Cognitive layer mounts lazily on first visit and then stays
+  // mounted (same layering pattern as Terminal/Workspace modes).
+  const [workspaceUiMode, setWorkspaceUiMode] = usePersistedValue<WorkspaceUiMode>({
+    key: WORKSPACE_MODE_STORAGE_KEY,
+    parse: parseWorkspaceUiMode,
+    serialize: String,
+    fallback: "classic",
+    validate: validateWorkspaceUiMode,
+  });
+  const [cognitiveVisited, setCognitiveVisited] = useState(workspaceUiMode === "cognitive");
+  const handleWorkspaceUiModeChange = useCallback(
+    (next: WorkspaceUiMode) => {
+      if (next === "cognitive") setCognitiveVisited(true);
+      setWorkspaceUiMode(next);
+    },
+    [setWorkspaceUiMode],
+  );
+
+  const classicHeader = activeSession ? (
     <HeaderBar
       project={activeSession.project}
       card={activeSession.view.card}
@@ -362,6 +392,19 @@ export function App() {
     <HeaderBar mobile={isMobile} />
   );
 
+  const headerContent = (
+    <div className="workspace-mode-header">
+      <WorkspaceModeSwitch value={workspaceUiMode} onChange={handleWorkspaceUiModeChange} />
+      <div className="workspace-mode-header__rest">
+        {workspaceUiMode === "classic" ? (
+          classicHeader
+        ) : (
+          <span className="cognitive-header-title">Cognitive Workspace</span>
+        )}
+      </div>
+    </div>
+  );
+
   const sidebarContent = (
     <div className="sidebar-shell">
       <SidebarBrandRow />
@@ -370,7 +413,7 @@ export function App() {
     </div>
   );
 
-  const mainContent = (
+  const classicMain = (
     <div className="main-with-changes" data-testid="main-with-changes">
       <div className="main-with-changes__terminal">
         {/* Layered modes (ADR-0065 pattern): MainTabs + xterm stay mounted
@@ -427,6 +470,23 @@ export function App() {
             setConnectionsOpen(true);
           }}
         />
+      </div>
+    </div>
+  );
+
+  const mainContent = (
+    <div className="workspace-ui-modes" data-testid="workspace-ui-modes">
+      <div
+        className="workspace-ui-modes__layer"
+        data-active={workspaceUiMode === "classic" ? "true" : "false"}
+      >
+        {classicMain}
+      </div>
+      <div
+        className="workspace-ui-modes__layer"
+        data-active={workspaceUiMode === "cognitive" ? "true" : "false"}
+      >
+        {cognitiveVisited && <CognitivePanel active={workspaceUiMode === "cognitive"} />}
       </div>
     </div>
   );

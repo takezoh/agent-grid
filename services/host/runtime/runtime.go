@@ -76,6 +76,11 @@ type Config struct {
 	// Injected into state.State once at construction; never mutated.
 	Features features.Set
 
+	// ResumeCapsulesEnabled gates resume-capsule generation. True when the
+	// [driver] capsule_command config is non-empty. Injected into
+	// state.State once at construction; never mutated.
+	ResumeCapsulesEnabled bool
+
 	// Launcher wraps agent launch plans before they reach the backend, enabling
 	// sandbox implementations. nil falls back to DirectLauncher (no-op).
 	Launcher AgentLauncher
@@ -302,6 +307,7 @@ func New(cfg Config) *Runtime {
 	initial := state.New()
 	initial.StatusEpoch = newStatusEpoch()
 	initial.Features = cfg.Features
+	initial.ResumeCapsulesEnabled = cfg.ResumeCapsulesEnabled
 	r := &Runtime{
 		cfg:                   cfg,
 		state:                 initial,
