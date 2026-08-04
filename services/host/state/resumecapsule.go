@@ -19,11 +19,20 @@ import (
 // ResumeCapsule is the per-session capsule record. It persists across
 // daemon restarts inside the session snapshot and is cleared together
 // with the session.
+//
+// The completion fields (Changed/Verified/Remaining/Attention) are the
+// compressed completion report of plan §18, generated in the same LLM
+// call as the resume fields so completion reporting never doubles
+// generation cost.
 type ResumeCapsule struct {
 	Objective    string
 	CurrentState string
 	NextAction   string
 	Unresolved   []string
+	Changed      []string // completion report: what was concretely changed
+	Verified     []string // completion report: what was verified (tests, checks)
+	Remaining    []string // completion report: what remains to be done
+	Attention    string   // completion report: single line when user attention is needed
 	GeneratedAt  time.Time
 	SourceDigest string // digest of the turns the capsule was generated from
 	SourceTurns  int    // provenance: number of turns fed to the generator
@@ -65,6 +74,10 @@ type CapsuleJobResult struct {
 	CurrentState string
 	NextAction   string
 	Unresolved   []string
+	Changed      []string
+	Verified     []string
+	Remaining    []string
+	Attention    string
 	SourceDigest string
 	SourceTurns  int
 }
@@ -186,12 +199,18 @@ func formatResumeCapsulePrompt(prev ResumeCapsule, turns []CapsuleTurn, project 
 	b.WriteString("From the previous capsule and the recent conversation turns below, produce the ")
 	b.WriteString("updated capsule.\n\n")
 	b.WriteString("Return ONLY a JSON object, no code fences, no prose, with exactly these keys:\n")
-	b.WriteString(`{"objective": "...", "current_state": "...", "next_action": "...", "unresolved": ["..."]}` + "\n\n")
+	b.WriteString(`{"objective": "...", "current_state": "...", "next_action": "...", "unresolved": ["..."],` + "\n")
+	b.WriteString(` "changed": ["..."], "verified": ["..."], "remaining": ["..."], "attention": "..."}` + "\n\n")
 	b.WriteString("objective: the overall goal the user is driving (1 sentence, stable across turns).\n")
 	b.WriteString("current_state: what has been established or completed so far (1-2 sentences).\n")
 	b.WriteString("next_action: the single next concrete step (1 sentence).\n")
 	b.WriteString("unresolved: open questions or pending decisions (0-4 short items).\n")
-	b.WriteString("Base every field on the conversation only; never invent progress.\n\n")
+	b.WriteString("changed: concrete changes completed so far — files, behaviors, documents (0-4 short items).\n")
+	b.WriteString("verified: what has actually been verified — tests run, checks passed (0-3 short items; ")
+	b.WriteString("only include evidence present in the conversation, never assumed).\n")
+	b.WriteString("remaining: work that is still left to do (0-4 short items).\n")
+	b.WriteString("attention: one sentence when the user's decision or review is needed, else an empty string.\n")
+	b.WriteString("Base every field on the conversation only; never invent progress or verification.\n\n")
 	if project != "" {
 		b.WriteString("<project>\n" + project + "\n</project>\n\n")
 	}

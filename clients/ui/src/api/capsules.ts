@@ -19,6 +19,11 @@ export type ResumeCapsuleInfo = {
   current_state?: string;
   next_action?: string;
   unresolved?: string[];
+  /** Completion report (plan §18): changed / verified / remaining / attention. */
+  changed?: string[];
+  verified?: string[];
+  remaining?: string[];
+  attention?: string;
   generated_at: string;
   source_turns?: number;
   flagged_wrong?: boolean;

@@ -63,6 +63,32 @@ describe("CognitivePanel", () => {
     expect(screen.getByText("Flaky CI")).not.toBeNull();
     expect(screen.getByText("4 turns")).not.toBeNull();
     expect(screen.queryByText("Stale")).toBeNull();
+    // No completion fields in the fixture → the completion block is hidden.
+    expect(screen.queryByTestId("capsule-completion")).toBeNull();
+  });
+
+  it("renders the completion report sections when present", async () => {
+    const fetchFn = vi.fn(async () =>
+      jsonResponse(
+        capsuleBody({
+          changed: ["Fixed the token refresh path"],
+          verified: ["Unit tests pass"],
+          remaining: ["Add the regression test"],
+          attention: "Review the fix before release",
+        }),
+      ),
+    );
+    render(<CognitivePanel active fetchFn={fetchFn as typeof fetch} />);
+
+    const completion = await screen.findByTestId("capsule-completion");
+    expect(completion.textContent).toContain("Changed");
+    expect(completion.textContent).toContain("Fixed the token refresh path");
+    expect(completion.textContent).toContain("Verified");
+    expect(completion.textContent).toContain("Unit tests pass");
+    expect(completion.textContent).toContain("Remaining");
+    expect(completion.textContent).toContain("Add the regression test");
+    expect(completion.textContent).toContain("Your attention");
+    expect(completion.textContent).toContain("Review the fix before release");
   });
 
   it("marks the capsule stale when session activity is newer than generation", async () => {

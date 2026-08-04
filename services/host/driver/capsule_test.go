@@ -29,6 +29,16 @@ func TestParseCapsuleJSON(t *testing.T) {
 			want: state.CapsuleJobResult{Objective: "ship it", CurrentState: "wip"},
 		},
 		{
+			name: "completion report fields",
+			in: `{"objective":"o","current_state":"c","changed":["fixed a"],` +
+				`"verified":["tests pass"],"remaining":["docs"],"attention":" review me "}`,
+			want: state.CapsuleJobResult{
+				Objective: "o", CurrentState: "c",
+				Changed: []string{"fixed a"}, Verified: []string{"tests pass"},
+				Remaining: []string{"docs"}, Attention: "review me",
+			},
+		},
+		{
 			name: "empty unresolved entries dropped",
 			in:   `{"objective":"o","current_state":"c","unresolved":["", "  ", "real"]}`,
 			want: state.CapsuleJobResult{Objective: "o", CurrentState: "c", Unresolved: []string{"real"}},
@@ -50,11 +60,19 @@ func TestParseCapsuleJSON(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if got.Objective != tc.want.Objective || got.CurrentState != tc.want.CurrentState ||
-				got.NextAction != tc.want.NextAction {
+				got.NextAction != tc.want.NextAction || got.Attention != tc.want.Attention {
 				t.Errorf("got %+v, want %+v", got, tc.want)
 			}
-			if strings.Join(got.Unresolved, "|") != strings.Join(tc.want.Unresolved, "|") {
-				t.Errorf("unresolved = %v, want %v", got.Unresolved, tc.want.Unresolved)
+			lists := [][2][]string{
+				{got.Unresolved, tc.want.Unresolved},
+				{got.Changed, tc.want.Changed},
+				{got.Verified, tc.want.Verified},
+				{got.Remaining, tc.want.Remaining},
+			}
+			for _, pair := range lists {
+				if strings.Join(pair[0], "|") != strings.Join(pair[1], "|") {
+					t.Errorf("list mismatch: got %v, want %v", pair[0], pair[1])
+				}
 			}
 		})
 	}

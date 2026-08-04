@@ -469,8 +469,9 @@ List every session's resume capsule (sessions without a capsule are omitted).
 
 `ResumeCapsuleInfo` mirrors `proto.ResumeCapsuleInfo`: `session_id`,
 `project`, `workspace?`, `title?`, `objective?`, `current_state?`,
-`next_action?`, `unresolved?[]`, `generated_at` (RFC3339), `source_turns?`,
-`flagged_wrong?`, `last_error?`.
+`next_action?`, `unresolved?[]`, `changed?[]`, `verified?[]`,
+`remaining?[]`, `attention?` (the compressed completion report, plan §18),
+`generated_at` (RFC3339), `source_turns?`, `flagged_wrong?`, `last_error?`.
 
 #### `POST /api/sessions/{id}/resume-capsule/flag`
 

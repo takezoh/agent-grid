@@ -202,6 +202,7 @@ function CapsuleCard({ capsule, now, sessionActivityAt, onToggleFlag }: CapsuleC
           ))}
         </ul>
       )}
+      <CompletionReport capsule={capsule} />
       {capsule.last_error && (
         <p className="cognitive-card__error">Last generation failed: {capsule.last_error}</p>
       )}
@@ -215,5 +216,38 @@ function CapsuleCard({ capsule, now, sessionActivityAt, onToggleFlag }: CapsuleC
         </button>
       </div>
     </article>
+  );
+}
+
+// CompletionReport renders the compressed completion sections (plan §18):
+// Changed / Verified / Remaining / Your attention. Hidden entirely when the
+// generator produced none of them.
+function CompletionReport({ capsule }: { capsule: FleetResumeCapsule }) {
+  const sections: Array<{ label: string; items: string[] }> = [
+    { label: "Changed", items: capsule.changed ?? [] },
+    { label: "Verified", items: capsule.verified ?? [] },
+    { label: "Remaining", items: capsule.remaining ?? [] },
+  ].filter((section) => section.items.length > 0);
+  const attention = capsule.attention?.trim() ?? "";
+  if (sections.length === 0 && attention === "") return null;
+
+  return (
+    <div className="cognitive-completion" data-testid="capsule-completion">
+      {sections.map((section) => (
+        <div key={section.label} className="cognitive-completion__section">
+          <span className="cognitive-card__label">{section.label}</span>
+          <ul className="cognitive-completion__list">
+            {section.items.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      {attention !== "" && (
+        <p className="cognitive-completion__attention">
+          <span className="cognitive-card__label">Your attention</span> {attention}
+        </p>
+      )}
+    </div>
   );
 }

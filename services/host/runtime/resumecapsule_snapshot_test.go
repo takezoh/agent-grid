@@ -15,6 +15,10 @@ func TestResumeCapsuleSnapshotRoundTrip(t *testing.T) {
 		CurrentState: "root cause identified",
 		NextAction:   "write the regression test",
 		Unresolved:   []string{"flaky CI"},
+		Changed:      []string{"fixed token refresh"},
+		Verified:     []string{"unit tests pass"},
+		Remaining:    []string{"regression test"},
+		Attention:    "review the fix",
 		GeneratedAt:  generated,
 		SourceDigest: "digest-1",
 		SourceTurns:  4,
@@ -35,6 +39,10 @@ func TestResumeCapsuleSnapshotRoundTrip(t *testing.T) {
 	}
 	if !got.GeneratedAt.Equal(generated) || !got.FlaggedAt.Equal(flagged) || !got.LastErrorAt.Equal(flagged) {
 		t.Errorf("timestamps mismatch: %+v", got)
+	}
+	if len(got.Changed) != 1 || len(got.Verified) != 1 || len(got.Remaining) != 1 ||
+		got.Attention != "review the fix" {
+		t.Errorf("completion fields mismatch: %+v", got)
 	}
 	if !got.FlaggedWrong {
 		t.Error("flag must survive restart")

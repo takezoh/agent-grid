@@ -22,6 +22,10 @@ const CAPSULE = {
   current_state: "Root cause identified in the token refresh path",
   next_action: "Write the regression test",
   unresolved: ["Flaky CI on windows runners"],
+  changed: ["Fixed the token refresh path"],
+  verified: ["Unit tests pass"],
+  remaining: ["Add the regression test"],
+  attention: "Review the fix before release",
   generated_at: "2026-07-05T01:00:00Z",
   source_turns: 4,
 };
@@ -59,6 +63,12 @@ test("switches Classic to Cognitive, shows capsules, and falls back in one click
   await expect(panel.getByText("Ship the login fix")).toBeVisible();
   await expect(panel.getByText("Write the regression test")).toBeVisible();
   await expect(panel.getByText("4 turns")).toBeVisible();
+
+  // Completion report sections (plan §18) render inside the card.
+  const completion = panel.getByTestId("capsule-completion");
+  await expect(completion.getByText("Fixed the token refresh path")).toBeVisible();
+  await expect(completion.getByText("Unit tests pass")).toBeVisible();
+  await expect(completion.getByText(/Review the fix before release/)).toBeVisible();
 
   // One-action wrong-flag posts to the gateway endpoint.
   await panel.getByRole("button", { name: "Mark as wrong" }).click();

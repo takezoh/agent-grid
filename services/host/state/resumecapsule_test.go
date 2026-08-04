@@ -169,6 +169,10 @@ func TestCapsuleJobResultAppliesCapsule(t *testing.T) {
 		CurrentState: "root cause identified",
 		NextAction:   "write the regression test",
 		Unresolved:   []string{"flaky CI"},
+		Changed:      []string{"fixed token refresh"},
+		Verified:     []string{"unit tests pass"},
+		Remaining:    []string{"regression test"},
+		Attention:    "review the fix",
 		SourceDigest: "digest-1",
 		SourceTurns:  4,
 	}})
@@ -179,6 +183,10 @@ func TestCapsuleJobResultAppliesCapsule(t *testing.T) {
 	}
 	if capsule.Objective != "ship the login fix" || capsule.SourceDigest != "digest-1" || capsule.SourceTurns != 4 {
 		t.Errorf("capsule fields wrong: %+v", capsule)
+	}
+	if len(capsule.Changed) != 1 || len(capsule.Verified) != 1 || len(capsule.Remaining) != 1 ||
+		capsule.Attention != "review the fix" {
+		t.Errorf("completion fields wrong: %+v", capsule)
 	}
 	if !capsule.GeneratedAt.Equal(now) {
 		t.Errorf("GeneratedAt = %v, want reducer Now", capsule.GeneratedAt)

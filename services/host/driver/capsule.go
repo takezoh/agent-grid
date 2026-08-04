@@ -78,6 +78,10 @@ type capsuleWireJSON struct {
 	CurrentState string   `json:"current_state"`
 	NextAction   string   `json:"next_action"`
 	Unresolved   []string `json:"unresolved"`
+	Changed      []string `json:"changed"`
+	Verified     []string `json:"verified"`
+	Remaining    []string `json:"remaining"`
+	Attention    string   `json:"attention"`
 }
 
 // parseCapsuleJSON extracts the capsule JSON object from LLM output.
@@ -102,6 +106,10 @@ func parseCapsuleJSON(out string) (state.CapsuleJobResult, error) {
 		CurrentState: strings.TrimSpace(wire.CurrentState),
 		NextAction:   strings.TrimSpace(wire.NextAction),
 		Unresolved:   trimNonEmpty(wire.Unresolved),
+		Changed:      trimNonEmpty(wire.Changed),
+		Verified:     trimNonEmpty(wire.Verified),
+		Remaining:    trimNonEmpty(wire.Remaining),
+		Attention:    strings.TrimSpace(wire.Attention),
 	}, nil
 }
 

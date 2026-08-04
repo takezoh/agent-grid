@@ -132,6 +132,10 @@ type ResumeCapsuleInfo struct {
 	CurrentState string   `json:"current_state,omitempty"`
 	NextAction   string   `json:"next_action,omitempty"`
 	Unresolved   []string `json:"unresolved,omitempty"`
+	Changed      []string `json:"changed,omitempty"`
+	Verified     []string `json:"verified,omitempty"`
+	Remaining    []string `json:"remaining,omitempty"`
+	Attention    string   `json:"attention,omitempty"`
 	GeneratedAt  string   `json:"generated_at"`
 	SourceTurns  int      `json:"source_turns,omitempty"`
 	FlaggedWrong bool     `json:"flagged_wrong,omitempty"`
