@@ -41,7 +41,7 @@ func TestHostRepositoryProjectionParity(t *testing.T) {
 		githubhost.CatalogProjection{
 			Outcome: githubhost.CatalogSourceFailedRetained, Generation: 1, Stale: true,
 			FailureCode: githubhost.FailSourceFailed,
-			Repositories: []githubhost.Repository{{"1", "example-user", "demo"}},
+			Repositories: []githubhost.Repository{{ID: "1", Owner: "example-user", Name: "demo"}},
 		},
 		[]HostPreparation{{
 			PreparationID: "prep-1", IntentID: "intent-1", ServerID: "srv-a",
