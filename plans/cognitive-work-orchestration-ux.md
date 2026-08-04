@@ -1,6 +1,6 @@
 # Cognitive Work Orchestration UX Plan
 
-Status: Initial draft
+Status: Draft v2 — revised after value-hypothesis review (2026-08-04). Adds value hypothesis and falsification criteria (§1.1–1.4), the Classic ⇄ Cognitive dual-workspace model (§2.1), and a value-density-ordered MVP with a Phase 0 probe (§26–27).
 
 ## 1. Purpose
 
@@ -24,6 +24,37 @@ The product should continuously organize:
 - and what can safely remain hidden.
 
 The system should make the user think only about decisions that genuinely require the user's judgment.
+
+### 1.1 Value hypothesis
+
+The initiative rests on one falsifiable hypothesis:
+
+> A trustworthy, automatically maintained intermediate representation of work state (outcomes, decisions, resume capsules, verified completions) reduces the user's supervision and context-reconstruction time more than it costs to maintain and to verify.
+
+The hypothesis must be validated against the cheap baseline the user already operates — disciplined markdown plans, resume notes, dev-skills workflows, and manual session management — not against "no system". Only the marginal value over that baseline justifies the investment.
+
+### 1.2 Known value risks
+
+1. **Trust-chain fragility.** Value flows through: raw work → LLM extraction → structured state → compressed surfaces → user decisions. Every link can inject error, and the failure mode is near-total rather than gradual: one materially wrong resume capsule or one bad accepted recommendation pushes the user back to reading raw logs, at which point the system is pure overhead. Mitigations are therefore first-class requirements, not polish: provenance on every record (§29.5), freshness/staleness display (§12.1), evidence-cited recommendations (§3.6), and a one-click fallback to the Classic Workspace (§2.1) so that reverting is a mode switch, not product abandonment.
+2. **Baseline competition.** Each surface must beat the markdown-and-discipline baseline on measurable time saved. Surfaces that cannot demonstrate marginal value are cut (§26.4).
+3. **Commoditization of execution machinery.** Runtime vendors are climbing this stack; background execution, notifications, and completion summaries are likely to be absorbed into commercial runtimes. The durable asset is the user-specific cognitive state — outcomes, decisions, constraints, attention history, provenance — not the orchestration machinery.
+
+### 1.3 Investment policy: thin durable layer
+
+- **Durable (build carefully, own the schema):** the cognitive/outcome data model, decision and constraint records with provenance, resume capsules, attention and completion history.
+- **Disposable or borrowed (build thin, expect replacement):** execution supervision, runtime adapters, notification plumbing, event compression. Reuse existing Agent Grid machinery and runtime features wherever possible.
+- **Budget follows value density:** resume continuity and trustworthy completion first; decision/attention management second; role framing, capture inference, and portfolio views last (§26.4 cut candidates).
+
+### 1.4 Falsification criteria
+
+Defined before implementation and evaluated after roughly two weeks of routine use per phase. The thresholds below were adopted as initial values by the user on 2026-08-04; they may be recalibrated once, explicitly, before a phase starts — never retroactively.
+
+- **Resume:** if more than 30% of resumes still require opening raw session history, the resume-capsule hypothesis fails.
+- **Capsule trust:** if more than ~10% of resume capsules are found materially wrong, trust is considered broken; capsule generation must be fixed before any further surface is built.
+- **Completion trust:** if more than 30% of ordinary successful work still requires opening raw execution detail to confirm completion, the completion-report hypothesis fails.
+- **Maintenance cost:** if keeping the structured state accurate requires recurring manual user input (weekly self-check), Phase 1 fails — state freshness must be automatic.
+
+A failed criterion stops expansion: fix the failing layer or stop the initiative. Do not proceed to the next phase on top of a failed criterion.
 
 ## 2. Product definition
 
@@ -58,6 +89,22 @@ The user-facing hierarchy should therefore be:
 8. Runtime threads and turns
 
 Agents, models, prompts, thread IDs, token usage, and tool calls should normally appear only as expandable implementation details.
+
+### 2.1 Dual workspace: Classic ⇄ Cognitive
+
+Agent Grid keeps two coexisting top-level workspaces over the same backend:
+
+- **Classic Workspace** — the current session/agent-oriented UI (sessions, terminal, files, diff, agent activity). It remains fully functional and is not degraded or rewritten by this initiative.
+- **Cognitive Workspace** — the attention/decision/outcome surface described in this plan.
+
+A persistent global switcher toggles between them with one action, and the selection is persisted per client.
+
+Requirements:
+
+- Both workspaces read the same underlying state. Cognitive entities (outcomes, decisions, capsules) are an additive layer; nothing captured in the Cognitive Workspace becomes invisible from Classic, and sessions remain first-class in Classic regardless of whether an outcome references them.
+- Cross-navigation deep links in both directions: an Execution in the Cognitive Workspace opens its live session in Classic; a session in Classic shows a link to its outcome when one exists.
+- The Classic Workspace is the guaranteed fallback. This is a deliberate mitigation of the trust-chain risk (§1.2): if the cognitive layer misleads, reverting costs one click, not the product.
+- Time and task share spent in Classic versus Cognitive is itself a primary adoption and trust signal (§30). The Cognitive Workspace must earn usage; it is never forced.
 
 ## 3. Core UX principles
 
@@ -120,6 +167,8 @@ The system should not merely ask the user to choose among options. It should pro
 - affected outcomes,
 - and the consequence of delaying the decision.
 
+A recommendation must cite the evidence it rests on (tests, documents, prior decisions, execution results). When the evidence basis is weak, the system must say so and present the options without a recommendation rather than fabricate one. The UI must not visually pressure acceptance: `Accept` is a primary action only when the recommendation is evidence-backed and reversible. Accepted recommendations that are later overturned are tracked as a trust metric (§30).
+
 ### 3.7 Automation requires strong undo and traceability
 
 The system should be proactive, but every automatic interpretation, task creation, scope update, and delegation action must be inspectable and reversible.
@@ -178,30 +227,34 @@ Completion should be expressed through explicit deliverables, evidence, verifica
 
 ## 5. Information architecture
 
-The proposed top-level navigation is:
+The top level is the global workspace switcher (§2.1):
 
 ```text
-Home
-├─ Focus
-├─ Decisions
-├─ Workstreams
-├─ Inbox
-└─ Activity
+[Cognitive ⇄ Classic]
 
-Projects
-├─ Project overview
-├─ Outcomes
-├─ Decisions
-├─ Knowledge
-└─ Executions
+Cognitive Workspace
+├─ Home
+│  ├─ Focus
+│  ├─ Decisions
+│  ├─ Workstreams
+│  ├─ Inbox
+│  └─ Activity
+└─ Projects
+   ├─ Project overview
+   ├─ Outcomes
+   ├─ Decisions
+   ├─ Knowledge
+   └─ Executions
 
-Workspace
+Classic Workspace (existing session-oriented UI, unchanged)
+├─ Sessions / Agent activity
 ├─ Files
 ├─ Diff
 ├─ Terminal
-├─ Documents
-└─ Agent activity
+└─ Documents
 ```
+
+The Classic Workspace keeps its current internal navigation; this plan does not restructure it. Cross-links between the two are defined in §2.1.
 
 The primary daily surfaces should be limited to:
 
@@ -253,6 +306,8 @@ It should answer within approximately 30 seconds:
 │ 4 items completed and verified · [View summary]         │
 └─────────────────────────────────────────────────────────┘
 ```
+
+The header also carries the global workspace switcher (§2.1).
 
 ### 6.2 Needs Your Attention
 
@@ -367,9 +422,10 @@ actions:
 After capture, the system should display a compact interpretation:
 
 ```text
-Recorded as a direction change for agent-grid / Windows host support.
+Proposed: direction change for agent-grid / Windows host support.
+Nothing has been applied yet.
 
-Changed:
+Would change:
 - Windows-side supervisor adopted
 - WSL systemd remains out of scope
 
@@ -378,10 +434,10 @@ Affected:
 - startup and recovery design
 - service permission research
 
-[Undo] [Review interpretation]
+[Confirm and apply] [Adjust] [Discard]
 ```
 
-The system should proceed automatically when the action is low risk and reversible.
+The system should proceed automatically only when the action is low risk, reversible, **and does not modify a recorded decision or outcome scope** — for example, filing a note, attaching context, or creating a work item inside an already-approved scope. A direction change such as the example above modifies a recorded decision, so it is staged as a pending proposal with one-click confirmation rather than applied silently. This keeps capture behavior consistent with the mandatory confirmation categories in §8 and the scope safeguard in §29.3.
 
 ## 8. Intake and interpretation flow
 
@@ -408,6 +464,14 @@ Mandatory confirmation categories should include:
 - elevated permissions,
 - significant scope expansion,
 - or irreversible decisions.
+
+### 8.1 Undo scope
+
+Undo of an intake interpretation is transactional over the state records it created or modified — decisions, constraints, work items, outcome updates are reverted as a unit, with the reverted versions retained in history.
+
+Undo does not retroactively unwind executions. If delegated work has already started, undo stops the execution, preserves its findings as evidence, and reverts the state records; workspace changes made by the execution are handled through the normal review/discard path, not by the intake undo.
+
+In the MVP, automatic delegation is deferred until an interpretation survives its confirmation window, so intake undo normally happens before any execution starts.
 
 ## 9. Outcome Detail UX
 
@@ -600,6 +664,12 @@ resume:
 
 The resume capsule should be continuously regenerated from structured state, not manually maintained as an independent source of truth.
 
+Trust requirements (load-bearing for the value hypothesis, §1.2):
+
+- Each capsule field carries a reference to the structured state or source event it was derived from, so a suspicious capsule can be verified without rereading history.
+- Capsules and outcome states surface their freshness prominently. A capsule older than its outcome's latest activity is displayed as **stale**, never presented as current.
+- A materially wrong capsule is treated as a product defect and tracked (§30), not accepted as noise. The user can flag a capsule as wrong in one action; flags feed the capsule-trust falsification criterion (§1.4).
+
 ## 13. Workstream UX
 
 Workstreams should group execution by purpose rather than by agent or session.
@@ -775,6 +845,8 @@ Recent meaningful events:
 
 [Open live session] [Pause] [Stop]
 ```
+
+`Open live session` switches to the Classic Workspace session view (§2.1).
 
 Advanced details may include:
 
@@ -972,6 +1044,12 @@ Runtime Adapters
 
 The internal domain model must not depend directly on Codex thread and turn concepts.
 
+Placement hypothesis in the existing Agent Grid architecture (to be validated during design):
+
+- The Cognitive and Outcome control planes are a new domain layered above the existing gateway (`services/server`), persisting cognitive state separately from pty/session state. Per the thin-durable-layer policy (§1.3), this data model is the durable asset.
+- The Execution Control Plane starts as a thin coordinator that reuses the existing session daemon and `claude-app-server` (the Codex app-server shim) as its first runtime adapters. No new orchestration machinery is built where existing machinery or runtime-vendor features suffice.
+- `clients/ui` hosts both workspaces behind the global switcher (§2.1). The existing session-oriented surfaces are not rewritten.
+
 Recommended internal concepts:
 
 - Outcome
@@ -1109,15 +1187,26 @@ Outcome:
   priority:
   role:
   project_id:
+  depends_on:
   resume_capsule:
+  last_attended_at:
+  updated_at:
 
 Decision:
   question:
   recommendation:
+  recommendation_evidence:
   options:
   tradeoffs:
   reversibility:
   affected_outcome_ids:
+  source:
+  status:
+
+Constraint:
+  scope:
+  statement:
+  source:
   status:
 
 Workstream:
@@ -1132,6 +1221,7 @@ WorkItem:
   user_attention_required:
   outcome_id:
   workstream_id:
+  depends_on:
 
 Execution:
   runtime:
@@ -1152,36 +1242,44 @@ AttentionItem:
   reason:
   recommendation:
   affected_ids:
+  source:
   status:
 ```
 
+Every extracted or inferred record (`Decision`, `Constraint`, outcome updates, `AttentionItem`) carries `source` provenance back to the user message, document, plan, or execution that produced it (§29.5). `last_attended_at` supports the "changes since last attention" delta in Resume View (§12); `depends_on` supports conflict and blocking detection (§15.1). `Commitment`, `Deliverable`, `Evidence`, and `Review` (§21) are intentionally omitted from the minimum model; they are added only when a phase needs them.
+
 ## 26. MVP scope
 
-The first implementation should contain only the surfaces and flows necessary to validate cognitive load reduction.
+The first implementation should contain only the surfaces and flows necessary to validate cognitive load reduction, ordered by value density (§1.3): resume continuity and completion trust first, decision/attention management second, inference and framing last.
 
 ### 26.1 MVP screens
 
-1. Home
-2. Outcome Detail
-3. Decision Detail
-4. Resume View
-5. Execution Detail
+1. Workspace switcher (Cognitive ⇄ Classic) — the Classic Workspace is the unchanged existing UI
+2. Home
+3. Outcome Detail
+4. Decision Detail
+5. Resume View
+6. Execution Detail (links to Classic for live sessions)
 
 ### 26.2 MVP capabilities
 
-- global natural-language capture,
-- project and outcome inference,
-- outcome state,
-- success criteria,
-- decision records,
+Core (validates the hypothesis; §1.4 criteria apply):
+
+- resume capsule with freshness and provenance,
+- compressed completion reports with evidence attachment,
+- outcome state and success criteria,
+- decision records with evidence-cited recommendations,
 - attention queue,
-- resume capsule,
+- Undo for automatic intake interpretation (§8.1 scope).
+
+Supporting:
+
+- global natural-language capture (proposal-staged for scope-changing input, §7),
+- project and outcome inference,
 - workstream state,
 - one Codex App Server worker execution,
-- compressed completion reports,
-- evidence attachment,
-- Undo for automatic intake interpretation,
-- expandable execution detail.
+- expandable execution detail,
+- Classic ⇄ Cognitive cross-navigation deep links.
 
 ### 26.3 Explicit MVP exclusions
 
@@ -1195,7 +1293,33 @@ The first implementation should contain only the surfaces and flows necessary to
 - fully autonomous priority assignment,
 - and automatic external communication.
 
+### 26.4 Cut candidates
+
+The following are in the plan but are the first to be dropped if their marginal value over the baseline (§1.2) is not demonstrated. They are built last:
+
+- role-aware framing (§14) — wrong-role framing can be worse than none,
+- capture inference beyond simple project selection — typing a project name is cheap,
+- portfolio/attention-conflict views (§15) — a good list may suffice for a single user,
+- meaningful-event compression beyond what completion reports need.
+
 ## 27. MVP phases
+
+Phases are gated by the falsification criteria in §1.4: a phase starts only if the previous phase's criteria passed.
+
+### Phase 0: Value probe — resume capsule and completion trust
+
+Decided (2026-08-04): Phase 0 proceeds as a lightweight direct implementation — no requirements/design pipeline for the probe itself. Its scope is **agent-grid development work only**: capsules are generated from this repository's own development sessions, keeping the session source and the measurement inside one project. Multi-project coverage is deferred to a later phase. Measurement stays lightweight: weekly self-report plus the one-action wrong-capsule flag; no dedicated telemetry is built for Phase 0.
+
+Implement on top of the existing Classic Workspace, with no new navigation surfaces beyond a minimal panel and the workspace-switcher shell:
+
+- resume capsules generated automatically from existing session activity,
+- compressed completion reports with evidence for finished sessions,
+- freshness/staleness display and one-action wrong-capsule flagging,
+- Classic remains the default workspace.
+
+Primary validation (§1.4): resume without rereading history; capsule material-error rate; completion review without opening raw execution.
+
+This phase deliberately builds no orchestration and no new data-entry surfaces. If capsule trust or resume time fails here, the failing layer is fixed or the initiative stops — the remaining phases all depend on this result.
 
 ### Phase 1: Structured cognitive state
 
@@ -1204,28 +1328,30 @@ Implement:
 - outcomes,
 - decisions,
 - attention items,
-- resume capsules,
 - Home,
 - Outcome Detail,
-- Global Capture.
+- Global Capture (proposal-staged, §7).
 
 Execution may initially remain manual or use one existing agent session.
+
+State freshness is a hard requirement of this phase: structured state (outcome `current_state`, capsules, attention items) must be updated automatically from session and execution activity. A steady state where the user types state updates by hand replaces "remembering" with "data entry" and fails the maintenance-cost criterion (§1.4). Stale state must be visibly marked (§12.1); a stale capsule presented as current is worse than no capsule.
 
 Primary validation:
 
 - Can the user understand current state quickly?
 - Can interrupted work be resumed without rereading history?
+- Does state stay fresh without manual maintenance?
 
 ### Phase 2: Codex App Server execution
 
-Implement:
+Implement, as a thin adapter per §1.3 (reuse the existing session daemon and `claude-app-server`; do not build new orchestration where runtime features suffice):
 
 - runtime adapter,
 - execution creation and status,
 - meaningful event compression,
 - completion reports,
 - evidence and verification display,
-- pause, stop, and open-session controls.
+- pause, stop, and open-session controls (open-session switches to Classic).
 
 Primary validation:
 
@@ -1375,9 +1501,19 @@ Automatic actions should be biased toward operations that can be undone, paused,
 
 The primary metric should not be number of agent runs or generated artifacts.
 
-The most important metric is:
+The north-star metric is:
 
 > Time per week that the user spends managing AI work rather than making necessary domain decisions.
+
+This cannot be measured automatically for a single user; it is tracked by a lightweight weekly self-report. The operational primary metrics — automatically measurable and tied to the falsification criteria in §1.4 — are:
+
+- time to resume an interrupted outcome,
+- rate of resumes that required opening raw history,
+- share of ordinary successful work reviewed without opening raw execution,
+- resume capsules flagged as materially wrong,
+- user corrections to automatic intake interpretation,
+- accepted recommendations later overturned,
+- share of active time spent in Classic versus Cognitive workspace (adoption and trust signal, §2.1).
 
 Supporting measures:
 
@@ -1420,6 +1556,25 @@ The following should be resolved during implementation planning:
 10. How should independent review be triggered without doubling cost for low-risk work?
 11. How should the UX represent work that spans GitHub, Google Drive, Notion, Slack, and other external systems?
 12. How should private company work and personal projects be isolated while still appearing in a unified attention view?
+13. How should capsule correctness be measured cheaply (one-action flagging is the start, but silent wrongness must also be caught)?
+14. What minimal telemetry is needed for the §30 operational metrics without building heavy instrumentation?
+15. How should the cognitive state store relate to the existing dev-docs system (change packages, tasks, issues)? Outcome/Decision/WorkItem overlap conceptually with dev-docs documents; the options are extending dev-docs as the substrate versus an independent store with provenance links. Decided 2026-08-04: resolve at Phase 1 design, not before.
+
+Resolved in this revision:
+
+- Coexistence with the existing UI → dual-workspace switcher (§2.1).
+- Undo transactionality → scoped in §8.1.
+- Stale-state handling in the UX → freshness requirements in §12.1 and Phase 1.
+- Auto-apply boundary for Global Capture → proposal staging for decision/scope changes (§7).
+
+User decisions (2026-08-04):
+
+- Phase 0 proceeds as a lightweight direct implementation (no requirements/design pipeline for the probe).
+- §1.4 falsification thresholds adopted as initially proposed (30% raw-history resumes / ~10% capsule error / 2-week windows).
+- Phase 0 scope is agent-grid development only; multi-project coverage deferred.
+- dev-docs relationship (Q15) is deliberately deferred to Phase 1 design.
+
+Still open for the user (not blocking Phase 0): client scope for the workspace switcher (web-only first vs. Windows Shell/Electron), user-facing UI language (mockups mix English and Japanese), cross-project priority source of truth (Q2), company/personal isolation (Q12).
 
 ## 32. Final design position
 
@@ -1444,4 +1599,6 @@ Attention
 → Continuity
 ```
 
-This initial draft should be refined through implementation experiments focused on measurable cognitive load reduction rather than on maximizing orchestration complexity.
+Investment follows the thin-durable-layer policy (§1.3): the user's cognitive state — outcomes, decisions, constraints, provenance, attention history — is the durable asset. Execution machinery is kept thin and replaceable, on the assumption that runtime products will keep absorbing it.
+
+The Classic Workspace remains the permanent fallback (§2.1). The Cognitive Workspace must continuously earn its usage against that fallback and against the markdown-and-discipline baseline (§1.2); the falsification criteria in §1.4 decide whether each phase has earned the next one. Implementation experiments should target measurable cognitive load reduction, never orchestration complexity for its own sake.
