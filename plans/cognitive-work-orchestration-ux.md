@@ -670,6 +670,21 @@ Trust requirements (load-bearing for the value hypothesis, §1.2):
 - Capsules and outcome states surface their freshness prominently. A capsule older than its outcome's latest activity is displayed as **stale**, never presented as current.
 - A materially wrong capsule is treated as a product defect and tracked (§30), not accepted as noise. The user can flag a capsule as wrong in one action; flags feed the capsule-trust falsification criterion (§1.4).
 
+### 12.2 Generation cost and consolidation with session summaries
+
+Capsule generation costs one LLM call per settled turn. The existing session-card summary (`summarize_command`) is a second call per turn, over nearly the same input, answering nearly the same question — "what work is the user driving in this session". Running both duplicates cost and, more importantly, duplicates judgement: the card title and the capsule can disagree, and a visible disagreement pollutes the capsule-trust measurement (§1.4).
+
+Decided (2026-08-04): consolidate on the capsule call.
+
+- The capsule carries a short card title (~25 characters) produced in the same call as the resume and completion fields, so consolidation adds no generation cost — the same technique used for completion reports (§18).
+- Session-card title resolution prefers a fresh capsule title and falls back to the existing summary field. The dependency is one-directional: the capsule layer is preferred, never depended on. Removing capsules after a failed §1.4 evaluation restores current behaviour by deleting the preference, which keeps the probe disposable (§1.3).
+- The per-turn summary job is suppressed only for agent sessions whose capsule generation is healthy. Generic terminal sessions, which expose no conversation turns, keep using the summary command unchanged.
+- Accepted trade-off: the card title updates when the turn settles rather than at prompt submission, so the previous title remains visible while a turn runs. The card title exists to identify a session, not to acknowledge input.
+
+This is scheduled before the Phase 0 measurement window, not after: running the probe with duplicated generation would pay double cost for two weeks and would contaminate the capsule-error rate with card/capsule disagreements.
+
+Cost controls that remain in force regardless of consolidation: digest-gated regeneration (unchanged history is never regenerated), no generation while the agent is running, prompt input capped independently of history length, error backoff, and opt-in configuration. If measured generation volume during Phase 0 is still too high, the next lever is lazy generation — regenerate when a capsule is viewed rather than on every settled turn — before any reduction of capsule content.
+
 ## 13. Workstream UX
 
 Workstreams should group execution by purpose rather than by agent or session.
@@ -1315,6 +1330,7 @@ Implement on top of the existing Classic Workspace, with no new navigation surfa
 - resume capsules generated automatically from existing session activity,
 - compressed completion reports with evidence for finished sessions,
 - freshness/staleness display and one-action wrong-capsule flagging,
+- consolidation of the per-turn session summary into the capsule call, with fallback preserved (§12.2),
 - Classic remains the default workspace.
 
 Primary validation (§1.4): resume without rereading history; capsule material-error rate; completion review without opening raw execution.
@@ -1573,6 +1589,7 @@ User decisions (2026-08-04):
 - §1.4 falsification thresholds adopted as initially proposed (30% raw-history resumes / ~10% capsule error / 2-week windows).
 - Phase 0 scope is agent-grid development only; multi-project coverage deferred.
 - dev-docs relationship (Q15) is deliberately deferred to Phase 1 design.
+- Resume-capsule generation supersedes the per-turn session summary for agent sessions, with one-directional fallback to the existing summary (§12.2). Done before the Phase 0 measurement window.
 
 Still open for the user (not blocking Phase 0): client scope for the workspace switcher (web-only first vs. Windows Shell/Electron), user-facing UI language (mockups mix English and Japanese), cross-project priority source of truth (Q2), company/personal isolation (Q12).
 
