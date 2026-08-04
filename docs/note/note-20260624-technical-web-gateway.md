@@ -4,7 +4,7 @@ kind: note
 title: Web Gateway
 status: published
 created: '2026-06-24'
-updated: '2026-07-24'
+updated: '2026-08-04'
 tags:
 - technical
 - legacy-import
@@ -446,6 +446,43 @@ Serve the event-log (NDJSON) file from `offset` to EOF.
 | Response `204` | offset is at or past EOF |
 | Response `304` | ETag matched |
 | Response `404` | session not found or no event-log |
+| Response `503` | daemon unavailable |
+
+### Resume capsules
+
+Cognitive-workspace Phase 0 (plans/cognitive-work-orchestration-ux.md §27).
+Capsules live daemon-side (session-level state, persisted in the session
+snapshot); both handlers are thin `CmdEvent` forwards in
+`mux_resumecapsule.go` — the gateway stores nothing.
+
+#### `GET /api/resume-capsules`
+
+List every session's resume capsule (sessions without a capsule are omitted).
+
+| | |
+|---|---|
+| Auth | Bearer token |
+| Request body | none |
+| Response `200` | `{"resume_capsules": ResumeCapsuleInfo[]}` |
+| Response `502` | response type mismatch |
+| Response `503` | daemon unavailable |
+
+`ResumeCapsuleInfo` mirrors `proto.ResumeCapsuleInfo`: `session_id`,
+`project`, `workspace?`, `title?`, `objective?`, `current_state?`,
+`next_action?`, `unresolved?[]`, `generated_at` (RFC3339), `source_turns?`,
+`flagged_wrong?`, `last_error?`.
+
+#### `POST /api/sessions/{id}/resume-capsule/flag`
+
+Record the user's one-action "this capsule is wrong" judgment (or clear it).
+An empty body defaults to `{"flagged": true}`.
+
+| | |
+|---|---|
+| Auth | Bearer token |
+| Request body | `{"flagged": bool}` (optional) |
+| Response `200` | `{"flagged": bool}` |
+| Response `400` | invalid session id or body |
 | Response `503` | daemon unavailable |
 
 ### WebSocket ticket
