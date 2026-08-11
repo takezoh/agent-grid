@@ -25,7 +25,12 @@ import {
 import { CommandPalette } from "./components/palette/CommandPalette";
 import { WorkspaceDrawer } from "./components/workspace/WorkspaceDrawer";
 import { makeFleetProvider } from "./fleet/provider";
-import { type FleetHealthView, parseSessionKey, sessionKey } from "./fleet/session-protocol";
+import {
+  fleetSessionIdFor,
+  resolveSessionRoute,
+  toFleetSessionRow,
+} from "./fleet/session-identity";
+import type { FleetHealthView } from "./fleet/session-protocol";
 import { useFavicon } from "./hooks/useFavicon";
 import { useGlobalHotkey } from "./hooks/useGlobalHotkey";
 import { useMobileGate } from "./hooks/useMobileGate";
@@ -78,10 +83,16 @@ export function App() {
       : undefined,
   );
   const serverId = useMemo(() => {
-    const selected = activeSessionID
-      ? (parseSessionKey(activeSessionID)?.serverId ?? activeSessionServerID)
-      : fleet.initialServerId();
-    return selected ?? "local";
+    if (!activeSessionID) return fleet.initialServerId() ?? "local";
+    // Row first, id second — the resolver's own precedence. The id decode is
+    // not a fallback for laziness: a session can be selected before its row
+    // arrives (a hosted deep-link selects on mount, and creating a session
+    // selects it before the next fleet snapshot), and resolving to the default
+    // server in that window would point the Connection at a server that does
+    // not own the session.
+    const route = resolveSessionRoute(activeSessionID);
+    const fromId = route.ok ? route.serverId : undefined;
+    return activeSessionServerID ?? fromId ?? "local";
   }, [activeSessionID, activeSessionServerID, fleet]);
   const conn = useMemo(() => {
     const transport = fleet.activeConnection(serverId, token);
@@ -131,13 +142,9 @@ export function App() {
   useEffect(
     () =>
       fleet.subscribe((snapshot) => {
-        const sessions = (snapshot.sessions ?? []).map(({ ref, serverLabel, session }) => ({
-          ...session,
-          id: sessionKey(ref),
-          upstreamSessionId: ref.sessionId,
-          serverId: ref.serverId,
-          serverLabel,
-        }));
+        const sessions = (snapshot.sessions ?? []).map(({ ref, serverLabel, session }) =>
+          toFleetSessionRow(ref, session, serverLabel),
+        );
         useDaemonStore.getState().applyViewUpdate({ k: "v", sessions });
         const state = useDaemonStore.getState();
         const pending = pendingExternalSelection.current;
@@ -188,7 +195,7 @@ export function App() {
       if (!detail || typeof detail !== "object") return;
       const { serverId, sessionId } = detail as Record<string, unknown>;
       if (typeof serverId !== "string" || typeof sessionId !== "string") return;
-      const id = sessionKey({ serverId, sessionId });
+      const id = fleetSessionIdFor({ serverId, sessionId });
       if (useDaemonStore.getState().sessions.some((session) => session.id === id)) {
         useDaemonStore.getState().selectSession(id);
       } else {
@@ -226,7 +233,9 @@ export function App() {
     if (!hosted || !hostedSession) return;
     useDaemonStore
       .getState()
-      .selectSession(serverId ? sessionKey({ serverId, sessionId: hostedSession }) : hostedSession);
+      .selectSession(
+        serverId ? fleetSessionIdFor({ serverId, sessionId: hostedSession }) : hostedSession,
+      );
   }, [hosted, hostedSession, serverId]);
 
   // Blocker T1: hydrate daemon.sessionConfig at mount so the command

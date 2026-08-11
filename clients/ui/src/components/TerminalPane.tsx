@@ -169,7 +169,7 @@ export function TerminalPane({
     const onData = term.onData((d) => {
       const sid = sessionRef.current;
       if (!sid) return; // no session selected → drop
-      conn.send({ k: "i", d, sessionId: sid });
+      conn.sendTerminalInput(sid, d);
     });
     // Shift+Enter / Alt+Enter inject a literal newline (Claude CLI's `\<CR>`
     // escape) directly, so the user no longer has to type `\` then Enter.
@@ -179,7 +179,7 @@ export function TerminalPane({
       handleNewlineModifier(e, (d) => {
         const sid = sessionRef.current;
         if (!sid) return;
-        conn.send({ k: "i", d, sessionId: sid });
+        conn.sendTerminalInput(sid, d);
       }),
     );
     const onResize = term.onResize(({ cols, rows }) => {
@@ -190,7 +190,7 @@ export function TerminalPane({
       const sid = sessionRef.current;
       if (!sid) return;
       conn.updateTerminalGeometry(sid, cols, rows);
-      conn.send({ k: "r", cols, rows, sessionId: sid });
+      conn.sendTerminalResize(sid, cols, rows);
     });
 
     // ADR 0066 seed-flush signal: the first output frame is the scrollback seed;
@@ -273,7 +273,7 @@ export function TerminalPane({
             // no session is active, otherwise forward as one wire frame.
             const sid = sessionRef.current;
             if (!sid) return;
-            conn.send({ k: "i", d, sessionId: sid });
+            conn.sendTerminalInput(sid, d);
           }}
         />
       )}

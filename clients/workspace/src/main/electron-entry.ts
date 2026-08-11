@@ -52,6 +52,7 @@ import type { SettingsSection } from "./settings-page.js";
 import {
   isTitleBarMenuId, themeSourceFor, titleBarOverlayFor, type TitleBarMenuId,
 } from "./window-chrome.js";
+import { buildResponseEnvelope } from "../shared/http-envelope.js";
 
 const preloadPath = fileURLToPath(new URL("../preload/electron-preload.cjs", import.meta.url));
 const titleBarPreloadPath = fileURLToPath(
@@ -451,11 +452,7 @@ ipcMain.handle(
       headers: init.headers,
       body: init.body,
     });
-    return {
-      status: response.status,
-      headers: Object.fromEntries(response.headers.entries()),
-      body: await response.text(),
-    };
+    return buildResponseEnvelope(response);
   },
 );
 

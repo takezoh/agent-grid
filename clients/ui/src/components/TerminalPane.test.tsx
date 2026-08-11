@@ -49,6 +49,8 @@ function makeFakeConn(): {
     acquireTerminal: vi.fn(() => ({ release: vi.fn() })),
     updateTerminalGeometry: vi.fn(),
     send: vi.fn(),
+    sendTerminalInput: vi.fn(),
+    sendTerminalResize: vi.fn(),
     get onOutput() {
       return _onOutput;
     },
@@ -80,13 +82,28 @@ describe("TerminalPane", () => {
     const { conn } = makeFakeConn();
     const order: string[] = [];
     vi.mocked(conn.updateTerminalGeometry).mockImplementation(() => order.push("geometry"));
-    vi.mocked(conn.send).mockImplementation(() => order.push("resize"));
+    vi.mocked(conn.sendTerminalResize).mockImplementation(() => order.push("resize"));
     const { unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
 
     globalThis.__triggerXtermResize(132, 47);
 
     expect(conn.updateTerminalGeometry).toHaveBeenCalledWith("s1", 132, 47);
     expect(order).toEqual(["geometry", "resize"]);
+    unmount();
+  });
+
+  it("sends the fitted size through the resize intent API", () => {
+    const { conn } = makeFakeConn();
+    const { unmount } = render(<TerminalPane conn={conn} sessionId="s1" />);
+
+    // The measured size from the real-stack run that reproduced the defect
+    // (debug-run-workspace-electron-terminal-dead): the resize frame reached
+    // the gateway with these dimensions while the session id on it was the
+    // compound fleet key. The dimensions were never the problem — pinning them
+    // here keeps the fix from being read as "resize was broken too".
+    globalThis.__triggerXtermResize(107, 32);
+
+    expect(conn.sendTerminalResize).toHaveBeenCalledWith("s1", 107, 32);
     unmount();
   });
 
@@ -746,6 +763,8 @@ function mobileConn(): Connection {
     acquireTerminal: vi.fn(() => ({ release: vi.fn() })),
     updateTerminalGeometry: vi.fn(),
     send: vi.fn(),
+    sendTerminalInput: vi.fn(),
+    sendTerminalResize: vi.fn(),
     get onOutput() {
       return _onOutput;
     },
@@ -944,13 +963,17 @@ describe("TerminalPane — horizontal swipe → arrow wire frames (ADR 0077, FR-
     vi.restoreAllMocks();
   });
 
-  /** Collect every `{k:"i"}` wire frame's `d` field from conn.send.mock.calls. */
+  /** Collect the bytes handed to the data-plane intent API. */
   function collectInputBytes(conn: Connection): string[] {
-    const send = (conn as unknown as { send: { mock: { calls: unknown[][] } } }).send;
+    const send = (
+      conn as unknown as {
+        sendTerminalInput: { mock: { calls: unknown[][] } };
+      }
+    ).sendTerminalInput;
     const out: string[] = [];
     for (const call of send.mock.calls) {
-      const frame = call[0] as { k?: string; d?: string };
-      if (frame?.k === "i" && typeof frame.d === "string") out.push(frame.d);
+      const data = call[1];
+      if (typeof data === "string") out.push(data);
     }
     return out;
   }

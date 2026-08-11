@@ -81,7 +81,18 @@ declare global {
           serverId: string,
           pathname: string,
           init: { method?: string; headers?: Record<string, string>; body?: string },
-        ): Promise<{ status: number; headers: Record<string, string>; body: string }>;
+        ): Promise<{
+          status: number;
+          headers: Record<string, string>;
+          /**
+           * `null` means "no body", which is the only thing a null-body status
+           * (101/204/205/304) may carry — `""` is an empty body and is a
+           * different fact. Main owns that invariant; this declaration is the
+           * consumer half and is widened first (see the rollout note in
+           * fleet/provider.ts).
+           */
+          body: string | null;
+        }>;
       };
     };
   }

@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { fetchSessionFile, splitLines } from "./transcripts";
 
+// Sessions are addressed by fleet key everywhere in the app; "local" maps to
+// the same-origin /api routes, so the request URLs here are unchanged.
+const SESSION = JSON.stringify(["local", "sess1"]);
+
 function makeResponse(
   body: string | null,
   status: number,
@@ -12,7 +16,7 @@ function makeResponse(
 describe("fetchSessionFile", () => {
   it("TestFetchOk_ReturnsTextAndEtag", async () => {
     const fetchFn = vi.fn().mockResolvedValue(makeResponse("a\nb\n", 200, { ETag: "abc" }));
-    const result = await fetchSessionFile("sess1", "transcript", 0, {
+    const result = await fetchSessionFile(SESSION, "transcript", 0, {
       fetchFn,
       bearerToken: "tok",
     });
@@ -26,7 +30,7 @@ describe("fetchSessionFile", () => {
   it("TestFetchOk_BytesNotChars", async () => {
     // "あ\n" — "あ" is 3 bytes in UTF-8, "\n" is 1 byte = 4 bytes total
     const fetchFn = vi.fn().mockResolvedValue(makeResponse("あ\n", 200, { ETag: "xyz" }));
-    const result = await fetchSessionFile("sess1", "transcript", 0, {
+    const result = await fetchSessionFile(SESSION, "transcript", 0, {
       fetchFn,
       bearerToken: "tok",
     });
@@ -37,7 +41,7 @@ describe("fetchSessionFile", () => {
   it("TestFetch304_ReturnsNotModified", async () => {
     const fetchFn = vi.fn().mockResolvedValue(makeResponse(null, 304));
     const result = await fetchSessionFile(
-      "sess1",
+      SESSION,
       "transcript",
       10,
       {
@@ -59,7 +63,7 @@ describe("fetchSessionFile", () => {
 
   it("TestFetch204_Empty", async () => {
     const fetchFn = vi.fn().mockResolvedValue(makeResponse(null, 204));
-    const result = await fetchSessionFile("sess1", "event-log", 5, {
+    const result = await fetchSessionFile(SESSION, "event-log", 5, {
       fetchFn,
       bearerToken: "tok",
     });
@@ -70,20 +74,20 @@ describe("fetchSessionFile", () => {
   it("TestFetch4xx_Throws", async () => {
     const fetchFn = vi.fn().mockResolvedValue(makeResponse(null, 400));
     await expect(
-      fetchSessionFile("sess1", "transcript", 0, { fetchFn, bearerToken: "tok" }),
+      fetchSessionFile(SESSION, "transcript", 0, { fetchFn, bearerToken: "tok" }),
     ).rejects.toThrow("fetchSessionFile failed: 400");
   });
 
   it("TestFetch404_Throws", async () => {
     const fetchFn = vi.fn().mockResolvedValue(makeResponse(null, 404));
     await expect(
-      fetchSessionFile("sess1", "transcript", 0, { fetchFn, bearerToken: "tok" }),
+      fetchSessionFile(SESSION, "transcript", 0, { fetchFn, bearerToken: "tok" }),
     ).rejects.toThrow("fetchSessionFile failed: 404");
   });
 
   it("TestFetchSendsBearer", async () => {
     const fetchFn = vi.fn().mockResolvedValue(makeResponse("data", 200));
-    await fetchSessionFile("sess1", "transcript", 0, { fetchFn, bearerToken: "xxx" });
+    await fetchSessionFile(SESSION, "transcript", 0, { fetchFn, bearerToken: "xxx" });
     const [, options] = fetchFn.mock.calls[0] as [
       string,
       RequestInit & { headers: Record<string, string> },

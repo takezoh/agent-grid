@@ -23,9 +23,14 @@ export async function fetchSessionFile(
   deps: FetchTranscriptDeps,
   prevEtag?: string,
 ): Promise<FetchTranscriptResult> {
-  const ref = parseSessionKey(sessionId);
-  const localID = ref?.sessionId ?? sessionId;
-  const url = `/api/sessions/${encodeURIComponent(localID)}/${kind}?offset=${offset}`;
+  const route = resolveSessionRoute(sessionId);
+  // Unresolvable ids used to fall through to a bare `/api/...` URL. No shipping
+  // host serves that path — web-host exposes only `/` and `/host/...`, the
+  // gateway serves no SPA, and the dev server has no `/api` proxy — so the
+  // "compatibility" path could only ever 404. Failing before the request is
+  // both honest and cheaper.
+  if (!route.ok) throw new UnresolvedSessionError(sessionId);
+  const url = `/api/sessions/${encodeURIComponent(route.upstreamSessionId)}/${kind}?offset=${offset}`;
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${deps.bearerToken}`,
@@ -35,9 +40,7 @@ export async function fetchSessionFile(
   }
 
   const fetchFn = deps.fetchFn ?? fetch;
-  const r = ref
-    ? await makeFleetProvider(fetchFn).request(ref.serverId, url, { headers })
-    : await fetchFn(url, { headers });
+  const r = await makeFleetProvider(fetchFn).request(route.serverId, url, { headers });
 
   if (r.status === 304) {
     return { status: "not-modified", text: "", etag: prevEtag, nextOffset: offset };
@@ -78,4 +81,5 @@ export function splitLines(text: string): string[] {
   return out;
 }
 import { makeFleetProvider } from "../fleet/provider";
-import { parseSessionKey } from "../fleet/session-protocol";
+import { resolveSessionRoute } from "../fleet/session-identity";
+import { UnresolvedSessionError } from "./sessions";

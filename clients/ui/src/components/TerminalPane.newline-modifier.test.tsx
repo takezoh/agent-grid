@@ -3,7 +3,7 @@
 // type the backslash by hand. Covers:
 //   1. handleNewlineModifier as a pure function (every modifier combo).
 //   2. TerminalPane wires the handler into term.attachCustomKeyEventHandler
-//      and forwards `\\\r` through conn.send when the modifier fires.
+//      and forwards `\\\r` through the data-plane intent API when the modifier fires.
 
 import { render } from "@testing-library/react";
 import { Terminal } from "@xterm/xterm";
@@ -17,6 +17,8 @@ function makeFakeConn(): Connection {
     acquireTerminal: vi.fn(() => ({ release: vi.fn() })),
     updateTerminalGeometry: vi.fn(),
     send: vi.fn(),
+    sendTerminalInput: vi.fn(),
+    sendTerminalResize: vi.fn(),
     get onOutput() {
       return _onOutput;
     },
@@ -162,45 +164,45 @@ describe("TerminalPane custom key handler wiring", () => {
     unmount();
   });
 
-  it("Shift+Enter routes `\\\\\\r` through conn.send with the active sessionId", () => {
+  it("Shift+Enter routes `\\\\\\r` through the intent API with the active session", () => {
     const conn = makeFakeConn();
-    const sendMock = conn.send as ReturnType<typeof vi.fn>;
+    const sendMock = conn.sendTerminalInput as ReturnType<typeof vi.fn>;
     const { unmount } = render(<TerminalPane conn={conn} sessionId="sess-A" />);
 
     expect(capturedHandler).toBeTypeOf("function");
     const ret = capturedHandler?.(makeKeyEvent({ key: "Enter", shiftKey: true }));
 
     expect(ret).toBe(false);
-    expect(sendMock).toHaveBeenCalledWith({ k: "i", d: "\\\r", sessionId: "sess-A" });
+    expect(sendMock).toHaveBeenCalledWith("sess-A", "\\\r");
     unmount();
   });
 
-  it("Alt+Enter routes `\\\\\\r` through conn.send with the active sessionId", () => {
+  it("Alt+Enter routes `\\\\\\r` through the intent API with the active session", () => {
     const conn = makeFakeConn();
-    const sendMock = conn.send as ReturnType<typeof vi.fn>;
+    const sendMock = conn.sendTerminalInput as ReturnType<typeof vi.fn>;
     const { unmount } = render(<TerminalPane conn={conn} sessionId="sess-B" />);
 
     capturedHandler?.(makeKeyEvent({ key: "Enter", altKey: true }));
-    expect(sendMock).toHaveBeenCalledWith({ k: "i", d: "\\\r", sessionId: "sess-B" });
+    expect(sendMock).toHaveBeenCalledWith("sess-B", "\\\r");
     unmount();
   });
 
-  it("bare Enter is left to xterm's onData path (handler returns true, conn.send is not called by the handler)", () => {
+  it("bare Enter is left to xterm's onData path (handler returns true, the intent API is not called by the handler)", () => {
     const conn = makeFakeConn();
-    const sendMock = conn.send as ReturnType<typeof vi.fn>;
+    const sendMock = conn.sendTerminalInput as ReturnType<typeof vi.fn>;
     const { unmount } = render(<TerminalPane conn={conn} sessionId="sess-C" />);
 
     const ret = capturedHandler?.(makeKeyEvent({ key: "Enter" }));
     expect(ret).toBe(true);
     // The handler must not synthesize a send for bare Enter — that is xterm's
     // job via term.onData (covered by TerminalPane.pc-baseline.test.tsx).
-    expect(sendMock).not.toHaveBeenCalledWith({ k: "i", d: "\\\r", sessionId: "sess-C" });
+    expect(sendMock).not.toHaveBeenCalledWith("sess-C", "\\\r");
     unmount();
   });
 
   it("Shift+Enter with no active session drops the input (parity with onData guard)", () => {
     const conn = makeFakeConn();
-    const sendMock = conn.send as ReturnType<typeof vi.fn>;
+    const sendMock = conn.sendTerminalInput as ReturnType<typeof vi.fn>;
     const { unmount } = render(<TerminalPane conn={conn} sessionId={null} />);
 
     const ret = capturedHandler?.(makeKeyEvent({ key: "Enter", shiftKey: true }));

@@ -1,5 +1,5 @@
-import { initialServerHint } from "../auth";
-import { parseSessionKey, sessionKey } from "../fleet/session-protocol";
+import { parseSessionKey, sessionKey } from "../fleet/session-identity";
+import type { FleetSessionRow } from "../fleet/session-identity";
 import { PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER } from "../protocol-version";
 import { useDaemonStore } from "../store/daemon";
 import { useFrameMessagingStore } from "../store/frameMessaging";
@@ -43,6 +43,20 @@ type Pending = {
 };
 
 /** Private dual-fence authority for one ticket/socket attempt. */
+/**
+ * Why a data-plane frame was dropped instead of sent.
+ *
+ * `server-mismatch` is a benign transition (the active server changed while a
+ * keystroke was in flight); `decode-failed` is an internal contract violation
+ * (a value reached the data plane that is neither a fleet key nor a session id).
+ * The split exists so the second can reach the user without the first crying
+ * wolf during a normal server switch.
+ */
+export type DataPlaneDropReason = "server-mismatch" | "decode-failed";
+
+/** Gateway session ids are opaque but always drawn from this alphabet. */
+const BARE_SESSION_ID = /^[A-Za-z0-9_-]+$/;
+
 type AttemptAuth = {
   lifecycle: number;
   attempt: number;
@@ -69,6 +83,10 @@ export class Connection {
   /** Cancels a pending injected-sleep reconnect without depending on timer abort APIs. */
   private cancelScheduledRetry: (() => void) | null = null;
   private reqIdCounter = 0;
+  /** upstream session id -> fleet key, for the kHz output path (see fleetSessionID). */
+  private readonly fleetIdMemo = new Map<string, string>();
+  private drops: Record<DataPlaneDropReason, number> = { "server-mismatch": 0, "decode-failed": 0 };
+  private notifiedDrops = new Set<string>();
   private terminalSubscriptions: TerminalSubscriptionController;
 
   constructor(cfg: ConnectionConfig) {
@@ -126,8 +144,49 @@ export class Connection {
     useDaemonStore.getState().setStatus("closed");
   }
 
-  send(frame: ClientFrame): void {
-    this.ws?.send(serializeClientFrame(frame));
+  /**
+   * Send terminal input for a session addressed by its fleet key.
+   *
+   * The data plane takes an intent, not a frame. Assembling `{k:"i"}` outside
+   * this class is what put a compound fleet key on the wire: the gateway could
+   * not resolve it, dropped it with a log line and no reply, and the keystroke
+   * vanished. Callers name the session and the bytes; the wire format and the
+   * id space stay in here.
+   */
+  sendTerminalInput(fleetSessionId: string, data: string): void {
+    const upstream = this.dataPlaneUpstreamID(fleetSessionId);
+    if (upstream === null) return;
+    this.sendFrame({ k: "i", d: data, sessionId: upstream });
+  }
+
+  /** Send a terminal resize for a session addressed by its fleet key. */
+  sendTerminalResize(fleetSessionId: string, cols: number, rows: number): void {
+    const upstream = this.dataPlaneUpstreamID(fleetSessionId);
+    if (upstream === null) return;
+    this.sendFrame({ k: "r", cols, rows, sessionId: upstream });
+  }
+
+  /**
+   * Frames dropped by the data plane, by reason, for this lifecycle.
+   *
+   * Read-only and per-connection on purpose: it is a diagnostic, not app state.
+   * `server-mismatch` is expected to be non-zero during a server switch and
+   * carries no user-facing signal; `decode-failed` means something handed the
+   * data plane a value that is neither a fleet key nor a session id.
+   */
+  get dataPlaneDrops(): Readonly<Record<DataPlaneDropReason, number>> {
+    return { ...this.drops };
+  }
+
+  private sendFrame(frame: ClientFrame): void {
+    const ws = this.ws;
+    // A socket that exists but is still CONNECTING throws on send, and this is
+    // reachable: xterm fits and emits a resize as soon as the terminal mounts,
+    // which can land before the handshake completes. Dropping is right for both
+    // planes — the control plane retries after the socket opens, and a resize
+    // for an unopened socket has nothing to resize.
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(serializeClientFrame(frame));
   }
 
   acquireTerminal(sessionId: string): TerminalSubscriptionLease {
@@ -148,6 +207,13 @@ export class Connection {
   }
 
   private beginLifecycle(status: "connecting"): void {
+    // Drop records are scoped to an explicitly started lifecycle — start() and
+    // retry(). Bounded automatic reconnects deliberately keep the counters and
+    // the dedupe set: they are the same lifecycle from the user's point of
+    // view, and re-toasting the same unroutable session on every reconnect
+    // would be noise.
+    this.drops = { "server-mismatch": 0, "decode-failed": 0 };
+    this.notifiedDrops = new Set();
     this.cancelRetryDelay();
     this.reconnecting = false;
     this.lifecycle += 1;
@@ -189,7 +255,7 @@ export class Connection {
     rows: number,
   ): Promise<SubscribeOutcome> {
     const deps: RetryDeps = {
-      send: (s) => this.ws?.send(s),
+      send: (frame) => this.sendFrame(frame),
       awaitResponse: (reqId) =>
         new Promise<RespOKFrame | RespErrFrame>((resolve) => {
           this.pending.set(reqId, { resolve });
@@ -205,7 +271,7 @@ export class Connection {
     const response = new Promise<RespOKFrame | RespErrFrame>((resolve) => {
       this.pending.set(reqId, { resolve });
     });
-    this.send({ k: "u", reqId, sessionId: this.upstreamSessionID(sessionId) });
+    this.sendFrame({ k: "u", reqId, sessionId: this.upstreamSessionID(sessionId) });
     await response;
   }
 
@@ -220,7 +286,7 @@ export class Connection {
     const response = new Promise<RespOKFrame | RespErrFrame>((resolve) => {
       this.pending.set(reqId, { resolve });
     });
-    this.send({
+    this.sendFrame({
       k: "ld",
       reqId,
       sessionId: this.upstreamSessionID(sessionId),
@@ -237,6 +303,55 @@ export class Connection {
   private nextReqId(): string {
     this.reqIdCounter += 1;
     return `r${this.reqIdCounter}`;
+  }
+
+  /**
+   * Resolve a data-plane session id to the upstream id, or drop it.
+   *
+   * This never throws. It runs inside xterm's synchronous `onData` emitter, so
+   * a throw would unwind into xterm itself; the control plane keeps its throw
+   * contract because it runs from async request paths. Dropping silently is
+   * equally wrong — that is exactly what the gateway does with an unresolvable
+   * id, and it is why this defect survived two repairs — so every drop is
+   * counted, and the one that means "internal contract violation" also reaches
+   * the user.
+   */
+  private dataPlaneUpstreamID(sessionId: string): string | null {
+    // A fleet key is JSON, so it starts with "["; a gateway session id is
+    // [A-Za-z0-9_-] and never can. Checking the first character keeps
+    // JSON.parse off the keystroke path without changing which values are
+    // classified as which.
+    if (sessionId.startsWith("[")) {
+      const ref = parseSessionKey(sessionId);
+      if (!ref) return this.dropDataPlaneFrame(sessionId, "decode-failed");
+      if (this.cfg.serverId && ref.serverId !== this.cfg.serverId) {
+        // Benign and expected: App.tsx rebuilds the Connection when the active
+        // server changes, so in-flight keystrokes can arrive addressed to the
+        // previous server. Counted, never surfaced.
+        return this.dropDataPlaneFrame(sessionId, "server-mismatch");
+      }
+      return ref.sessionId;
+    }
+    if (BARE_SESSION_ID.test(sessionId)) return sessionId;
+    return this.dropDataPlaneFrame(sessionId, "decode-failed");
+  }
+
+  private dropDataPlaneFrame(sessionId: string, reason: DataPlaneDropReason): null {
+    this.drops[reason] += 1;
+    if (reason === "decode-failed") {
+      // Keystrokes repeat, so the notification is deduped per (session, reason)
+      // for the lifetime of this connection while the counter keeps rising —
+      // the count is the diagnostic, the toast is the alarm.
+      const dedupeKey = `${reason}:${sessionId}`;
+      if (!this.notifiedDrops.has(dedupeKey)) {
+        this.notifiedDrops.add(dedupeKey);
+        useNotificationsStore.getState().add({
+          level: "error",
+          message: `A terminal frame could not be routed to its session (${reason}).`,
+        });
+      }
+    }
+    return null;
   }
 
   private upstreamSessionID(value: string): string {
@@ -302,11 +417,7 @@ export class Connection {
     if (Array.isArray(frame)) {
       // OutputFrame — direct callback per FR-β07 (kHz output, UI must not block)
       const output = frame as OutputFrame;
-      if (this.cfg.serverId)
-        output[3] = sessionKey({
-          serverId: this.cfg.serverId,
-          sessionId: output[3],
-        });
+      output[3] = this.fleetSessionID(output[3]);
       this.onOutput?.(output);
       return;
     }
@@ -323,35 +434,47 @@ export class Connection {
         if (frame.clientInstanceID) {
           this.terminalSubscriptions.setClientInstanceID(frame.clientInstanceID);
         }
-        frame.sessions = tagSessions(frame.sessions);
-        if (this.cfg.publishSessions !== false) {
-          useDaemonStore.getState().seedHello(frame);
-          useFrameMessagingStore.getState().replaceFromSessions(frame.sessions);
-        } else {
-          // FleetRuntime owns membership, so hello must not rebind the session
-          // list. Every authoritative hello — including the first — is still
-          // the one-shot status-signal boundary: seed signal maps, overlay
-          // gateway status onto existing membership, and suppress replayed
-          // bells while durable human_input stays.
-          useDaemonStore
-            .getState()
-            .seedReconnectStatusSignals(this.qualifyHelloSessions(frame.sessions));
+        {
+          const helloRows = this.qualifyHelloSessions(frame.sessions ?? []);
+          if (this.cfg.publishSessions !== false) {
+            useDaemonStore.getState().seedHello({ ...frame, sessions: helloRows });
+            useFrameMessagingStore.getState().replaceFromSessions(helloRows);
+          } else {
+            // FleetRuntime owns membership, so hello must not rebind the session
+            // list. Every authoritative hello — including the first — is still
+            // the one-shot status-signal boundary: seed signal maps, overlay
+            // gateway status onto existing membership, and suppress replayed
+            // bells while durable human_input stays.
+            useDaemonStore.getState().seedReconnectStatusSignals(helloRows);
+          }
         }
         break;
-      case "v":
-        if (frame.sessions !== undefined) frame.sessions = tagSessions(frame.sessions);
+      case "v": {
+        const viewRows =
+          frame.sessions === undefined ? undefined : this.qualifyHelloSessions(frame.sessions);
+        if (frame.activity_session_id !== undefined) {
+          frame.activity_session_id = this.fleetSessionID(frame.activity_session_id);
+        }
+        if (frame.activity_events?.length) {
+          // The per-event session_id is a second bare id on the same frame. It
+          // never called the identity helpers, which is why the earlier
+          // symptom-keyed scan missed it and why the store had to brute-force
+          // every id form downstream.
+          frame.activity_events = frame.activity_events.map((event) => ({
+            ...event,
+            session_id: this.fleetSessionID(event.session_id),
+          }));
+        }
         if (this.cfg.publishSessions !== false) {
-          useDaemonStore.getState().applyViewUpdate(frame);
-          if (frame.sessions !== undefined) {
-            useFrameMessagingStore.getState().replaceFromSessions(frame.sessions);
+          useDaemonStore.getState().applyViewUpdate({ ...frame, sessions: viewRows });
+          if (viewRows !== undefined) {
+            useFrameMessagingStore.getState().replaceFromSessions(viewRows);
           }
         } else {
-          if (frame.sessions !== undefined) {
+          if (viewRows !== undefined) {
             // Fleet owns membership keys; still fold gateway status into the
             // existing fleet-qualified rows so Idle; Notification is live.
-            useDaemonStore
-              .getState()
-              .applyGatewaySessionStatus(this.qualifyHelloSessions(frame.sessions));
+            useDaemonStore.getState().applyGatewaySessionStatus(viewRows);
           }
           if (frame.activity_events?.length) {
             // Workspace activity remains independent of membership rebind.
@@ -363,6 +486,7 @@ export class Connection {
           }
         }
         break;
+      }
       case "tt":
         useTranscriptStore
           .getState()
@@ -394,24 +518,59 @@ export class Connection {
     }
   }
 
+  /**
+   * The single inbound requalification path: every session id arriving from
+   * this gateway becomes the fleet key the store and the UI address it by.
+   *
+   * Every inbound element goes through here — output frames, transcript and
+   * event-log lines, workspace-activity ids, and the session lists on hello and
+   * viewUpdate. Leaving one of them bare is what forced the downstream alias
+   * sweep in store/workspaceActivity.ts, which then hid the next gap.
+   *
+   * Output frames arrive at kHz, so the mapping is memoized per upstream id.
+   * The memo is safe to keep for the connection's lifetime because
+   * `cfg.serverId` is fixed at construction: a different server means a
+   * different Connection.
+   */
   private fleetSessionID(value: string): string {
-    return this.cfg.serverId
-      ? sessionKey({ serverId: this.cfg.serverId, sessionId: value })
-      : value;
+    const serverId = this.cfg.serverId;
+    if (!serverId) return value;
+    const memoized = this.fleetIdMemo.get(value);
+    if (memoized !== undefined) return memoized;
+    const key = sessionKey({ serverId, sessionId: value });
+    this.fleetIdMemo.set(value, key);
+    return key;
   }
 
-  /** Align hello session ids with fleet-qualified membership keys. */
-  private qualifyHelloSessions(sessions: SessionInfo[]): SessionInfo[] {
+  /**
+   * Turn the gateway's session list into store rows.
+   *
+   * This is the ingress half of the identity boundary: what arrives is a wire
+   * mirror keyed by the gateway's own id, what the store holds is a row that
+   * knows which server it came from. The server is always this connection's —
+   * never re-derived from the id — so a row cannot end up tagged with one
+   * server and keyed by another.
+   *
+   * A connection with no configured server is a non-fleet client: ids pass
+   * through unchanged and the row's server is empty, which is exactly what
+   * "this client does not address sessions by server" means. Production always
+   * configures one.
+   */
+  private qualifyHelloSessions(sessions: SessionInfo[]): FleetSessionRow[] {
     const serverId = this.cfg.serverId;
-    if (!serverId) return sessions;
+    if (!serverId) {
+      return sessions.map((session) => ({
+        ...session,
+        serverId: "",
+        upstreamSessionId: session.id,
+      }));
+    }
     return sessions.map((session) => {
-      const bareId =
-        session.upstreamSessionId ?? parseSessionKey(session.id)?.sessionId ?? session.id;
+      const bareId = parseSessionKey(session.id)?.sessionId ?? session.id;
       return {
         ...session,
         id: sessionKey({ serverId, sessionId: bareId }),
         upstreamSessionId: bareId,
-        // Force Connection.serverId — do not keep tagSessions' initialServerHint.
         serverId,
       };
     });
@@ -498,13 +657,9 @@ export class Connection {
   onOutput?: (frame: OutputFrame) => void;
 }
 
-function tagSessions<T extends { serverId?: string; serverLabel?: string }>(
-  sessions: T[] | null | undefined,
-): T[] {
-  const server = initialServerHint();
-  return (sessions ?? []).map((session) => ({
-    ...session,
-    serverId: session.serverId ?? server.id,
-    serverLabel: session.serverLabel ?? server.label,
-  }));
-}
+// tagSessions used to guess a session's server from initialServerHint() and
+// apply it independently of qualifyHelloSessions. Two taggings for the same
+// fact is how the id spaces drifted apart in the first place, so both hello and
+// viewUpdate now go through qualifyHelloSessions on either side of the
+// publishSessions branch. The branch itself stays — it decides who owns
+// membership, which is a different question.

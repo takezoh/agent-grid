@@ -712,11 +712,33 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
   });
 
+  it("binds the Connection to the session's own server before its row arrives", () => {
+    // A session can be selected before the fleet snapshot that carries its row:
+    // a hosted deep-link selects on mount, and creating a session selects it
+    // immediately. Resolving the server from the store alone would fall back to
+    // the default in that window and point the Connection at a server that does
+    // not own the session — which, for a hosted deep-link, never self-corrects
+    // because the id it then selects has no matching row at all.
+    const S1 = JSON.stringify(["srv-remote", "s1"]);
+    useDaemonStore.setState({ sessions: [], activeSessionID: S1 });
+
+    render(<App />);
+
+    expect(useDaemonStore.getState().activeSessionID).toBe(S1);
+    // Counterexample this rejects: the id being rewritten to the default server
+    // (["local","s1"]) once the store lookup misses.
+    expect(useDaemonStore.getState().activeSessionID).not.toContain("local");
+  });
+
   it("keeps a dirty Workspace on session selection until App-level discard confirmation", () => {
+    // Fleet keys: the drawer reads a file through the api layer, which routes
+    // by fleet key and now refuses a bare id instead of guessing a server.
+    const S1 = JSON.stringify(["local", "s1"]);
+    const S2 = JSON.stringify(["local", "s2"]);
     useDaemonStore.setState({
       sessions: [
         {
-          id: "s1",
+          id: S1,
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
@@ -724,7 +746,7 @@ describe("App", () => {
           view: { card: { title: "Session A" } },
         },
         {
-          id: "s2",
+          id: S2,
           project: "p",
           command: "claude",
           created_at: "2026-06-20T00:00:00Z",
@@ -732,27 +754,27 @@ describe("App", () => {
           view: { card: { title: "Session B" } },
         },
       ],
-      activeSessionID: "s1",
+      activeSessionID: S1,
     });
     const workspace = useWorkspaceActivityStore.getState();
-    workspace.setScopedSession("s1");
-    workspace.openDrawerFromRow({ sessionId: "s1", path: "a.ts", kind: "edit" });
+    workspace.setScopedSession(S1);
+    workspace.openDrawerFromRow({ sessionId: S1, path: "a.ts", kind: "edit" });
     workspace.setBufferDirty("a.ts", true);
     render(<App />);
 
-    act(() => useDaemonStore.getState().selectSession("s2"));
-    expect(useDaemonStore.getState().activeSessionID).toBe("s1");
+    act(() => useDaemonStore.getState().selectSession(S2));
+    expect(useDaemonStore.getState().activeSessionID).toBe(S1);
     expect(screen.getByRole("dialog", { name: "Switch session" }).textContent).toContain(
       "Session B",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(useWorkspaceActivityStore.getState().dirtyBuffers["a.ts"]?.dirty).toBe(true);
-    expect(useDaemonStore.getState().activeSessionID).toBe("s1");
+    expect(useDaemonStore.getState().activeSessionID).toBe(S1);
 
-    act(() => useDaemonStore.getState().selectSession("s2"));
+    act(() => useDaemonStore.getState().selectSession(S2));
     fireEvent.click(screen.getByRole("button", { name: "Discard and switch" }));
-    expect(useDaemonStore.getState().activeSessionID).toBe("s2");
+    expect(useDaemonStore.getState().activeSessionID).toBe(S2);
     expect(useWorkspaceActivityStore.getState().dirtyBuffers).toEqual({});
     expect(useWorkspaceActivityStore.getState().drawerTarget).toBeNull();
   });

@@ -3,7 +3,7 @@
 // Freezes UAC-021 / UAC-022 / UAC-023 (FR-PC-PRESERVE-001/002/003) as a
 // machine-checkable baseline. While the mobile gate is false, the **primary**
 // assertions (FAB / overlay DOM absence; the lack of a data-input-active
-// attribute; term.onData -> conn.send({k:'i'}) wiring; host.style.touchAction
+// attribute; term.onData -> conn.sendTerminalInput wiring; host.style.touchAction
 // staying empty; a bubbled wheel event's defaultPrevented staying false)
 // freeze the PC-relevant bits of TerminalPane and turn this file red the
 // instant any later chunk (02..07) regresses the desktop path.
@@ -76,6 +76,8 @@ function makeFakeConn(): Connection {
     acquireTerminal: vi.fn(() => ({ release: vi.fn() })),
     updateTerminalGeometry: vi.fn(),
     send: vi.fn(),
+    sendTerminalInput: vi.fn(),
+    sendTerminalResize: vi.fn(),
     get onOutput() {
       return _onOutput;
     },
@@ -152,7 +154,7 @@ describe("PC baseline UAC-021 / FR-PC-PRESERVE-001 — desktop (1280px, pointer:
 // ---------------------------------------------------------------------------
 // UAC-022 / FR-PC-PRESERVE-002 — narrow desktop window (700px, pointer:fine):
 // width is <=767px but not coarse -> treated as desktop. No data-input-active,
-// legacy input path (onData -> conn.send k:i) holds, no readonly on the helper
+// legacy input path (onData -> conn.sendTerminalInput) holds, no readonly on the helper
 // textarea.
 //
 // Discriminator: a width-only gate (max-width:767px=true) would flip to mobile
@@ -172,7 +174,7 @@ describe("PC baseline UAC-022 / FR-PC-PRESERVE-002 — narrow desktop (700px, po
       "(pointer: fine)": true,
       "(max-width: 767px)": true,
     });
-    // Freeze that TerminalPane wires legacy input via onData -> conn.send.
+    // Freeze that TerminalPane wires legacy input via onData -> the intent API.
     capturedOnData = undefined;
     vi.spyOn(Terminal.prototype, "onData").mockImplementation(function (
       this: Terminal,
@@ -198,14 +200,14 @@ describe("PC baseline UAC-022 / FR-PC-PRESERVE-002 — narrow desktop (700px, po
     unmount();
   });
 
-  it("legacy input path holds: term.onData -> conn.send({k:'i'})", () => {
+  it("legacy input path holds: term.onData -> conn.sendTerminalInput", () => {
     const conn = makeFakeConn();
-    const sendMock = conn.send as ReturnType<typeof vi.fn>;
+    const sendMock = conn.sendTerminalInput as ReturnType<typeof vi.fn>;
     const { unmount } = render(<TerminalPane conn={conn} sessionId="sess-A" />);
 
     expect(capturedOnData).toBeTypeOf("function");
     capturedOnData?.("x");
-    expect(sendMock).toHaveBeenCalledWith({ k: "i", d: "x", sessionId: "sess-A" });
+    expect(sendMock).toHaveBeenCalledWith("sess-A", "x");
     unmount();
   });
 

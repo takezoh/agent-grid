@@ -1,9 +1,11 @@
 import type { SessionInfo } from "../wire/server";
+import type { SessionRef } from "./session-identity";
 
-export interface SessionRef {
-  serverId: string;
-  sessionId: string;
-}
+// Session identity (SessionRef / sessionKey / parseSessionKey) is owned by
+// ./session-identity.ts. These re-exports keep existing importers working; do
+// not reintroduce the definitions here.
+export type { FleetSessionRow, SessionRef, SessionRoute } from "./session-identity";
+export { parseSessionKey, resolveSessionRoute, sessionKey } from "./session-identity";
 
 export type FleetMemberState =
   | "connecting"
@@ -109,27 +111,6 @@ export interface FleetHealthView {
   revision: number | null;
   delivery: HealthDeliveryLiveness;
   servers: FleetHealthServerV1[];
-}
-
-export function sessionKey(ref: SessionRef): string {
-  return JSON.stringify([ref.serverId, ref.sessionId]);
-}
-
-export function parseSessionKey(value: string): SessionRef | null {
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (
-      Array.isArray(parsed) &&
-      parsed.length === 2 &&
-      typeof parsed[0] === "string" &&
-      typeof parsed[1] === "string"
-    ) {
-      return { serverId: parsed[0], sessionId: parsed[1] };
-    }
-  } catch {
-    // Legacy/local IDs are not compound fleet keys.
-  }
-  return null;
 }
 
 export function initialFleetSnapshot(

@@ -10,6 +10,7 @@ import type { DesktopConfig, EditableDesktopSettings } from "../main/desktop-con
 import type { FleetHealth } from "../main/server-health.js";
 import type { GitHubAction, GitHubActionResult } from "../main/repository-lease.js";
 import type { DisplayChoice } from "../main/display-placement.js";
+import type { HttpResponseEnvelope } from "../shared/http-envelope.js";
 
 export interface HostedModeInfo {
   hosted: boolean;
@@ -61,11 +62,16 @@ export interface WorkspacePreloadApi {
     create(serverId: string, payload: unknown): Promise<unknown>;
     createRepositorySession(serverId: string, payload: unknown): Promise<unknown>;
     reconnect(serverId: string): Promise<void>;
+    /**
+     * The envelope type — including the rule that `body` is null exactly for a
+     * null-body status — is owned by src/shared/http-envelope.ts. The bridge
+     * forwards it verbatim and does not re-state the invariant here.
+     */
     request(
       serverId: string,
       pathname: string,
       init: { method?: string; headers?: Record<string, string>; body?: string },
-    ): Promise<{ status: number; headers: Record<string, string>; body: string }>;
+    ): Promise<HttpResponseEnvelope>;
   };
   /**
    * Re-syncs the native chrome (caption-button overlay, title-bar view,

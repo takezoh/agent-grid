@@ -31,7 +31,7 @@ function installWorkspaceBridge(
     serverId: string,
     pathname: string,
     init: { method?: string; headers?: Record<string, string>; body?: string },
-  ) => Promise<{ status: number; headers: Record<string, string>; body: string }>,
+  ) => Promise<{ status: number; headers: Record<string, string>; body: string | null }>,
 ): void {
   const bridge = {
     hostedModeInfo: {
@@ -69,8 +69,12 @@ describe("workspaceProvider.request over null-body statuses", () => {
     expect(new Response("", { status: 200 }).status).toBe(200);
   });
 
+  // The fake mirrors what the real envelope builder produces: null for a
+  // null-body status. A fake that returned "" here would go green on the
+  // renderer's defensive branch alone and could not tell whether main owns the
+  // invariant, which is the thing this change decided.
   it("returns a 204 Response when the upstream route has no content", async () => {
-    installWorkspaceBridge(async () => ({ status: 204, headers: {}, body: "" }));
+    installWorkspaceBridge(async () => ({ status: 204, headers: {}, body: null }));
     const fleet = makeFleetProvider();
 
     // Counterexample this rejects: throwing a TypeError, which doFetch() maps to
@@ -83,13 +87,28 @@ describe("workspaceProvider.request over null-body statuses", () => {
   });
 
   it("returns a 304 Response when the upstream route reports not-modified", async () => {
-    installWorkspaceBridge(async () => ({ status: 304, headers: { etag: "e1" }, body: "" }));
+    installWorkspaceBridge(async () => ({ status: 304, headers: { etag: "e1" }, body: null }));
     const fleet = makeFleetProvider();
 
     const resp = await fleet.request("srv-a", "/api/sessions/s1/transcript?offset=0", {});
 
     expect(resp.status).toBe(304);
     expect(resp.headers.get("etag")).toBe("e1");
+  });
+
+  // Consumer-first rollout witness: the Electron app copies the SPA dist in at
+  // build time, so a dev run or a partial rebuild can pair this renderer with a
+  // main that still sends "" for a null-body status. That pairing must not
+  // throw. Deleting this case would delete the evidence that the rollout order
+  // is safe.
+  it("tolerates a legacy main that still sends an empty string for 204", async () => {
+    installWorkspaceBridge(async () => ({ status: 204, headers: {}, body: "" }));
+    const fleet = makeFleetProvider();
+
+    const resp = await fleet.request("srv-a", "/api/sessions/s1", { method: "DELETE" });
+
+    expect(resp.status).toBe(204);
+    expect(await resp.text()).toBe("");
   });
 
   it("still returns bodies for ordinary statuses", async () => {

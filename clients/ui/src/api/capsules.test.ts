@@ -99,10 +99,12 @@ describe("makeCapsulesApi", () => {
     );
   });
 
-  it("rejects flagging with an invalid fleet key", async () => {
+  it("rejects flagging a session it cannot route, without issuing a request", async () => {
     const fetchFn = vi.fn();
     const api = makeCapsulesApi(fetchFn as typeof fetch);
-    await expect(api.flag("not-a-fleet-key", true)).rejects.toThrow("invalid fleet session key");
+    // One failure across all four session-scoped api modules, named for the
+    // outcome rather than for the shape of the input.
+    await expect(api.flag("not-a-fleet-key", true)).rejects.toThrow("unresolved session");
     expect(fetchFn).not.toHaveBeenCalled();
   });
 

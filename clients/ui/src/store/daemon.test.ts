@@ -52,9 +52,14 @@ describe("daemonStore", () => {
     });
     expect(useDaemonStore.getState().sessions[0]?.status.signal).toBeDefined();
 
+    // The replayed hello arrives through Connection, which requalifies every
+    // inbound id, so the store only ever sees the fleet key. This used to be
+    // written with the bare id and matched by an alias sweep in the store; the
+    // suppression it pins is unchanged, the id space it arrives in is not.
     useDaemonStore.getState().seedReconnectStatusSignals([
-      mkSession("s1", {
+      mkSession(fleetId, {
         serverId: "srv-a",
+        upstreamSessionId: "s1",
         status: {
           lifecycle: "idle",
           human_input: true,

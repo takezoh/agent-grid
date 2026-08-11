@@ -1,7 +1,21 @@
 import { create } from "zustand";
 import type { ServerConfigOutcome, SessionConfig, SessionConfigProject } from "../api/sessions";
+import type { FleetSessionRow } from "../fleet/session-identity";
 import type { DaemonOccupant, DaemonSnapshot } from "../lib/tools";
-import type { HelloFrame, SessionInfo, ViewUpdateFrame } from "../wire/server";
+import type { HelloFrame, ViewUpdateFrame } from "../wire/server";
+
+/**
+ * The hello / viewUpdate frames as the store receives them.
+ *
+ * Connection requalifies the wire's session list into rows before handing it
+ * over, so what reaches the store already knows which server each session
+ * belongs to. Naming that here keeps the store from having to accept a list
+ * that might not.
+ */
+export type HelloRows = Omit<HelloFrame, "sessions"> & { sessions: FleetSessionRow[] };
+export type ViewUpdateRows = Omit<ViewUpdateFrame, "sessions"> & {
+  sessions?: FleetSessionRow[];
+};
 import {
   consumeStatusSignals,
   resetConsumedStatusSignals,
@@ -14,7 +28,7 @@ import { useWorkspaceActivityStore } from "./workspaceActivity";
 export const DEFAULT_WORKSPACE = "default";
 
 /** workspaceOf — mirrors the daemon's workspace resolution. Empty string → DEFAULT_WORKSPACE. */
-export function workspaceOf(s: SessionInfo): string {
+export function workspaceOf(s: FleetSessionRow): string {
   const ws = s.workspace?.trim();
   return ws ? ws : DEFAULT_WORKSPACE;
 }
@@ -38,7 +52,7 @@ export type SessionConfigSlice = {
 };
 
 export type DaemonState = {
-  sessions: SessionInfo[];
+  sessions: FleetSessionRow[];
   activeSessionID: string | null;
   // activeOccupant mirrors the daemon-global ActiveOccupant ('main' | 'log' |
   // 'frame') — which buffer is currently active on the daemon side. The Web
@@ -71,7 +85,7 @@ export type DaemonState = {
   foldedProjects: ReadonlySet<string>;
 
   // actions
-  seedHello: (frame: HelloFrame) => void;
+  seedHello: (frame: HelloRows) => void;
   /**
    * Fleet owns membership (`publishSessions: false`). Still apply every
    * authoritative hello as the one-shot status-signal boundary: mark
@@ -79,13 +93,13 @@ export type DaemonState = {
    * existing fleet-qualified membership, then re-project so durable
    * human-input stays while Notification is cleared on reconnect replay.
    */
-  seedReconnectStatusSignals: (helloSessions: readonly SessionInfo[]) => void;
+  seedReconnectStatusSignals: (helloSessions: readonly FleetSessionRow[]) => void;
   /**
    * Fleet owns membership keys. Fold gateway view-update status onto the
    * existing rows without rebinding the session list (Idle; Notification).
    */
-  applyGatewaySessionStatus: (gatewaySessions: readonly SessionInfo[]) => void;
-  applyViewUpdate: (frame: ViewUpdateFrame) => void;
+  applyGatewaySessionStatus: (gatewaySessions: readonly FleetSessionRow[]) => void;
+  applyViewUpdate: (frame: ViewUpdateRows) => void;
   selectSession: (id: string | null) => void;
   setStatus: (status: ConnectionStatus) => void;
   setDaemonDisconnected: (v: boolean) => void;
@@ -103,7 +117,7 @@ export type DaemonState = {
 };
 
 const initialState = {
-  sessions: [] as SessionInfo[],
+  sessions: [] as FleetSessionRow[],
   activeSessionID: null as string | null,
   activeOccupant: undefined as DaemonOccupant | undefined,
   features: [] as string[],
@@ -120,7 +134,7 @@ const initialState = {
  *  included even when no session belongs to it, so the user always has a
  *  "home" partition to return to after deleting the last session in a named
  *  workspace. */
-export function selectDistinctWorkspaces(sessions: readonly SessionInfo[]): string[] {
+export function selectDistinctWorkspaces(sessions: readonly FleetSessionRow[]): string[] {
   const set = new Set<string>([DEFAULT_WORKSPACE]);
   for (const s of sessions) {
     set.add(workspaceOf(s));
@@ -150,7 +164,7 @@ export type ProjectGroup = {
   projectPath: string;
   serverId?: string;
   serverLabel?: string;
-  sessions: SessionInfo[];
+  sessions: FleetSessionRow[];
 };
 
 /** Sessions belonging to the given workspace, grouped by project path
@@ -158,7 +172,7 @@ export type ProjectGroup = {
  *  the wire's `project` field is the source of truth for identity here).
  *  Groups are sorted alphabetically by display name. */
 export function groupSessionsByProject(
-  sessions: readonly SessionInfo[],
+  sessions: readonly FleetSessionRow[],
   workspace: string,
 ): ProjectGroup[] {
   const groups = new Map<string, ProjectGroup>();
@@ -203,7 +217,7 @@ export function groupSessionsByProject(
  *  純粋関数なので store の外でも使えるし test しやすい.
  */
 export function selectNextActiveAfterDelete(
-  sessions: readonly SessionInfo[],
+  sessions: readonly FleetSessionRow[],
   deletedId: string,
 ): string | null {
   const idx = sessions.findIndex((s) => s.id === deletedId);
@@ -213,7 +227,7 @@ export function selectNextActiveAfterDelete(
   const ws = workspaceOf(deleted);
   const project = deleted.project ?? "";
 
-  const pickNearest = (predicate: (s: SessionInfo) => boolean): string | null => {
+  const pickNearest = (predicate: (s: FleetSessionRow) => boolean): string | null => {
     // 削除位置の後方を優先 (sidebar で下方向の隣を選ぶ感覚)、無ければ前方.
     for (let i = idx + 1; i < sessions.length; i++) {
       const s = sessions[i];
@@ -273,11 +287,11 @@ export function selectDaemonSnapshot(state: DaemonSnapshotSource): DaemonSnapsho
   };
 }
 
-/** Keep prior SessionInfo object identity when JSON shape is unchanged. */
+/** Keep prior row object identity when JSON shape is unchanged. */
 function preserveSessionIdentity(
-  previous: readonly SessionInfo[],
-  next: readonly SessionInfo[],
-): SessionInfo[] {
+  previous: readonly FleetSessionRow[],
+  next: readonly FleetSessionRow[],
+): FleetSessionRow[] {
   const byId = new Map(previous.map((session) => [session.id, session]));
   return next.map((incoming) => {
     const prev = byId.get(incoming.id);
@@ -399,7 +413,7 @@ export const useDaemonStore = create<DaemonState>()((set, get) => ({
         ? {}
         : {
             sessions: (() => {
-              // best-effort identity preservation: keep the previous SessionInfo
+              // best-effort identity preservation: keep the previous row
               // object when its JSON shape is structurally unchanged.
               const byId = new Map(s.sessions.map((x) => [x.id, x]));
               return incomingSessions.map((incoming) => {

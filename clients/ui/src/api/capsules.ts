@@ -7,7 +7,8 @@
 
 import { readBearerTokenFromHash } from "../auth";
 import { makeFleetProvider } from "../fleet/provider";
-import { parseSessionKey, sessionKey } from "../fleet/session-protocol";
+import { fleetSessionIdFor, resolveSessionRoute } from "../fleet/session-identity";
+import { UnresolvedSessionError } from "./sessions";
 
 /** Wire shape from the Go gateway (snake_case mirrors proto.ResumeCapsuleInfo). */
 export type ResumeCapsuleInfo = {
@@ -85,7 +86,7 @@ export function makeCapsulesApi(fetchFn: typeof fetch = fetch): CapsulesApi {
                 ...capsule,
                 serverId,
                 serverLabel,
-                fleetSessionKey: sessionKey({ serverId, sessionId: capsule.session_id }),
+                fleetSessionKey: fleetSessionIdFor({ serverId, sessionId: capsule.session_id }),
               });
             }
           } catch (err: unknown) {
@@ -101,13 +102,14 @@ export function makeCapsulesApi(fetchFn: typeof fetch = fetch): CapsulesApi {
     },
 
     async flag(fleetSessionKey, flagged) {
-      const ref = parseSessionKey(fleetSessionKey);
-      if (!ref) {
-        throw new Error("invalid fleet session key");
-      }
+      const route = resolveSessionRoute(fleetSessionKey);
+      // Was "invalid fleet session key" — a description of the input's shape,
+      // which invited callers to branch on the form. The shared failure names
+      // the outcome instead.
+      if (!route.ok) throw new UnresolvedSessionError(fleetSessionKey);
       const resp = await fleet.request(
-        ref.serverId,
-        `/api/sessions/${encodeURIComponent(ref.sessionId)}/resume-capsule/flag`,
+        route.serverId,
+        `/api/sessions/${encodeURIComponent(route.upstreamSessionId)}/resume-capsule/flag`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json", ...authHeaders() },

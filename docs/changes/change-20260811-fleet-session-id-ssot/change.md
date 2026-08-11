@@ -2,7 +2,7 @@
 id: change-20260811-fleet-session-id-ssot
 kind: change
 title: Fleet session id ownership and Workspace IPC response envelope
-status: ready
+status: done
 created: '2026-08-11'
 profile: sdd@1
 intent: fleet session key と upstream (bare) session id の変換に境界ごとの単一所有者を与え、Electron
@@ -54,12 +54,26 @@ governance:
   approval_evidence: User selected A = SSOT consolidation over the local patch and
     B = the recommended main-side envelope owner at the debug handoff, then accepted
     all three proposed ADRs at the design consultation (2026-08-11). The record is
-    consultations/adr-approval.md with the typed verdicts in
-    consultations/consultation-fleet-session-id-ssot-1.json (3x accept / user_consultation
-    / confirmed).
+    consultations/adr-approval.md with the typed verdicts in consultations/consultation-fleet-session-id-ssot-1.json
+    (3x accept / user_consultation / confirmed).
   reasons:
   - 同一機構への 2 回目の修正 (9ef53ddc / 525b3091) であり、局所パッチ継続は 3 回目を構造的に招く
   - store / HTTP 境界の真逆の失敗方針 (bare id 素通し / bare id 拒否) を 1 つに決める挙動変更を含む
+evidence_refs:
+- type: test
+  ref: npm:--prefix clients/ui run test:unit
+- type: test
+  ref: npm:--prefix clients/ui run typecheck
+- type: test
+  ref: npm:--prefix clients/ui run lint
+- type: test
+  ref: npm:--prefix clients/workspace run test:unit
+- type: test
+  ref: npm:--prefix clients/workspace run typecheck
+- type: test
+  ref: npm:--prefix clients/ui run test:e2e:real
+- type: test
+  ref: docs:lint --conformance
 members:
 - role: requirements
   path: changes/change-20260811-fleet-session-id-ssot/requirements.md
@@ -121,6 +135,7 @@ promotion:
   section: boundaries.forbidden
   action: upsert
   item:
+    id: BND-004
     statement: Handling the fleet session key syntactically (sessionKey / parseSessionKey)
       or serializing a ClientFrame outside the declared owner set, and re-deriving
       a session route from an id string when the authoritative row is in hand.
@@ -141,6 +156,7 @@ promotion:
   section: compatibility_policies
   action: upsert
   item:
+    id: COMPAT-002
     statement: IPC envelope type changes roll out consumer-first (renderer and preload
       widen before main narrows), because the SPA dist is copied into the app and
       the main/renderer pair can be broken by dev runs or partial rebuilds.
@@ -172,6 +188,10 @@ source_paths:
 summary: Give the fleet-key/upstream-session-id translation a single owner per boundary,
   and make the Electron IPC response envelope carry the null-body-status invariant.
 updated: '2026-08-11'
+promotion_applied_at: '2026-08-11T14:14:36.199477+00:00'
+closure:
+  closed_at: '2026-08-11T14:14:55.356369+00:00'
+  content_hash: sha256:1aa6de13020c558d7ad70d1e44b449e05b6ee570ff8780c559422203a33d1427
 ---
 
 ## Summary
@@ -181,4 +201,14 @@ updated: '2026-08-11'
 
 {% transition from="draft" to="ready" date="2026-08-11" %}
 Design closure complete: spine lint green, docs conform ok, 13 verdict=Y critique findings resolved, 10 grafts applied, and all three ADRs accepted by user consultation (consultation-fleet-session-id-ssot-1).
+{% /transition %}
+
+
+{% transition from="ready" to="active" date="2026-08-11" %}
+Delivery in progress on delivery/fleet-session-id-ssot.
+{% /transition %}
+
+
+{% transition from="active" to="closing" date="2026-08-11" %}
+All nine tasks done; entering promotion and closure.
 {% /transition %}

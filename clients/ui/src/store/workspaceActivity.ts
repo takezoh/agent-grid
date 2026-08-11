@@ -1,24 +1,16 @@
 import { create } from "zustand";
-import { parseSessionKey, sessionKey } from "../fleet/session-protocol";
 import type { ActivityActor, ActivityEvent, ViewUpdateFrame } from "../wire/server";
 
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
 
-/** Bare and fleet-qualified forms of a session id for activity keying. */
-function sessionIdAliases(id: string): string[] {
-  const ref = parseSessionKey(id);
-  if (ref) return [id, ref.sessionId, sessionKey(ref)];
-  return [id];
-}
-
-function sessionIdsMatch(a: string | null, b: string | null): boolean {
-  if (a === null || b === null) return a === b;
-  if (a === b) return true;
-  const aSet = new Set(sessionIdAliases(a));
-  return sessionIdAliases(b).some((id) => aSet.has(id));
-}
+// Session identity here is strict equality on the fleet key. The alias sweep
+// that used to live here — matching a bare id against every form it might also
+// be written as — existed because ids arrived from the wire in more than one
+// shape. Connection requalifies every inbound id now, so a mismatch is a real
+// mismatch rather than a spelling difference, and absorbing it would hide the
+// next gap the way it hid this one.
 
 export type FileEventKind = "read" | "create" | "edit" | "delete";
 
@@ -163,15 +155,8 @@ const EMPTY_TURN_ROWS: TurnRow[] = [];
 
 export function selectTurnRows(state: WorkspaceActivityState, sessionId: string | null): TurnRow[] {
   if (!sessionId) return EMPTY_TURN_ROWS;
-  for (const alias of sessionIdAliases(sessionId)) {
-    const rows = state.rowsBySession[alias];
-    if (rows && rows.length > 0) return rows;
-  }
-  // Also match any stored bucket that aliases to this session (bare ↔ fleet).
-  for (const [key, rows] of Object.entries(state.rowsBySession)) {
-    if (rows.length > 0 && sessionIdsMatch(key, sessionId)) return rows;
-  }
-  return EMPTY_TURN_ROWS;
+  const rows = state.rowsBySession[sessionId];
+  return rows && rows.length > 0 ? rows : EMPTY_TURN_ROWS;
 }
 
 export function selectHasDirtyWorkspace(state: WorkspaceActivityState): boolean {
@@ -475,7 +460,7 @@ export const useWorkspaceActivityStore = create<WorkspaceActivityState>()((set, 
 
   applyActivityEvents: (sessionId, events) => {
     const scoped = get().scopedSessionId;
-    if (scoped !== null && !sessionIdsMatch(sessionId, scoped)) {
+    if (scoped !== null && scoped !== sessionId) {
       return;
     }
     // Store under the scoped (fleet-qualified) key when available so the
@@ -487,10 +472,7 @@ export const useWorkspaceActivityStore = create<WorkspaceActivityState>()((set, 
       let patch: Partial<WorkspaceActivityState> = {};
 
       for (const event of events) {
-        if (
-          !sessionIdsMatch(event.session_id, sessionId) &&
-          !sessionIdsMatch(event.session_id, storeKey)
-        ) {
+        if (event.session_id !== sessionId && event.session_id !== storeKey) {
           continue;
         }
         if (event.sequence <= lastSeq) continue;

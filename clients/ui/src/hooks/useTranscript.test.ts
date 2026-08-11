@@ -22,7 +22,7 @@ describe("useTranscript", () => {
 
     const { unmount } = renderHook(() =>
       useTranscript({
-        sessionId: "s1",
+        sessionId: JSON.stringify(["local", "s1"]),
         kind: "transcript",
         bearerToken: "tok",
         fetchFn,
@@ -31,7 +31,8 @@ describe("useTranscript", () => {
 
     // Wait for the async effect to settle
     await vi.waitFor(() => {
-      const buf = useTranscriptStore.getState().buffers["s1:transcript"];
+      const buf =
+        useTranscriptStore.getState().buffers[`${JSON.stringify(["local", "s1"])}:transcript`];
       expect(buf?.lines).toEqual(["a", "b"]);
     });
 
@@ -43,7 +44,7 @@ describe("useTranscript", () => {
 
     const { unmount } = renderHook(() =>
       useTranscript({
-        sessionId: "s2",
+        sessionId: JSON.stringify(["local", "s2"]),
         kind: "event-log",
         bearerToken: "tok",
         fetchFn,
@@ -69,7 +70,7 @@ describe("useTranscript", () => {
 
     const { unmount } = renderHook(() =>
       useTranscript({
-        sessionId: "s3",
+        sessionId: JSON.stringify(["local", "s3"]),
         kind: "transcript",
         bearerToken: "tok",
         fetchFn: pendingFetch,

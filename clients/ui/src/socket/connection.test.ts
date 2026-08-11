@@ -4,10 +4,14 @@ import { useFrameMessagingStore } from "../store/frameMessaging";
 import { useNotificationsStore } from "../store/notifications";
 import { useSubscriptionStore } from "../store/subscriptions";
 import { useTranscriptStore } from "../store/transcripts";
+import { useWorkspaceActivityStore } from "../store/workspaceActivity";
 import { Connection } from "./connection";
 
 class FakeWS {
   static instances: FakeWS[] = [];
+  // Mirrors the real WebSocket: sends before open() throw there, so a fake
+  // without this would be more permissive than the thing it stands in for.
+  readyState: number = WebSocket.CONNECTING;
   onopen: (() => void) | null = null;
   onmessage: ((ev: { data: string }) => void) | null = null;
   onclose: (() => void) | null = null;
@@ -22,9 +26,11 @@ class FakeWS {
     this.sent.push(d);
   }
   close() {
+    this.readyState = WebSocket.CLOSED;
     this.onclose?.();
   }
   open() {
+    this.readyState = WebSocket.OPEN;
     this.onopen?.();
   }
   receive(raw: string) {
@@ -578,5 +584,113 @@ describe("Connection", () => {
       }),
     );
     expect(useFrameMessagingStore.getState().summaries).toEqual({});
+  });
+});
+
+// Inbound requalification (contract-wire-id-ingress).
+//
+// Every session id arriving from a gateway has to become the fleet key the
+// store addresses sessions by, through one path. Leaving one element bare is
+// what forced the alias sweep in store/workspaceActivity.ts, and that sweep is
+// what let the next gap (workspace activity ids) go unnoticed.
+describe("Connection inbound requalification", () => {
+  function connect(serverId?: string) {
+    const fetchFn = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ ticket: "tkt" }),
+    })) as unknown as typeof fetch;
+    const conn = new Connection({
+      ticketEndpoint: "/api/ws-ticket",
+      wsUrl: (t) => `ws://h/ws?ticket=${t}`,
+      bearerToken: "tok",
+      wsFactory: (u) => new FakeWS(u) as unknown as WebSocket,
+      sleep: async () => {},
+      fetchFn,
+      publishSessions: false,
+      serverId,
+    });
+    return conn;
+  }
+
+  beforeEach(() => {
+    FakeWS.instances = [];
+    useDaemonStore.getState().reset();
+    useWorkspaceActivityStore.getState().reset();
+  });
+
+  it("requalifies the workspace-activity session id before the store sees it", async () => {
+    const conn = connect("srv-a");
+    await conn.start();
+    const ws = FakeWS.instances[0];
+    ws.open();
+
+    ws.receive(
+      JSON.stringify({
+        k: "v",
+        activity_session_id: "s1",
+        activity_events: [
+          {
+            type: "turn_row",
+            session_id: "s1",
+            sequence: 1,
+            turn_id: "t1",
+            path: "a.ts",
+            kind: "edit",
+            count: 1,
+            events: [{ path: "a.ts", kind: "edit" }],
+          },
+        ],
+      }),
+    );
+
+    // Counterexample this rejects: the bare "s1" reaching the store, which only
+    // matched because sessionIdAliases() brute-forced all three id forms
+    // downstream.
+    const rows = useWorkspaceActivityStore.getState().rowsBySession;
+    expect(Object.keys(rows)).toEqual([JSON.stringify(["srv-a", "s1"])]);
+  });
+
+  it("requalifies output frames through the same path", async () => {
+    const conn = connect("srv-a");
+    await conn.start();
+    const ws = FakeWS.instances[0];
+    ws.open();
+    const seen: string[] = [];
+    conn.onOutput = (frame) => seen.push(frame[3]);
+
+    ws.receive(JSON.stringify([1, "o", "aGk=", "s1"]));
+
+    expect(seen).toEqual([JSON.stringify(["srv-a", "s1"])]);
+  });
+
+  it("memoizes the mapping instead of allocating per frame", async () => {
+    const conn = connect("srv-a");
+    await conn.start();
+    const ws = FakeWS.instances[0];
+    ws.open();
+    const seen: string[] = [];
+    conn.onOutput = (frame) => seen.push(frame[3]);
+
+    for (let i = 0; i < 3; i++) ws.receive(JSON.stringify([1, "o", "aGk=", "s1"]));
+
+    // Output arrives at kHz, so the same upstream id must resolve to the very
+    // same string rather than a fresh JSON.stringify per frame.
+    expect(seen).toHaveLength(3);
+    expect(seen[0]).toBe(seen[1]);
+    expect(seen[1]).toBe(seen[2]);
+  });
+
+  it("passes ids through untouched when no server is configured", async () => {
+    const conn = connect(undefined);
+    await conn.start();
+    const ws = FakeWS.instances[0];
+    ws.open();
+    const seen: string[] = [];
+    conn.onOutput = (frame) => seen.push(frame[3]);
+
+    ws.receive(JSON.stringify([1, "o", "aGk=", "s1"]));
+
+    expect(seen).toEqual(["s1"]);
   });
 });

@@ -10,8 +10,8 @@ responsibilities:
   statement: Host the shared SPA (clients/ui bundle) in a standalone Electron app
     that users can launch directly or that the shell addresses per session.
 - id: RESP-002
-  statement: Own window registry semantics — atomic focus-or-create per
-    (server, session) so concurrent openSession requests converge on one window.
+  statement: Own window registry semantics — atomic focus-or-create per (server, session)
+    so concurrent openSession requests converge on one window.
 - id: RESP-003
   statement: Expose the named-pipe control endpoint (openSession/activate envelope)
     that the shell and CLI address; the pipe name is a per-user singleton.
@@ -19,9 +19,8 @@ responsibilities:
   statement: Inject hosted-mode context (bearer token, session preselect) via the
     preload contextBridge; tokens never appear in URLs.
 - id: RESP-005
-  statement: Manage desktop lifecycle — background start, idle-quit after the
-    configured window-less period, and default window geometry from workspace
-    config.
+  statement: Manage desktop lifecycle — background start, idle-quit after the configured
+    window-less period, and default window geometry from workspace config.
 - id: RESP-006
   statement: Own desktop display selection UX, persist the display containing the
     most recently moved Workspace window, restore new windows to that display, and
@@ -41,22 +40,27 @@ invariants:
     CSP, and WS-origin behavior stay unchanged (FR-HOSTED-SPA-COMPAT).
   enforcement: test
 - id: INV-004
-  statement: The workspace does not attempt to seize foreground on its own; it
-    focuses in response to control messages under the shell's delegated rights
-    (see design-windows-shell cap:workspace-activation-delegation).
+  statement: The workspace does not attempt to seize foreground on its own; it focuses
+    in response to control messages under the shell's delegated rights (see design-windows-shell
+    cap:workspace-activation-delegation).
   enforcement: review
 - id: INV-005
-  statement: Cross-process display selection uses a physical screen-coordinate
-    anchor; Electron Display.id is Workspace-internal and is never interpreted as
-    a Windows App SDK DisplayId.
+  statement: Cross-process display selection uses a physical screen-coordinate anchor;
+    Electron Display.id is Workspace-internal and is never interpreted as a Windows
+    App SDK DisplayId.
+  enforcement: test
+- id: INV-006
+  statement: The IPC response envelope represents "no body" as body null and never
+    as an empty string; the type and builder in src/shared/http-envelope.ts own that
+    invariant, and renderer-side tolerance is deliberate duplication, not the owner.
   enforcement: test
 boundaries:
   provides:
   - Per-session desktop windows over the shared SPA with hosted token injection.
   - The control endpoint consumed by the shell's WorkspaceLauncher and the CLI.
   consumes:
-  - clients/ui build output (copy-ui) and the desktop configuration contract
-    (design-windows-shell owns the schema).
+  - clients/ui build output (copy-ui) and the desktop configuration contract (design-windows-shell
+    owns the schema).
   - Gateway REST/WS indirectly through the embedded SPA.
   forbidden:
   - Forking SPA behavior per mode beyond the injected hosted context.
@@ -72,14 +76,18 @@ capabilities:
 - id: cap:session-window-authority
   uniqueness: global
 failure_responsibilities:
-- Pipe endpoint failures must leave process spawn as the callers' fallback path;
-  a wedged pipe must not brick session opening.
+- Pipe endpoint failures must leave process spawn as the callers' fallback path; a
+  wedged pipe must not brick session opening.
 trust_boundaries:
-- The control pipe accepts local per-user input only; envelopes are validated
-  before acting.
+- The control pipe accepts local per-user input only; envelopes are validated before
+  acting.
 compatibility_policies:
-- Control envelope changes are versioned additively; the shell and CLI are the
-  paired consumers.
+- Control envelope changes are versioned additively; the shell and CLI are the paired
+  consumers.
+- id: COMPAT-002
+  statement: IPC envelope type changes roll out consumer-first (renderer and preload
+    widen before main narrows), because the SPA dist is copied into the app and the
+    main/renderer pair can be broken by dev runs or partial rebuilds.
 tags:
 - native-clients
 - electron

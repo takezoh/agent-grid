@@ -130,20 +130,24 @@ describe("LogTabs", () => {
 
   it("TestRestBackfillHybrid: fetch 200 → store backfilled, then appendLine simulates WS tail", async () => {
     const fetchFn = makeFetch(200, "line1\nline2\n");
+    // This case actually fetches, so it addresses the session the way the app
+    // does — by fleet key. The other cases in this file never reach the api
+    // layer and keep their bare ids.
+    const routed = JSON.stringify(["local", "s1"]);
 
-    render(<LogTabs tabs={TABS} sessionId="s1" bearerToken="tok" fetchFn={fetchFn} />);
+    render(<LogTabs tabs={TABS} sessionId={routed} bearerToken="tok" fetchFn={fetchFn} />);
 
     // Wait for REST backfill to populate store and re-render
     await act(async () => {
       await vi.waitFor(() => {
-        const buf = useTranscriptStore.getState().buffers["s1:transcript"];
+        const buf = useTranscriptStore.getState().buffers[`${routed}:transcript`];
         expect(buf?.lines).toEqual(["line1", "line2"]);
       });
     });
 
     // Simulate WS tail arriving after backfill
     act(() => {
-      useTranscriptStore.getState().appendLine("s1", "transcript", "line3");
+      useTranscriptStore.getState().appendLine(routed, "transcript", "line3");
     });
 
     const pre = document.querySelector("pre");

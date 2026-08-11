@@ -3,7 +3,8 @@
 
 import { readBearerTokenFromHash } from "../auth";
 import { makeFleetProvider } from "../fleet/provider";
-import { parseSessionKey } from "../fleet/session-protocol";
+import { resolveSessionRoute } from "../fleet/session-identity";
+import { UnresolvedSessionError } from "./sessions";
 
 export type WorkspaceRootHandle = {
   session_id: string;
@@ -188,10 +189,12 @@ export function makeWorkspaceApi(fetchFn: typeof fetch = fetch): WorkspaceApi {
     suffix: string,
     init: RequestInit,
   ): Promise<Response> => {
-    const ref = parseSessionKey(sessionId);
-    const localID = ref?.sessionId ?? sessionId;
-    const url = `/api/sessions/${encodeURIComponent(localID)}${suffix}`;
-    return ref ? fleet.request(ref.serverId, url, init) : fetchFn(url, init);
+    const route = resolveSessionRoute(sessionId);
+    // Same convergence as transcripts: the bare-id fallback reached a URL no
+    // shipping host serves, so it is a typed failure rather than a request.
+    if (!route.ok) throw new UnresolvedSessionError(sessionId);
+    const url = `/api/sessions/${encodeURIComponent(route.upstreamSessionId)}${suffix}`;
+    return fleet.request(route.serverId, url, init);
   };
   const get = async <T>(sessionId: string, suffix: string): Promise<T> => {
     const resp = await sessionRequest(sessionId, suffix, { headers: authHeaders() });

@@ -14,7 +14,7 @@
 // active-mismatch). pushCommand below is the client side of that contract.
 
 import { makeFleetProvider } from "../fleet/provider";
-import { parseSessionKey, sessionKey } from "../fleet/session-protocol";
+import { fleetSessionIdFor, resolveSessionRoute } from "../fleet/session-identity";
 import { PROTOCOL_VERSION, PROTOCOL_VERSION_HEADER } from "../protocol-version";
 
 // ---------------------------------------------------------------------------
@@ -53,6 +53,28 @@ export interface ApiHttpError extends Error {
 export interface ApiWireFormatError extends Error {
   wireFormat: true;
   url: string;
+}
+
+/**
+ * A session id reached an api module that could not be turned into a route.
+ *
+ * One failure for all four session-scoped api modules. They used to disagree:
+ * two passed a bare id straight through to a non-fleet URL that no shipping
+ * host serves, one rejected the same value, and one substituted a default
+ * server. The name says the outcome ("this session could not be resolved")
+ * rather than the form ("not a fleet key"), so callers have nothing to
+ * re-branch on.
+ *
+ * Thrown before any request is issued, and outside doFetch's try — otherwise
+ * it would be caught and remapped to Error("network"), which is exactly the
+ * misdiagnosis this change removes on the Electron side.
+ */
+export class UnresolvedSessionError extends Error {
+  readonly unresolvedSession = true as const;
+  constructor(readonly sessionId: string) {
+    super(`unresolved session: ${sessionId}`);
+    this.name = "UnresolvedSessionError";
+  }
 }
 
 export interface CreateSessionPayload {
@@ -467,10 +489,15 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
   const f = fetchImpl ?? fetch.bind(globalThis);
   const fleet = makeFleetProvider(f);
   const routedSession = (value: string) => {
-    const ref = parseSessionKey(value);
-    const serverId = ref?.serverId ?? fleet.initialServerId();
-    if (!serverId) throw new Error("No server selected");
-    return { serverId, sessionId: ref?.sessionId ?? value };
+    const route = resolveSessionRoute(value);
+    if (route.ok) return { serverId: route.serverId, sessionId: route.upstreamSessionId };
+    // Not a fleet key. Which server to use when nothing says is a fleet
+    // configuration question, not an id-resolution one, so it stays here
+    // instead of inside the resolver — folding it in would make precedence a
+    // four-step rule nobody can check.
+    const serverId = fleet.initialServerId();
+    if (!serverId) throw new UnresolvedSessionError(value);
+    return { serverId, sessionId: value };
   };
   const routedRequest = (value: string, suffix: string, init: RequestInit): Promise<Response> => {
     const target = routedSession(value);
@@ -491,7 +518,7 @@ export function makeSessionsApi(fetchImpl?: typeof fetch): SessionsApi {
       if (typeof body.id !== "string" || body.id === "") {
         throw makeWireFormatError("FleetProvider.create", "missing string `id`", body);
       }
-      return { id: sessionKey({ serverId, sessionId: body.id }), serverId };
+      return { id: fleetSessionIdFor({ serverId, sessionId: body.id }), serverId };
     },
 
     async deleteSession(id: string): Promise<void> {

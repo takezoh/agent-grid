@@ -1,26 +1,24 @@
-import { parseSessionKey, sessionKey } from "../fleet/session-protocol";
-import type { SessionInfo } from "../wire/server";
+import type { FleetSessionRow } from "../fleet/session-identity";
 
 const highestConsumed = new Map<string, number>();
 const reconnectSuppressed = new Set<string>();
 
-/** Stable signal identity across bare wire ids and fleet-qualified store ids. */
-function signalIdentityKey(session: SessionInfo, epoch: string): string {
-  const fleet = parseSessionKey(session.id);
-  // Prefer the fleet-qualified id's server when present so a mismatched
-  // serverId tag (e.g. initialServerHint vs Connection.serverId) cannot
-  // split consume/seed maps.
-  const bareId = session.upstreamSessionId ?? fleet?.sessionId ?? session.id;
-  const serverId = fleet?.serverId ?? session.serverId;
-  const identity =
-    serverId != null && serverId !== "" ? sessionKey({ serverId, sessionId: bareId }) : bareId;
-  return `${identity}\u0000${epoch}`;
+/**
+ * Signal identity for one session in one connection epoch.
+ *
+ * This used to re-derive the identity from the id string, preferring whichever
+ * of three sources looked most qualified — a workaround for rows that might or
+ * might not know their server. Rows carry that authority now, so the row id is
+ * the identity and there is nothing left to prefer.
+ */
+function signalIdentityKey(session: FleetSessionRow, epoch: string): string {
+  return `${session.id}\u0000${epoch}`;
 }
 
 function projectStatusSignals(
-  sessions: readonly SessionInfo[],
+  sessions: readonly FleetSessionRow[],
   reconnectHello: boolean,
-): SessionInfo[] {
+): FleetSessionRow[] {
   return sessions.map((session) => {
     const signal = session.status.signal;
     if (!signal || signal.kind !== "bell") return session;
@@ -49,14 +47,14 @@ function projectStatusSignals(
 
 // Normal view updates retain the newest bell so it is actually observable.
 // A repeated snapshot in the same connection is not a replay.
-export function consumeStatusSignals(sessions: readonly SessionInfo[]): SessionInfo[] {
+export function consumeStatusSignals(sessions: readonly FleetSessionRow[]): FleetSessionRow[] {
   return projectStatusSignals(sessions, false);
 }
 
 // A hello frame identifies a new connection. An already-seen sequence in that
 // frame is reconnect replay and remains suppressed for later snapshots until a
 // newer sequence arrives.
-export function seedStatusSignals(sessions: readonly SessionInfo[]): SessionInfo[] {
+export function seedStatusSignals(sessions: readonly FleetSessionRow[]): FleetSessionRow[] {
   return projectStatusSignals(sessions, true);
 }
 

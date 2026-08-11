@@ -241,6 +241,29 @@ function explicitServerId(): string | null {
   return new URLSearchParams(window.location.search).get("server");
 }
 
+/**
+ * Statuses that WHATWG Fetch forbids from carrying a body. `new Response("",
+ * {status: 204})` throws in Chromium and in Node; only happy-dom is permissive.
+ */
+const NULL_BODY_STATUSES: ReadonlySet<number> = new Set([101, 204, 205, 304]);
+
+/**
+ * Pick the body to hand the `Response` constructor for an IPC envelope.
+ *
+ * Electron main owns the invariant and sends `body: null` for these statuses,
+ * so on a matched pair this only forwards what main already decided. The
+ * status check exists for the mismatched pair: the Electron app copies the SPA
+ * dist in at build time, so a dev run or a partial rebuild can put a new
+ * renderer in front of an old main that still sends `""`. Dropping the body
+ * here keeps that combination working instead of throwing a TypeError that
+ * doFetch would report as a network error. This branch is deliberate
+ * duplication of the main-side invariant — not a second owner of it — and it
+ * stays after the producer change.
+ */
+function bodyForStatus(status: number, body: string | null): string | null {
+  return NULL_BODY_STATUSES.has(status) ? null : body;
+}
+
 function qualifiedPath(serverId: string, pathname: string): string {
   const suffix = pathname.startsWith("/") ? pathname : `/${pathname}`;
   return `/host/servers/${encodeURIComponent(serverId)}${suffix}`;
@@ -535,6 +558,12 @@ function workspaceProvider(bridge: NonNullable<Window["agentGridWorkspace"]>): F
               { method: "GET" },
             );
             if (result.status < 200 || result.status >= 300) return tracked.preparation;
+            // A 2xx with no body (204) means the host had nothing to report, not
+            // that the preparation became null. `JSON.parse(null)` does not
+            // throw — it returns null — so without this branch a missing body
+            // would quietly overwrite a live preparation with null and the
+            // failure would read as a success.
+            if (result.body === null) return tracked.preparation;
             const preparation = JSON.parse(result.body) as HostPreparation;
             tracked.preparation = preparation;
             return preparation;
@@ -641,7 +670,7 @@ function workspaceProvider(bridge: NonNullable<Window["agentGridWorkspace"]>): F
         headers,
         body: typeof init.body === "string" ? init.body : undefined,
       });
-      return new Response(result.body, {
+      return new Response(bodyForStatus(result.status, result.body), {
         status: result.status,
         headers: result.headers,
       });

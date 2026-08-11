@@ -1,17 +1,18 @@
 import { describe, expect, it } from "vitest";
+import type { ClientFrame } from "../wire/client";
 import type { RespErrFrame, RespOKFrame } from "../wire/server";
 import { type RetryDeps, matchResp, subscribeWithRetry } from "./retry";
 
 function makeDeps(responses: (RespOKFrame | RespErrFrame)[]): {
   deps: RetryDeps;
-  sent: string[];
+  sent: ClientFrame[];
   sleeps: number[];
 } {
-  const sent: string[] = [];
+  const sent: ClientFrame[] = [];
   const sleeps: number[] = [];
   let idx = 0;
   const deps: RetryDeps = {
-    send: (s) => sent.push(s),
+    send: (frame) => sent.push(frame),
     awaitResponse: async (_reqId) => {
       const r = responses[idx];
       idx += 1;
@@ -42,7 +43,9 @@ describe("subscribeWithRetry", () => {
     const out = await subscribeWithRetry("s1", 120, 40, deps);
     expect(out.status).toBe("confirmed");
     expect(sent).toHaveLength(1);
-    expect(JSON.parse(sent[0] ?? "{}")).toMatchObject({
+    // Serialization is the wire owner's job now, so the dep receives the frame
+    // itself; retry.ts no longer imports serializeClientFrame.
+    expect(sent[0]).toMatchObject({
       k: "s",
       sessionId: "s1",
       cols: 120,

@@ -1,4 +1,4 @@
-import { serializeClientFrame } from "../wire/codec";
+import type { ClientFrame } from "../wire/client";
 import type { RespErrFrame, RespOKFrame, ServerFrame } from "../wire/server";
 import { type Rng, backoffDelay, exceededAttempts } from "./backoff";
 
@@ -8,7 +8,13 @@ export type SubscribeOutcome =
 
 // Caller-provided side effects.
 export type RetryDeps = {
-  send: (frame: string) => void;
+  /**
+   * Hands a frame to the socket. Takes the frame, not a serialized string:
+   * serialization is the wire owner's job, and a string-taking `send` was an
+   * escape hatch that let a caller assemble and serialize a frame outside
+   * Connection.
+   */
+  send: (frame: ClientFrame) => void;
   // Awaits the next Resp frame matching reqId. Implementations: see connection.ts
   // which routes incoming frames to a per-reqId promise registry.
   awaitResponse: (reqId: string) => Promise<RespOKFrame | RespErrFrame>;
@@ -28,8 +34,7 @@ export async function subscribeWithRetry(
   let lastError = "";
   while (!exceededAttempts(attempt)) {
     const reqId = deps.newReqId();
-    const frame = serializeClientFrame({ k: "s", reqId, sessionId, cols, rows });
-    deps.send(frame);
+    deps.send({ k: "s", reqId, sessionId, cols, rows });
     const resp = await deps.awaitResponse(reqId);
     if (resp.k === "r") {
       return { status: "confirmed", reqId };

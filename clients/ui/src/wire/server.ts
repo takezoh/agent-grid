@@ -84,12 +84,14 @@ export type FrameInfo = {
 };
 
 // SessionInfo mirrors proto.SessionInfo — Go JSON tags used as-is (snake_case).
+//
+// Wire mirror only: it decodes what one gateway sent, so `id` is that gateway's
+// bare session id and there are no fleet fields. The store's row type is
+// fleet/session-identity.ts's FleetSessionRow, which requires serverId and
+// upstreamSessionId. Keeping them optional here is what made "does this row
+// know its server?" unanswerable at compile time.
 export type SessionInfo = {
   id: string;
-  /** Upstream-local identity when `id` is the compound fleet key. */
-  upstreamSessionId?: string;
-  serverId?: string;
-  serverLabel?: string;
   project: string;
   workspace?: string;
   command: string;

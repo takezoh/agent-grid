@@ -20,6 +20,11 @@ responsibilities:
 - id: RESP-004
   statement: Own layout chrome (app shell grid, sidebar, drawer, header) and its responsive
     and persisted-state behavior.
+- id: RESP-005
+  statement: Own the translation between the compound fleet session key ([serverId,
+    sessionId]) and the upstream bare session id, with one owner per boundary — Connection
+    for the WS wire, and the fleet identity module (SessionRoute resolver + FleetSessionRow)
+    for store and HTTP routing.
 invariants:
 - id: INV-001
   statement: One SPA serves both modes; mode differences are runtime flags (hostedModeInfo
@@ -51,6 +56,22 @@ invariants:
   statement: New Session target rows expose source and fully qualified identity in
     every modality; independently failing sources never globally block healthy targets.
   enforcement: contract
+- id: INV-007
+  statement: Connection's public API speaks fleet keys only; ClientFrame assembly
+    and serialization stay private to socket/connection.ts, and every outbound WS
+    frame carries the upstream bare session id.
+  enforcement: test
+- id: INV-008
+  statement: Every inbound session-id-bearing element is requalified to a fleet key
+    through one path before reaching the store; store rows carry (serverId, upstreamSessionId)
+    as required fields and session identity is decided by strict fleet-key equality
+    (no alias fallbacks).
+  enforcement: test
+- id: INV-009
+  statement: Data-plane session-id resolution failures never throw into the xterm
+    emitter; the frame is dropped and recorded by reason — internal contract violations
+    reach the user, benign server-switch transitions only increment a diagnostic counter.
+  enforcement: test
 boundaries:
   provides:
   - The complete session UI surface for browser and hosted consumers.
@@ -60,6 +81,10 @@ boundaries:
   forbidden:
   - Mode-specific feature forks beyond the hosted context flag.
   - Reading tokens from URLs or persisting them in web storage.
+  - id: BND-004
+    statement: Handling the fleet session key syntactically (sessionKey / parseSessionKey)
+      or serializing a ClientFrame outside the declared owner set, and re-deriving
+      a session route from an id string when the authoritative row is in hand.
 variability:
   fixed:
   - Single-bundle dual-mode delivery and the additive hosted flag.
