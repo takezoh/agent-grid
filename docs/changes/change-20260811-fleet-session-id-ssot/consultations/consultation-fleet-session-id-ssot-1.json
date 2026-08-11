@@ -1,0 +1,54 @@
+{
+  "consultation_id": "consultation-fleet-session-id-ssot-1",
+  "base_revision": "design-plan spine.yaml as materialized at docs/changes/change-20260811-fleet-session-id-ssot/design-plan/spine.yaml (integrate step, spine lint green, anchors 41)",
+  "adr_decisions": [
+    {
+      "adr_ref": "adr-fleet-session-identity-boundary-ownership",
+      "response": {
+        "kind": "accept",
+        "raw_text": "3 件とも accepted にする"
+      },
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "docs/changes/change-20260811-fleet-session-id-ssot/design-plan/design.md#adr-fleet-session-identity-boundary-ownership",
+          "/home/take/.dev-skills/design/fleet-session-id-ssot/artifacts/critique.json"
+        ],
+        "rationale": "型分割 (SessionInfo は gateway payload 専用 / FleetSessionRow が store 行の権威)、P5 から typed rejection への収束、Connection への frame 組み立て権威の移管、データプレーンの drop + reason 別記録を提示したうえで承認された。"
+      }
+    },
+    {
+      "adr_ref": "adr-ipc-response-envelope-null-body-ownership",
+      "response": {
+        "kind": "accept",
+        "raw_text": "3 件とも accepted にする"
+      },
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "docs/changes/change-20260811-fleet-session-id-ssot/design-plan/design.md#adr-ipc-response-envelope-null-body-ownership",
+          "/home/take/.dev-skills/debug/workspace-electron-terminal-dead/handoff.json"
+        ],
+        "rationale": "不変条件の所有者を clients/workspace/src/shared/http-envelope.ts の envelope 型と builder に置き、renderer 側は恒久の二重化、移行は consumer-first という内容で承認された。これは debug handoff でユーザーが選んだ B = 推奨案と一致する。"
+      }
+    },
+    {
+      "adr_ref": "adr-defer-branded-session-id-types",
+      "response": {
+        "kind": "accept",
+        "raw_text": "3 件とも accepted にする"
+      },
+      "provenance": {
+        "source": "user_consultation",
+        "confidence": "confirmed",
+        "evidence_refs": [
+          "docs/changes/change-20260811-fleet-session-id-ssot/design-plan/design.md#adr-defer-branded-session-id-types",
+          "/home/take/.dev-skills/debug/workspace-electron-terminal-dead/handoff.json"
+        ],
+        "rationale": "branded types を別 change へ繰り延べ、主検出器を API 形状 + 型分割、補助を fitness test とし、lint rule 案は Biome の type-aware rule 不在と依存増を根拠に却下する内容で承認された。再訪条件は ADR に記録済み。"
+      }
+    }
+  ]
+}

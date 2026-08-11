@@ -1,0 +1,885 @@
+artifact: design-plan-spine
+version: 2
+granularity_profile: boundary-complete
+
+requirements:
+  - id: FR-A1
+    type: functional
+    priority: must
+    statement: SPA が送出する全 WS frame の sessionId は upstream (bare) id である。
+  - id: FR-A2
+    type: functional
+    priority: must
+    statement: Connection の公開 API は fleet key のみを受け取り、ClientFrame の組み立てと直列化は Connection の内部に閉じる。
+  - id: FR-A3
+    type: functional
+    priority: must
+    statement: data plane の id 解決失敗は例外を送出せず frame を破棄し、reason 別に分類された観測可能な記録を残す (内部契約違反はユーザーに到達可能、正常遷移由来は診断可能な counter)。
+  - id: FR-A4
+    type: functional
+    priority: must
+    statement: gateway から到着する全ての session id 保持要素 (output frame[3] / tt / et / activity_session_id / activity event の session_id / hello・view の sessions) は store へ渡る前に単一の再修飾経路を通って fleet key へ再修飾される。
+  - id: FR-A5
+    type: functional
+    priority: must
+    statement: store と HTTP 境界の id 解決は単一 resolver が行い、api モジュールは独自の再導出を持たない。
+  - id: FR-A6
+    type: functional
+    priority: must
+    statement: 解決不能な session id に対する結果は 1 種類の typed failure であり、HTTP 要求は発行されず、その失敗は network error へ写像されない。
+  - id: FR-A7
+    type: functional
+    priority: must
+    statement: store 行は serverId と upstreamSessionId を required で保持し、session 同一性の判定は fleet key の厳密一致で行う。
+  - id: FR-A8
+    type: functional
+    priority: must
+    statement: これまで無音で捨てられていた data plane frame ({k:"r"} と制御シーケンスを含む {k:"i"}) が初めて gateway へ到達することを挙動活性化として扱い、活性化が既存セッションの表示を壊さないことを観測で確認する。
+  - id: FR-B1
+    type: functional
+    priority: must
+    statement: IPC response envelope は本文なしを body null で表し、main は null body status のときだけ null を出す。
+  - id: FR-B2
+    type: functional
+    priority: must
+    statement: FleetProvider.request は browser host と Workspace host で同一の HTTP 交換に対し観察上等価な Response を返し、body null を消費する全 consumer が null を安全に扱う。
+  - id: FR-B3
+    type: functional
+    priority: must
+    statement: envelope 型の変更は consumer-first の順序で適用され、途中状態でも renderer が壊れない。
+  - id: FR-C1
+    type: functional
+    priority: must
+    statement: identity 変換または wire frame 直列化を新たに行うモジュールが所有者集合の外に増えたとき機械的に失敗する gate が存在し、その gate 自身が発火することが示されている。
+  - id: NFR-PERF-001
+    type: non_functional
+    priority: should
+    statement: inbound hot path (FR-β07 が kHz を想定する output frame) の 1 frame あたり割り当てを現行から増やさない。再修飾は session 単位で memo 化する。
+  - id: NFR-PERF-002
+    type: non_functional
+    priority: should
+    statement: 打鍵経路の id 解決は compound key でない値に対して JSON parse を行わない。
+  - id: NFR-DEP-001
+    type: non_functional
+    priority: must
+    statement: 新規 runtime 依存を追加せず、lint は Biome のままとする。
+  - id: NFR-TEST-001
+    type: non_functional
+    priority: must
+    statement: 追加する fake は real より寛容にしない。fake が real と乖離した場合は fake を直す。
+
+components:
+  - id: component-session-identity
+    kind: planned
+    contract_refs: [contract-session-identity-types, contract-http-route-resolution]
+    paths:
+      - clients/ui/src/fleet/session-identity.ts
+      - clients/ui/src/fleet/session-protocol.ts
+  - id: component-wire-connection
+    kind: existing
+    contract_refs:
+      - contract-wire-id-egress
+      - contract-wire-id-ingress
+      - contract-dataplane-unresolved-drop
+      - contract-egress-activation-compatibility
+    paths:
+      - clients/ui/src/socket/connection.ts
+      - clients/ui/src/socket/retry.ts
+      - clients/ui/src/socket/terminalSubscription.ts
+      - clients/ui/src/wire/client.ts
+  - id: component-terminal-dataplane
+    kind: existing
+    contract_refs:
+      - contract-wire-id-egress
+      - contract-dataplane-unresolved-drop
+      - contract-egress-activation-compatibility
+    paths:
+      - clients/ui/src/components/TerminalPane.tsx
+      - clients/ui/src/components/DriverShortcutBar.tsx
+      - clients/ui/src/components/TerminalMobileOverlay.tsx
+  - id: component-session-routing-http
+    kind: existing
+    contract_refs: [contract-http-route-resolution]
+    paths:
+      - clients/ui/src/api/sessions.ts
+      - clients/ui/src/api/transcripts.ts
+      - clients/ui/src/api/workspace.ts
+      - clients/ui/src/api/capsules.ts
+  - id: component-session-store
+    kind: existing
+    contract_refs: [contract-session-identity-types, contract-store-identity-equality]
+    paths:
+      - clients/ui/src/store/daemon.ts
+      - clients/ui/src/store/statusSignals.ts
+      - clients/ui/src/store/workspaceActivity.ts
+      - clients/ui/src/wire/server.ts
+  - id: component-fleet-membership-producer
+    kind: existing
+    contract_refs: [contract-session-identity-types]
+    paths:
+      - clients/ui/src/App.tsx
+  - id: component-ipc-response-envelope
+    kind: planned
+    contract_refs: [contract-ipc-null-body-envelope]
+    paths:
+      - clients/workspace/src/shared/http-envelope.ts
+      - clients/workspace/src/main/electron-entry.ts
+  - id: component-fleet-provider-renderer
+    kind: existing
+    contract_refs: [contract-host-transport-parity]
+    paths:
+      - clients/ui/src/fleet/provider.ts
+      - clients/ui/src/auth.ts
+      - clients/workspace/src/preload/index.ts
+      - clients/workspace/src/preload/electron-preload.cjs
+  - id: component-identity-enforcement
+    kind: planned
+    contract_refs: [contract-identity-ownership-gate]
+    paths:
+      - clients/ui/src/__meta__/session-identity-ownership.test.ts
+      - docs/note/note-20260624-technical-code-enforcement.md
+
+contracts:
+  - id: contract-wire-id-egress
+    dimension: integration_contract
+    owner: component-wire-connection
+    requirement_refs: [FR-A1, FR-A2, NFR-PERF-002]
+    unit_refs: [connection-egress-intent-api, terminal-dataplane-intent-migration]
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    verification:
+      - id: connection-fleet-input-outbound
+        tier: T1
+        command: cd clients/ui && npx vitest run src/socket/connection.fleet-input.test.ts
+      - id: terminal-pane-intent-api
+        tier: T1
+        command: cd clients/ui && npx vitest run src/components
+      - id: retry-path-uses-private-serialization
+        tier: T1
+        command: cd clients/ui && npx vitest run src/socket/retry.test.ts
+      - id: raw-frame-escape-hatch-closed
+        tier: T2
+        command: cd clients/ui && npm run typecheck
+    partition:
+      outcomes: [determinate, unknown]
+      default_policy: fail-closed。cfg.serverId 未設定は素通し。fleet key で serverId 一致なら upstream id を、bare id はそのまま載せる。serverId 不一致と decode 不能は wire に載せない。
+    discretion:
+      - id: discretion-upstream-parse-fast-reject
+        unit_ref: connection-egress-intent-api
+        question: compound key でない値に対する JSON parse 回避 (先頭文字判定 / try-catch / 事前正規表現) の実装方法。
+        scope:
+          files: [clients/ui/src/socket/connection.ts]
+          component: component-wire-connection
+          visibility: private
+        escalate_when:
+          - 早期棄却が bare id と compound key の判別を変える (偽陽性・偽陰性が起きうる) 場合
+          - 判別規則が gateway の session id 文字集合 [A-Za-z0-9_-] の前提に依存しなくなる場合
+        constraints:
+          - 観察可能な結果 (送出フレームの sessionId) を変えない
+          - NFR-PERF-002 を満たす
+        preserves:
+          contract_refs: [contract-wire-id-egress]
+        verification_refs: [connection-fleet-input-outbound]
+        difficulty_inputs:
+          decision_reasoning: local_tradeoff
+          boundary_reach: private
+          context_scope: files
+          reversibility: trivial
+          verification_strength: discriminating
+          runtime_risk: normal
+          coupling: independent
+          grounding: evidenced
+
+  - id: contract-dataplane-unresolved-drop
+    dimension: failure_recovery
+    owner: component-wire-connection
+    requirement_refs: [FR-A3]
+    unit_refs: [connection-egress-intent-api]
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    verification:
+      - id: dataplane-no-throw-on-serverid-mismatch
+        tier: T1
+        command: cd clients/ui && npx vitest run src/socket
+      - id: dataplane-drop-counter-by-reason
+        tier: T1
+        command: cd clients/ui && npx vitest run src/socket
+      - id: dataplane-decode-failed-notifies-once
+        tier: T1
+        command: cd clients/ui && npx vitest run src/socket
+    partition:
+      outcomes: [determinate, unknown]
+      default_policy: fail-closed。unknown は frame を破棄し reason 別 counter を加算する。decode-failed のときだけ (sessionId, reason) ごとに 1 lifecycle 1 件の notification を出す。server-mismatch は通知しない。例外は送出しない。
+    discretion:
+      - id: discretion-drop-record-dedup-structure
+        unit_ref: connection-egress-intent-api
+        question: drop counter と notification dedup の保持構造 (Set / Map / 単一 last-key) と getter の戻り形。
+        scope:
+          files: [clients/ui/src/socket/connection.ts]
+          component: component-wire-connection
+          visibility: private
+        escalate_when:
+          - dedup の寿命が Connection lifecycle 以外になる場合
+          - counter の公開先を Connection getter 以外 (専用 store など) へ移す必要が生じた場合
+          - reason の分類 (server-mismatch / decode-failed) を増減する必要が生じた場合
+        constraints:
+          - notification は同一 (sessionId, reason) で 1 lifecycle あたり 1 件を超えない
+          - counter は drop のたびに加算する
+          - close 後の新 lifecycle では counter が 0 から始まり notification を再び 1 件出せる
+        preserves:
+          contract_refs: [contract-dataplane-unresolved-drop]
+        verification_refs: [dataplane-drop-counter-by-reason, dataplane-decode-failed-notifies-once]
+        difficulty_inputs:
+          decision_reasoning: mechanical
+          boundary_reach: private
+          context_scope: files
+          reversibility: trivial
+          verification_strength: discriminating
+          runtime_risk: normal
+          coupling: independent
+          grounding: evidenced
+
+  - id: contract-wire-id-ingress
+    dimension: integration_contract
+    owner: component-wire-connection
+    requirement_refs: [FR-A4, NFR-PERF-001]
+    unit_refs: [connection-ingress-requalification]
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    verification:
+      - id: inbound-requalification-all-kinds
+        tier: T1
+        command: cd clients/ui && npx vitest run src/socket
+      - id: activity-session-id-requalified
+        tier: T1
+        command: cd clients/ui && npx vitest run src/store/__tests__/workspaceActivity.test.ts
+      - id: requalification-memoized-per-session
+        tier: T1
+        command: cd clients/ui && npx vitest run src/socket
+    discretion:
+      - id: discretion-requalification-memo
+        unit_ref: connection-ingress-requalification
+        question: 再修飾の memo 化構造 (Map / 直近 1 件キャッシュ / 呼び出し側での事前計算)。
+        scope:
+          files: [clients/ui/src/socket/connection.ts]
+          component: component-wire-connection
+          visibility: private
+        escalate_when:
+          - memo が serverId 変更をまたいで再利用されうる構造になる場合
+          - memo の生存期間が Connection instance を超える場合
+        constraints:
+          - frame 数に比例する割り当てを増やさない
+          - cfg.serverId 未設定時の素通し挙動を変えない
+          - 再修飾経路を 2 本に増やさない
+        preserves:
+          contract_refs: [contract-wire-id-ingress]
+        verification_refs: [requalification-memoized-per-session]
+        difficulty_inputs:
+          decision_reasoning: local_tradeoff
+          boundary_reach: private
+          context_scope: files
+          reversibility: trivial
+          verification_strength: mechanical_partial
+          runtime_risk: normal
+          coupling: independent
+          grounding: evidenced
+
+  - id: contract-egress-activation-compatibility
+    dimension: migration_compatibility
+    owner: component-wire-connection
+    requirement_refs: [FR-A8]
+    unit_refs: [connection-egress-intent-api, terminal-dataplane-intent-migration]
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    verification:
+      - id: resize-frame-reaches-wire
+        tier: T1
+        command: cd clients/ui && npx vitest run src/components
+      - id: control-sequence-passthrough-verbatim
+        tier: T1
+        command: cd clients/ui && npx vitest run src/socket
+
+  - id: contract-session-identity-types
+    dimension: data_model
+    owner: component-session-identity
+    requirement_refs: [FR-A7, FR-A5]
+    unit_refs: [identity-owner-module, store-row-authority-and-equality]
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    verification:
+      - id: wire-fixture-roundtrip-unchanged
+        tier: T1
+        command: cd clients/ui && npx vitest run src/wire/codec.test.ts
+      - id: store-row-requires-authority
+        tier: T2
+        command: cd clients/ui && npm run typecheck
+      - id: identity-types-pure
+        tier: T0
+        command: cd clients/ui && npx vitest run src/fleet/session-identity.test.ts
+
+  - id: contract-http-route-resolution
+    dimension: integration_contract
+    owner: component-session-routing-http
+    requirement_refs: [FR-A5, FR-A6]
+    unit_refs: [identity-owner-module, http-route-resolver-adoption]
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    verification:
+      - id: resolver-precedence-row-over-decode
+        tier: T0
+        command: cd clients/ui && npx vitest run src/fleet/session-identity.test.ts
+      - id: unresolved-issues-no-request
+        tier: T1
+        command: cd clients/ui && npx vitest run src/api
+      - id: pinned-handle-not-routed
+        tier: T1
+        command: cd clients/ui && npx vitest run src/api/workspace.test.ts
+      - id: four-api-modules-single-policy
+        tier: T2
+        command: cd clients/ui && npx vitest run src/api
+    partition:
+      outcomes: [determinate, unknown, conflicting]
+      default_policy: 行の権威 > id 文字列の decode > unresolved の固定順序。conflicting (行と decode の食い違い) は行の権威が勝つ。unresolved は要求を発行せず判別 union で返し throw しない (doFetch の network error 写像に吸われないため)。
+
+  - id: contract-store-identity-equality
+    dimension: state_lifecycle
+    owner: component-session-store
+    requirement_refs: [FR-A7, FR-A4]
+    unit_refs: [store-row-authority-and-equality]
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    verification:
+      - id: strict-equality-after-ingress
+        tier: T1
+        command: cd clients/ui && npx vitest run src/store
+      - id: alias-removal-order-constraint
+        tier: T1
+        command: cd clients/ui && npx vitest run src/store/__tests__/workspaceActivity.test.ts
+      - id: reconnect-bell-suppression-preserved
+        tier: T1
+        command: cd clients/ui && npx vitest run src/store/statusSignals.test.ts
+
+  - id: contract-ipc-null-body-envelope
+    dimension: integration_contract
+    owner: component-ipc-response-envelope
+    requirement_refs: [FR-B1]
+    unit_refs: [ipc-envelope-producer-null-body]
+    adr_refs: [adr-ipc-response-envelope-null-body-ownership]
+    verification:
+      - id: envelope-null-body-status-mapping
+        tier: T1
+        command: cd clients/workspace && npx vitest run tests/http-envelope.test.ts
+      - id: envelope-platform-oracle-guard
+        tier: T2
+        command: cd clients/workspace && npx vitest run tests/http-envelope.test.ts
+      - id: empty-200-body-not-null
+        tier: T1
+        command: cd clients/workspace && npx vitest run tests/http-envelope.test.ts
+    discretion:
+      - id: discretion-envelope-builder-shape
+        unit_ref: ipc-envelope-producer-null-body
+        question: 型と builder を分けるか 1 関数にするか、null body status 集合を Set で持つか配列定数で持つか、export するか module private にするか。
+        scope:
+          files: [clients/workspace/src/shared/http-envelope.ts]
+          component: component-ipc-response-envelope
+          visibility: private
+        escalate_when:
+          - 集合の要素を platform oracle の結果と無関係に変える場合
+          - 判定根拠を status から upstream response.body の有無へ委ねる設計を採る場合
+          - renderer 側からも同じ集合を参照する必要が生じた場合
+        constraints:
+          - status が権威であり本文の有無は権威でない
+          - 200 の空本文は "" であって null ではない
+          - 定数は platform oracle test に従属する
+        preserves:
+          contract_refs: [contract-ipc-null-body-envelope]
+        verification_refs: [envelope-null-body-status-mapping, envelope-platform-oracle-guard]
+        difficulty_inputs:
+          decision_reasoning: mechanical
+          boundary_reach: private
+          context_scope: files
+          reversibility: trivial
+          verification_strength: discriminating
+          runtime_risk: normal
+          coupling: independent
+          grounding: evidenced
+
+  - id: contract-host-transport-parity
+    dimension: migration_compatibility
+    owner: component-fleet-provider-renderer
+    requirement_refs: [FR-B2, FR-B3]
+    unit_refs: [ipc-envelope-consumer-widening, ipc-envelope-producer-null-body]
+    adr_refs: [adr-ipc-response-envelope-null-body-ownership]
+    verification:
+      - id: provider-null-body-status
+        tier: T1
+        command: cd clients/ui && npx vitest run src/fleet/provider.null-body-status.test.ts
+      - id: preload-bridge-passes-null-body-verbatim
+        tier: T1
+        command: cd clients/workspace && npx vitest run tests/electron-preload-bridge.test.ts
+      - id: repository-preparations-null-body-keeps-tracked
+        tier: T1
+        command: cd clients/ui && npx vitest run src/fleet/provider.test.ts
+      - id: provider-status-parity-and-fidelity
+        tier: T2
+        command: cd clients/ui && npx vitest run src/fleet/provider.status-parity.test.ts
+
+  - id: contract-identity-ownership-gate
+    dimension: integration_contract
+    owner: component-identity-enforcement
+    requirement_refs: [FR-C1]
+    unit_refs: [identity-ownership-gate]
+    adr_refs: [adr-defer-branded-session-id-types]
+    verification:
+      - id: identity-owner-allowlist
+        tier: T2
+        command: cd clients/ui && npx vitest run src/__meta__/session-identity-ownership.test.ts
+      - id: serialize-client-frame-sole-importer
+        tier: T2
+        command: cd clients/ui && npx vitest run src/__meta__/session-identity-ownership.test.ts
+      - id: gate-fails-on-synthesized-violation
+        tier: T2
+        command: cd clients/ui && npx vitest run src/__meta__/session-identity-ownership.test.ts
+      - id: compile-time-boundary-closed
+        tier: T2
+        command: cd clients/ui && npm run typecheck
+    discretion:
+      - id: discretion-gate-scan-implementation
+        unit_ref: identity-ownership-gate
+        question: allowlist 走査の実装 (import 文の正規表現 / 行走査 / 簡易 AST) と合成違反 source の作り方 (fixture file / 文字列注入)。
+        scope:
+          files: [clients/ui/src/__meta__/session-identity-ownership.test.ts]
+          component: component-identity-enforcement
+          visibility: private
+        escalate_when:
+          - 走査対象を production source 以外 (test file / e2e / clients/workspace) へ広げる必要が出た場合
+          - allowlist の粒度を module 単位から symbol 単位へ変える場合
+          - 走査する symbol 集合を増減する必要が出た場合
+        constraints:
+          - 検出できない範囲 (helper を呼ばない暗黙依存 / tsconfig exclude 下の test tree / clients/workspace) を test の doc comment に明記する
+          - 新規依存を追加しない
+          - 合成違反に対して実際に落ちること
+        preserves:
+          contract_refs: [contract-identity-ownership-gate]
+        verification_refs: [identity-owner-allowlist, gate-fails-on-synthesized-violation]
+        difficulty_inputs:
+          decision_reasoning: mechanical
+          boundary_reach: private
+          context_scope: files
+          reversibility: trivial
+          verification_strength: discriminating
+          runtime_risk: normal
+          coupling: independent
+          grounding: evidenced
+
+adrs:
+  - id: adr-fleet-session-identity-boundary-ownership
+    status: accepted
+    decision_input_refs:
+      - decision-input-a-ssot-consolidation
+      - decision-input-dp1-upstream-required
+      - decision-input-dp2-failure-policy
+      - decision-input-dp3-dataplane-failure
+      - decision-input-rca-wire-owner
+      - decision-input-rca-store-owner
+      - decision-input-adr-serverid-internal
+      - decision-input-adr-wire-fixture-roundtrip
+      - decision-input-adr-exact-match-protocol
+      - decision-input-adr-session-protocol-owner
+      - decision-input-policy-workspace-no-reimpl
+      - decision-input-policy-file-length
+      - decision-input-critique-invariant-rescan
+      - decision-input-critique-dataplane-unpinned
+      - decision-input-implicit-local-server-fallback
+  - id: adr-ipc-response-envelope-null-body-ownership
+    status: accepted
+    decision_input_refs:
+      - decision-input-b-envelope-owner
+      - decision-input-dp5-envelope-order
+      - decision-input-policy-ipc-zero-value
+      - decision-input-policy-external-triple
+      - decision-input-harness-happy-dom
+  - id: adr-defer-branded-session-id-types
+    status: accepted
+    decision_input_refs:
+      - decision-input-a-branded-types
+      - decision-input-dp4-detector
+      - decision-input-adr-biome-sole-linter
+
+units:
+  - title: identity-owner-module
+    chunk: chunk-1-identity-authority
+    contract_refs: [contract-session-identity-types, contract-http-route-resolution]
+    files:
+      - clients/ui/src/fleet/session-identity.ts
+      - clients/ui/src/fleet/session-protocol.ts
+      - clients/ui/src/fleet/session-identity.test.ts
+    depends_on: []
+    acceptance:
+      - SessionRef / sessionKey / parseSessionKey が clients/ui/src/fleet/session-identity.ts へ移り、session-protocol.ts からは参照のみになる
+      - FleetSessionRow 型が id (fleet key) / serverId / upstreamSessionId を required で宣言し、同 module に置かれる
+      - resolveSessionRoute が行由来・decode 由来・unresolved の 3 系統を判別 union で返し、throw しない
+      - 行の権威が decode より優先されることが T0 test で固定される
+      - 挙動変更はまだ入らない (既存 test が全て緑のまま)
+    objective: 2 つの id 空間と store 行型、単一 resolver を 1 つのモジュールに定義し、以降の unit が参照できる権威を先に立てる。
+    output_format: 新規 TypeScript モジュールと T0 test。既存 import の付け替えのみで挙動は変えない。
+    tool_guidance: Read で既存 session-protocol.ts (432 行) の全体を把握してから carve-out する。既存 import 元は grep で列挙する。resolveSessionRoute は throw せず判別 union を返す (api/sessions.ts:289-309 の doFetch が throw を Error("network") へ写像するため)。
+    task_boundaries: api / store / socket の呼び出し側は変更しない。SessionInfo からの field 削除もこの unit では行わない。fleet key の encoding そのものは変えない。
+    decision_closure_reason: 型の分割・置き場所 (session-identity.ts)・resolver の優先順位と戻り型は contract-session-identity-types / contract-http-route-resolution と decision-1 / decision-2 で確定済み。
+
+  - title: connection-ingress-requalification
+    chunk: chunk-2-wire-boundary
+    contract_refs: [contract-wire-id-ingress]
+    files:
+      - clients/ui/src/socket/connection.ts
+      - clients/ui/src/socket/connection.test.ts
+    depends_on: [identity-owner-module]
+    acceptance:
+      - output / tt / et / activity_session_id / activity event の session_id / hello・view の sessions がすべて 1 つの再修飾経路を通る
+      - activity_session_id が bare のまま store へ渡らないことが test で固定される
+      - publishSessions !== false 分岐の tagSessions も同じ再修飾経路へ合流し、initialServerHint による独立 tagging が残らない (分岐自体は削除しない)
+      - 再修飾の割り当てが frame 数に比例しない (session 単位 memo)
+      - cfg.serverId 未設定時の素通し挙動が保たれる
+    objective: inbound 側の id 空間を fleet key に統一し、下流の alias 総当たりを不要にする前提条件を作る。
+    output_format: connection.ts の inbound 経路の変更と T1 test 追加。
+    tool_guidance: handleMessage の全 case を読み、sessionId を保持する要素を漏れなく列挙する (:305-309 output / fleetSessionID の tt,et / :356-363 activity_session_id / :405-415 qualifyHelloSessions / :326,:342 tagSessions)。wire/server.ts の ViewUpdateFrame も確認する。
+    task_boundaries: outbound (send / intent API) はこの unit では触らない。store 側の alias 撤去も行わない。cfg.serverId が fleet member でない場合の特別扱い (magic string 分岐) を作らない。
+    decision_closure_reason: 再修飾の対象集合と単一経路化は contract-wire-id-ingress と decision-1 で確定。memo 構造だけが discretion。
+
+  - title: connection-egress-intent-api
+    chunk: chunk-2-wire-boundary
+    contract_refs:
+      - contract-wire-id-egress
+      - contract-dataplane-unresolved-drop
+      - contract-egress-activation-compatibility
+    files:
+      - clients/ui/src/socket/connection.ts
+      - clients/ui/src/socket/retry.ts
+      - clients/ui/src/socket/retry.test.ts
+      - clients/ui/src/socket/connection.fleet-input.test.ts
+      - clients/ui/src/wire/client.ts
+    depends_on: [identity-owner-module]
+    acceptance:
+      - data plane の intent API (sendInput(fleetKey, data) / sendResize(fleetKey, cols, rows)) が追加され、fleet key を受け取り upstream id を wire に載せる
+      - send(frame) が private になり Connection の外から呼べなくなる。直列化は connection.ts の private sendFrame 1 箇所に戻る
+      - RetryDeps.send が (frame ClientFrame) => void になり、retry.ts は serializeClientFrame を import せず直列化も持たない
+      - serverId 不一致の入力で例外が出ず frame も出ず、server-mismatch counter だけが増え notification は 0 件であることが test で固定される
+      - decode 不能な入力で decode-failed counter が増え notification が (sessionId, reason) ごとに 1 lifecycle 1 件だけ出ることが test で固定される
+      - bare id を渡したときの素通しが保たれる
+      - 既存 RED connection.fleet-input.test.ts の 3 つの witness (fleet key→bare id 変換 / resize / bare id 素通し) を保存したまま intent API 形へ書き換えて緑になる
+      - 制御シーケンス ("\u001b[3~" など) が verbatim で wire に載る
+    objective: wire 境界の所有者を API 形状で確定し、Connection の外に frame 組み立て権威が残る経路 (retry.ts の bypass を含む) をすべて閉じる。
+    output_format: Connection の public API 変更、retry.ts の直列化削除、T1 test。
+    tool_guidance: "既存の upstreamSessionID / subscribeOnce / unsubscribeOnce / publishDesired の throw 契約を維持したまま data plane だけ別契約にする。connection.ts:192 の `send: (s) => this.ws?.send(s)` を `send: (f) => this.sendFrame(f)` へ置き換える。grep -rn serializeClientFrame clients/ui/src で production hit が socket/connection.ts だけになることを確認する。"
+    task_boundaries: TerminalPane の呼び出し側の移行は次の unit。store / api は触らない。counter の公開先を Connection の read-only getter 以外へ広げない。
+    decision_closure_reason: 例外を出さない drop、reason 別の記録 surface、intent API の粒度 (2 メソッド)、retry bypass の閉じ方は decision-3 / decision-4 で確定。dedup 保持構造と早期棄却の書き方だけが discretion。
+
+  - title: terminal-dataplane-intent-migration
+    chunk: chunk-2-wire-boundary
+    contract_refs: [contract-wire-id-egress, contract-egress-activation-compatibility]
+    files:
+      - clients/ui/src/components/TerminalPane.tsx
+      - clients/ui/src/components/DriverShortcutBar.tsx
+      - clients/ui/src/components/TerminalMobileOverlay.tsx
+      - clients/ui/src/components/TerminalPane.test.tsx
+    depends_on: [connection-egress-intent-api]
+    acceptance:
+      - TerminalPane の 4 emission site (:172 :182 :193 :276) が intent API を呼び、wire frame を組み立てない
+      - fake conn を使う既存 test 群 (newline-modifier / pc-baseline) が新しい intent API 形状に追随し、bare id 前提の assertion が壊れない
+      - mobile overlay と shortcut bar の sendInput 経路が同じ intent API に合流する
+      - fit 後の実寸 (debug run 実測 cols 107 / rows 32) で {k "r"} が wire に出ることが test で固定される
+    objective: frame 組み立て権威を component から取り除き、component は意図だけを渡す形にする。
+    output_format: component の呼び出し変更と既存 test の追随。
+    tool_guidance: TerminalPane.tsx の 169-194 と 271-277 を読み、xterm の同期 emitter 内で例外が出ないことを確認する。fake conn の形を intent API に合わせる際、assertion を弱めない。
+    task_boundaries: xterm の初期化・fit・geometry publish のロジックには触らない。
+    decision_closure_reason: 呼び出し形は contract-wire-id-egress で確定 (2 メソッドの intent API)。fake conn の形だけが実装時の追随事項。
+
+  - title: http-route-resolver-adoption
+    chunk: chunk-3-store-http-boundary
+    contract_refs: [contract-http-route-resolution]
+    files:
+      - clients/ui/src/api/sessions.ts
+      - clients/ui/src/api/transcripts.ts
+      - clients/ui/src/api/workspace.ts
+      - clients/ui/src/api/capsules.ts
+      - clients/ui/src/api/workspace.test.ts
+    depends_on: [identity-owner-module]
+    acceptance:
+      - 4 モジュールが URL path の session 成分を resolver 経由で得る。pinnedQuery の handle_session query param は routing 対象外として resolver を通さない
+      - 解決不能な id で HTTP 要求が 1 件も発行されず、かつその失敗が Error("network") として観察されないことが test で固定される
+      - P5 の bare id 素通しと P6 の invalid key throw が 1 つの unresolved に収束する
+      - transcripts の 304 / 204 分岐が新経路でも到達可能である
+      - resolver の分岐が doFetch の try に入る前 (要求発行前) で行われる
+    objective: store と HTTP 境界の 3 方針を 1 つに収束させ、失敗の名前を形式ではなく結果にする。
+    output_format: api 4 モジュールの変更と T0/T1/T2 test。api/workspace.test.ts は新規。
+    tool_guidance: 各モジュールの現行方針 (P4 sessions.ts:469-474 / P5 transcripts.ts:26 workspace.ts:191 / P6 capsules.ts:104) を先に列挙してから 1 方針へ寄せる。呼び出し元が catch で分岐を再発明していないか確認する。api/sessions.ts:471 の fleet.initialServerId() fallback は resolver に取り込まない。
+    task_boundaries: fleet/provider.ts の request 実装 (B 側) には触らない。store の行型変更は次の unit。handle_session の値を変換しない。
+    decision_closure_reason: 収束先 (typed rejection)、失敗の名前 (unresolved session)、戻り型 (判別 union / throw しない)、initialServerId fallback の扱いは decision-2 で確定。
+
+  - title: store-row-authority-and-equality
+    chunk: chunk-3-store-http-boundary
+    contract_refs: [contract-session-identity-types, contract-store-identity-equality]
+    files:
+      - clients/ui/src/store/daemon.ts
+      - clients/ui/src/store/statusSignals.ts
+      - clients/ui/src/store/workspaceActivity.ts
+      - clients/ui/src/App.tsx
+      - clients/ui/src/wire/server.ts
+    depends_on: [identity-owner-module, connection-ingress-requalification]
+    acceptance:
+      - store が FleetSessionRow を保持し、権威なしの行を作ると typecheck が落ちる
+      - SessionInfo から serverId? / serverLabel? / upstreamSessionId? が削除される
+      - sessionIdAliases / sessionIdsMatch が削除され、同一性判定が厳密一致になる
+      - signalIdentityKey が row.id と epoch の合成だけを返し、parseSessionKey / sessionKey / upstreamSessionId / serverId を参照しない
+      - Go 生成 fixture の round-trip (wire/codec.test.ts) が引き続き緑
+      - 525b3091 が固定した再接続時の bell 抑止挙動が保たれる
+      - 同一 upstream id を持つ別 server session が同時に存在しても status signal の consume map が混ざらない
+    objective: 権威を型で required にし、下流の alias 吸収を撤去する。
+    output_format: store 3 モジュールと App.tsx / wire/server.ts の変更、既存 test の追随。
+    tool_guidance: 先に connection-ingress-requalification が入っていることを確認してから alias を消す (順序制約)。fixture factory 9 箇所と session literal を作る test file 21 を grep で列挙して一括更新する。
+    task_boundaries: publishSessions !== false 分岐そのものの削除と frameMessaging の production 未到達問題は直さない。fleet key の encoding は変えない。
+    decision_closure_reason: 型分割と SessionInfo からの field 削除、signalIdentityKey の確定形は decision-1 / contract-store-identity-equality で確定。churn は許容すると決めた。
+
+  - title: ipc-envelope-consumer-widening
+    chunk: chunk-4-ipc-envelope
+    contract_refs: [contract-host-transport-parity]
+    files:
+      - clients/ui/src/auth.ts
+      - clients/ui/src/fleet/provider.ts
+      - clients/ui/src/fleet/provider.null-body-status.test.ts
+      - clients/ui/src/fleet/provider.status-parity.test.ts
+      - clients/workspace/src/preload/index.ts
+      - clients/workspace/src/preload/electron-preload.cjs
+      - clients/workspace/tests/electron-preload-bridge.test.ts
+    depends_on: []
+    acceptance:
+      - renderer (auth.ts) と preload (index.ts) の envelope 型宣言が body string | null を受け入れる
+      - provider.request が null body status で例外を出さず Response を返す
+      - provider.request が旧 main の {status 204, body ""} を受けても例外を出さず、その分岐の存在理由 (build がコピー同梱のため main/renderer の対が崩れうる) を code comment に書く
+      - provider.ts:536-538 の repository-preparations が result.body null のとき JSON.parse せず tracked.preparation を維持する
+      - 実行時 bridge (electron-preload.cjs) が envelope の body null を coercion なしで renderer へ渡すことを runtime test が固定する
+      - 既存 RED provider.null-body-status.test.ts が緑になる
+      - fake bridge が real の builder に合わせて null body status で null を返すよう修正され、型注釈も string | null になる
+      - status 行列 {200,201,204,205,304,400,404,500} の parity test が両 provider で一致し、fake が real より寛容だと落ちる
+    objective: consumer を先に広げ、producer 変更が入る前後どちらでも renderer が壊れない状態を作る。
+    output_format: 型宣言 2 箇所 (renderer / preload) の変更、provider の 2 分岐、preload bridge の runtime test、T1/T2 test。
+    tool_guidance: fake を real より寛容にしないこと。fake が real と食い違ったら fake を直す。electron-preload.cjs の runtime test は clients/workspace/tests/app-entry.test.ts の require 方式に倣い electron を stub する。
+    task_boundaries: main 側 electron-entry.ts はこの unit では変更しない (順序制約)。fleetFetch の認証・redirect 拒否ロジックには触らない。renderer 側 defensive 分岐は削除しない (恒久の二重化)。
+    decision_closure_reason: consumer-first 順序、defensive 分岐を残すこと、第 2 consumer の扱い、実行時 bridge を型でなく runtime test で担保することは decision-5 で確定。
+
+  - title: ipc-envelope-producer-null-body
+    chunk: chunk-4-ipc-envelope
+    contract_refs: [contract-ipc-null-body-envelope, contract-host-transport-parity]
+    files:
+      - clients/workspace/src/shared/http-envelope.ts
+      - clients/workspace/src/main/electron-entry.ts
+      - clients/workspace/tests/http-envelope.test.ts
+    depends_on: [ipc-envelope-consumer-widening]
+    acceptance:
+      - envelope の型と builder が clients/workspace/src/shared/http-envelope.ts に置かれ、preload がそこから型を得る
+      - main が null body status のときだけ body null を出す
+      - platform oracle guard が null body status 集合の各要素で new Response("", {status}) が throw し、集合外の代表 status (200/201/400/500) では throw しないことを検証し、集合が変わったら落ちる
+      - 200 で本文が空文字のときは body が空文字であって null ではない
+      - upstream が 204 に本文を付けても envelope は null を出す
+    objective: 不変条件の所有者を main 側 envelope 型に置き、同じ境界を通る次のルートが無音で壊れないようにする。
+    output_format: 新規 shared モジュールと electron-entry の handler 変更、T1/T2 test。
+    tool_guidance: ipcMain.handle は import 時に登録され直接 test できないため、envelope 生成を pure function に切り出してから handler を書き換える。clients/workspace/src/shared/control-envelope.ts が先例。定数は platform oracle に従属させる。
+    task_boundaries: fleetFetch の認証・redirect 拒否ロジックには触らない。webProvider 側は変更しない。renderer / preload の型はこの unit では変えない (前 unit で済んでいる)。
+    decision_closure_reason: 所有者と表現 (body string | null)、置き場所 (src/shared)、定数と oracle の従属関係は decision-5 と contract-ipc-null-body-envelope で確定。builder の形だけが discretion。
+
+  - title: identity-ownership-gate
+    chunk: chunk-5-enforcement
+    contract_refs: [contract-identity-ownership-gate]
+    files:
+      - clients/ui/src/__meta__/session-identity-ownership.test.ts
+      - docs/note/note-20260624-technical-code-enforcement.md
+    depends_on:
+      - connection-egress-intent-api
+      - store-row-authority-and-equality
+      - http-route-resolver-adoption
+    acceptance:
+      - 所有者集合の外から sessionKey / parseSessionKey を import すると test が落ちる (allowlist = src/fleet/session-identity.ts, src/socket/connection.ts)
+      - production source で serializeClientFrame を import できるのは src/socket/connection.ts だけであり、retry.ts に 1 行戻すと落ちる
+      - selectCodec / generatedCodecStub の production importer が src/wire/codec.ts だけであることも走査する
+      - 合成した違反 source (allowlist 外 module からの sessionKey import、および serializeClientFrame import) に対して gate が実際に失敗する negative test を持つ
+      - test の doc comment が検出できない範囲を明記している (helper を呼ばない暗黙依存 / tsconfig exclude により test tree は typecheck されないこと / clients/workspace は走査対象外であること)
+      - 新規依存を追加していない
+      - enforcement catalogue に節が追加されている
+    objective: 境界の帰結として得られる compile 時検出を、import 所有者の allowlist と検出器自身の発火証明で補う。
+    output_format: fitness test 1 file と note への追記。
+    tool_guidance: src/__meta__/no-japanese.test.ts の per-file allowlist と締め方針の書き方に倣う。走査範囲は src/**/*.ts(x) から *.test.ts(x) / __meta__ / __tests__ を除いた production source。
+    task_boundaries: branded types は導入しない。ESLint / typescript-eslint も追加しない。走査対象を clients/workspace へ広げない (scope 外)。
+    decision_closure_reason: 検出器の組合せ、allowlist の粒度 (module 単位)、走査する symbol 集合、negative test の必要性は decision-4 で確定。走査実装だけが discretion。
+
+acceptance:
+  - id: AC-01
+    criteria: fleet-qualified なセッションで SPA の terminal に打鍵すると、gateway に upstream (bare) id を持つ {k:"i"} が届き、PTY が入力を受け取ってエコーが画面に現れる。real-stack e2e (T3) で end-to-end に観測できる。
+    requirement_refs: [FR-A1, FR-A2]
+  - id: AC-02
+    criteria: production source (clients/ui/tsconfig.json の include 範囲) において、ClientFrame の組み立てと serializeClientFrame の呼び出しが clients/ui/src/socket/connection.ts の外に存在しない。retry.ts に import を 1 行戻すと unit suite が落ちる。
+    requirement_refs: [FR-A2, FR-C1]
+  - id: AC-03
+    criteria: cfg.serverId と一致しない serverId を持つ key で {k:"i"} を 50 回送っても例外は 1 度も出ず、frame は 1 件も出ず、server-mismatch counter が 50 になり notification は 0 件。decode 不能な値では decode-failed counter が増え notification は 1 件だけ増える。
+    requirement_refs: [FR-A3]
+  - id: AC-04
+    criteria: gateway から届く activity_session_id と activity event の session_id が fleet key に再修飾されて store に渡り、alias 総当たりなしで activity drawer の scope 照合が成立する。再接続 hello の bell 抑止も保たれる。
+    requirement_refs: [FR-A4, FR-A7]
+  - id: AC-05
+    criteria: 解決不能な session id を api layer に渡しても HTTP 要求は 1 件も発行されず、呼び出し側は 1 種類の typed failure を受け取る。その失敗は Error("network") として観察されない。4 モジュールで挙動が同一であり、handle_session query param は resolver を通らない。
+    requirement_refs: [FR-A5, FR-A6]
+  - id: AC-06
+    criteria: production source において権威 (serverId / upstreamSessionId) を持たない store 行はコンパイルできず、SessionInfo から client 専用 field が消えており、Go 生成 fixture の wire round-trip は引き続き緑である。
+    requirement_refs: [FR-A7]
+  - id: AC-07
+    criteria: Workspace で停止・既読マーク・ログのポーリングが成功し、成功した操作が network error として報告されない。204 と 304 が例外にならず status を保って renderer に届き、envelope の body null が preload を coercion なしで素通しし、repository-preparations tracker が null で潰れない。
+    requirement_refs: [FR-B1, FR-B2]
+  - id: AC-08
+    criteria: renderer と main の envelope の対が崩れた中間状態 (renderer が新しく main が古い) でも renderer は例外にならない。この耐性は provider.null-body-status.test.ts の legacy-empty-body ケースで判定する。
+    requirement_refs: [FR-B3]
+  - id: AC-09
+    criteria: 所有者集合の外から identity 変換 helper または serializeClientFrame を import すると unit suite が落ち、合成した違反 source に対して gate が実際に失敗することが negative test で示され、gate が検出できない範囲 (暗黙依存 / test tree / clients/workspace) が test 自身に明記されている。
+    requirement_refs: [FR-C1]
+  - id: AC-10
+    criteria: 打鍵経路で compound key でない値に対する JSON parse が起きず、output frame の再修飾割り当てが frame 数に比例しない。
+    requirement_refs: [NFR-PERF-001, NFR-PERF-002]
+  - id: AC-11
+    criteria: 新規 runtime 依存が増えておらず、lint は Biome のままで、fake が real より寛容だと status parity / fidelity test が落ちる。
+    requirement_refs: [NFR-DEP-001, NFR-TEST-001]
+  - id: AC-12
+    criteria: fix 後に {k:"r"} が SPA の実寸 (debug run 実測 cols 107 / rows 32) で wire に出て gateway に到達し、制御シーケンス ("\u001b[3~" = Delete) が verbatim で載る。既存セッションの scrollback が壊れない。
+    requirement_refs: [FR-A8]
+
+dispositions:
+  - decision_input_ref: decision-input-a-ssot-consolidation
+    disposition: adopted。SSOT を「変換関数の置き場所」ではなく「境界ごとに公開 API が話す id 空間を 1 つに固定すること」として実装する。局所修正 (option-1) は却下済み。
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    contract_refs:
+      - contract-wire-id-egress
+      - contract-wire-id-ingress
+      - contract-http-route-resolution
+      - contract-session-identity-types
+  - decision_input_ref: decision-input-a-branded-types
+    disposition: rejected (本 change では採らない)。API 形状 (send private + intent API) と型分割で wire 境界と store 境界が閉じ、branded types の残余保護範囲は所有者を迂回して socket を直接触るコードに縮む。その経路は API 形状で既に塞がれている。ADR に再訪条件 (迂回する新交差点が 1 つでも現れたら別 change として起票。その際 eslint への切替は package.json swap で可能) を記録する。
+    adr_refs: [adr-defer-branded-session-id-types]
+    contract_refs: [contract-identity-ownership-gate]
+  - decision_input_ref: decision-input-b-envelope-owner
+    disposition: adopted。不変条件の所有者は clients/workspace/src/shared/http-envelope.ts に置く envelope 型と builder。renderer 側の分岐は恒久の二重化として併置する (build がコピー同梱で対が崩れうるため)。
+    adr_refs: [adr-ipc-response-envelope-null-body-ownership]
+    contract_refs: [contract-ipc-null-body-envelope, contract-host-transport-parity]
+  - decision_input_ref: decision-input-dp1-upstream-required
+    disposition: rejected (どちらの候補も採らない)。SessionInfo は Go 生成 fixture の decode 先なので client 専用 field を required にできない。型を分割し FleetSessionRow 側で required にすることで「未設定時方針」という問い自体を消す。あわせて SessionInfo から serverId? / serverLabel? / upstreamSessionId? を削除し、2 つの型が同時に権威を名乗る状態を残さない。
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    contract_refs: [contract-session-identity-types]
+  - decision_input_ref: decision-input-dp2-failure-policy
+    disposition: adopted (typed rejection へ収束)。失敗の名前は unresolved session。根拠は P5 の非 fleet 経路がどの shipping host でも成功しないという観測 (web-host に /api ルートなし、server に SPA 配信なし、vite dev に /api proxy なし)。resolver は throw せず判別 union を返す (doFetch の network error 写像に吸われないため)。
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    contract_refs: [contract-http-route-resolution]
+  - decision_input_ref: decision-input-dp3-dataplane-failure
+    disposition: adopted。throw しない。frame を破棄し reason 別に記録する。decode-failed (内部契約違反) は notification + counter、server-mismatch (server 切替の正常遷移窓) は counter のみ。制御プレーンの throw 契約は維持する。
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    contract_refs: [contract-dataplane-unresolved-drop]
+  - decision_input_ref: decision-input-dp4-detector
+    disposition: adopted (組合せで確定)。API 形状と型分割を主検出器、fitness test を補助とし、検出器自身が合成違反で落ちる negative test を必須成果物にする。lint rule 案は却下 — 根拠は ADR-0020 の supersede コストではなく (1) NFR-DEP-001 (typescript-eslint 一式で 4-5 個の依存追加と make lint 実行時間) と (2) type-aware rule が捕らえる交差点が API 形状 + 型分割の捕らえる集合の部分集合であること。branded types は繰り延べ。
+    adr_refs: [adr-defer-branded-session-id-types]
+    contract_refs:
+      - contract-identity-ownership-gate
+      - contract-wire-id-egress
+      - contract-session-identity-types
+  - decision_input_ref: decision-input-dp5-envelope-order
+    disposition: adopted (consumer-first)。renderer/preload の型を広げる → main が null を出す。Electron が clients/ui の dist をコピー同梱するため producer 先行だと対の崩れた組合せが壊れうる。実行時 bridge (electron-preload.cjs) は型検査対象外なので runtime test で担保する。
+    adr_refs: [adr-ipc-response-envelope-null-body-ownership]
+    contract_refs: [contract-host-transport-parity]
+  - decision_input_ref: decision-input-rca-wire-owner
+    disposition: adopted (強化)。Connection を所有者とするだけでなく、send を private 化し直列化を private sendFrame へ戻して frame 組み立て権威も移す。retry.ts の bypass もこの unit で閉じる。
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    contract_refs: [contract-wire-id-egress, contract-wire-id-ingress]
+  - decision_input_ref: decision-input-rca-store-owner
+    disposition: adopted (担体を変更)。field (SessionInfo.upstreamSessionId) は権威の担体であって所有者ではない。所有者は identity モジュール (resolver + FleetSessionRow 型) とする。
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    contract_refs: [contract-session-identity-types, contract-http-route-resolution]
+  - decision_input_ref: decision-input-red-green
+    disposition: adopted。3 本すべてを GREEN 化対象とする。connection.fleet-input.test.ts は 3 つの witness を保存したまま intent API 形へ書き換える。provider.null-body-status.test.ts は fake が real より寛容 (204 に body "") なため所有者移動を判別できない — fake を real 準拠へ修正し型注釈を string | null へ広げ、workspace 側に real builder の test と preload bridge の runtime test を追加して初めて要件を満たすとみなす。
+    adr_refs: [adr-ipc-response-envelope-null-body-ownership]
+    contract_refs:
+      - contract-host-transport-parity
+      - contract-ipc-null-body-envelope
+      - contract-wire-id-egress
+  - decision_input_ref: decision-input-critique-dataplane-unpinned
+    disposition: adopted。serverId 不一致の {k:"i"} が throw せず drop と counter になり notification を出さないことを固定する test を本 change の必須成果物とする。
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    contract_refs: [contract-dataplane-unresolved-drop]
+  - decision_input_ref: decision-input-critique-invariant-rescan
+    disposition: adopted (実施済み)。helper を呼ばない交差点を 2 つ確定 (connection.ts:356-363 の activity_session_id、workspaceActivity.ts:491-492 の event.session_id)。helper 名を key にした hit 15 に 2 を加えて交差点は 17。上流 call site 総数 19 とは別の母数であり、差分 2 件は id 空間をまたがない call site。両者を FR-A4 の対象に含める。
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    contract_refs: [contract-wire-id-ingress, contract-store-identity-equality]
+  - decision_input_ref: decision-input-critique-e2e-discriminator
+    disposition: not_applicable (本 change の contract には含めない)。real-stack spec の判別子を echo で始まる文字列へ強める改善は spec の GREEN 化とは別の test 改善であり、decision-input-realstack-ci-placement と同じ follow-up issue へ束ねる。
+    adr_refs: []
+    contract_refs: []
+  - decision_input_ref: decision-input-critique-hasdom-scope
+    disposition: not_applicable (harness 側の hardening として記録)。test-setup.ts の hasDOM を module scope const から各 hook 内評価へ変える改善は本 change の contract に含めない。
+    adr_refs: []
+    contract_refs: []
+  - decision_input_ref: decision-input-harness-happy-dom
+    disposition: adopted (限定形)。本 change では file 単位の node environment 隔離を継続し、規約化と happy-dom の real 準拠化は harness 側の別案件として残す。envelope の platform oracle guard がこの gap の局所的な代替になる。
+    adr_refs: [adr-ipc-response-envelope-null-body-ownership]
+    contract_refs: [contract-ipc-null-body-envelope]
+  - decision_input_ref: decision-input-realstack-ci-placement
+    disposition: not_applicable (scope 外として具体形付きで閉じる)。本 change は GREEN 化までを担う。常設するなら test-harness/profiles.json の nightly profile (T3 の唯一の常設先。pr profile に real-stack は無い) へ command を追加することを意味し、当該 file は test-harness/protected.json の tamper 保護対象 (required_markers pre-push / nightly) なので trusted harness gate を通る変更になる。この具体形を follow-up issue に記録する。
+    adr_refs: []
+    contract_refs: []
+  - decision_input_ref: decision-input-nongoal-gateway-silent-drop
+    disposition: not_applicable (scope 外を維持)。ただし data plane の観測可能性契約 (contract-dataplane-unresolved-drop) の根拠として参照する。起票先を change の closure notes に明記する。
+    adr_refs: []
+    contract_refs: [contract-dataplane-unresolved-drop]
+  - decision_input_ref: decision-input-nongoal-symptom1
+    disposition: not_applicable (scope 外を維持)。critique が加えた候補 (根本原因 B の二次症状) は本 change 適用後に自動判別されるため、bug-report の closure を Electron 実機再観測まで保留する条件だけを残す。
+    adr_refs: []
+    contract_refs: []
+  - decision_input_ref: decision-input-adr-serverid-internal
+    disposition: adopted (制約として適用)。serverId 成分が upstream wire に出ないことが FR-A1 の根拠であり、views が ref を持つという ADR の記述が構造化 route を運ぶ設計を支持する。
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    contract_refs: [contract-wire-id-egress, contract-http-route-resolution]
+  - decision_input_ref: decision-input-adr-wire-fixture-roundtrip
+    disposition: adopted (制約として適用)。SessionInfo に client 専用の required field を足せないことが decision-1 を決定づけた。
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    contract_refs: [contract-session-identity-types]
+  - decision_input_ref: decision-input-adr-exact-match-protocol
+    disposition: adopted (制約として適用)。bare id 素通しを互換 path として温存する選択肢を排除する。参照 id は adr-20260727-exact-match-client-server-protocol (draft-2 が decision-2 の根拠文で -platform と綴っていた誤りを訂正)。
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    contract_refs: [contract-http-route-resolution]
+  - decision_input_ref: decision-input-adr-session-protocol-owner
+    disposition: adopted (制約として適用)。identity 所有者は fleet module 内に置く。同居ではなく同一 directory への carve-out (fleet/session-identity.ts) に確定した (session-protocol.ts が既に 432 行で責務が 2 つになるため)。clients/workspace/src/shared/session-ref.ts の第 2 encoder を canonical fixture で拘束する件は本 change から切り離し follow-up issue とする (change.md の scope 宣言に無く、FR-C1 から導かれず、本 change が encoding を変えないため drift を活性化しない)。
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    contract_refs: [contract-session-identity-types]
+  - decision_input_ref: decision-input-adr-biome-sole-linter
+    disposition: adopted (制約として適用)。ESLint / typescript-eslint を追加せず lint rule 案を選択肢から除外する。ただし却下根拠は ADR-0020 の supersede コストではない — ADR 本文 :61-62 は「falling back to eslint later is a package.json swap, not a code change」と反転コストの低さを明示している。根拠は NFR-DEP-001 と、type-aware rule の捕捉集合が API 形状 + 型分割の部分集合であること。
+    adr_refs: [adr-defer-branded-session-id-types]
+    contract_refs: [contract-identity-ownership-gate]
+  - decision_input_ref: decision-input-policy-ipc-zero-value
+    disposition: adopted (制約として適用)。body 空文字が本文なしを意味する状態を廃し、別表現 (null) を与える。根本原因 B の修正は新方針ではなく既存 design 規律の未適用の是正である。
+    adr_refs: [adr-ipc-response-envelope-null-body-ownership]
+    contract_refs: [contract-ipc-null-body-envelope]
+  - decision_input_ref: decision-input-policy-external-triple
+    disposition: adopted (制約として適用)。fake (bridge) / fidelity backstop (fake が real より寛容でない) / 不変条件を名指す contract test の 3 点を envelope seam に置く。実行時 bridge の runtime test も同 seam に加える。
+    adr_refs: [adr-ipc-response-envelope-null-body-ownership]
+    contract_refs: [contract-host-transport-parity, contract-ipc-null-body-envelope]
+  - decision_input_ref: decision-input-policy-workspace-no-reimpl
+    disposition: adopted (制約として適用)。envelope 型を workspace 側に置くことは wire decoding の再実装に当たらない (status から body の有無を決めるのは HTTP semantics の転写であり、session presentation でも auth resolution でもない)。既存の sessionKey 再実装 (shared/session-ref.ts) は本 change の scope 外として follow-up issue へ送る。
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    contract_refs: [contract-ipc-null-body-envelope]
+  - decision_input_ref: decision-input-policy-file-length
+    disposition: adopted (制約として適用)。session-protocol.ts が既に 432 行であることが identity 所有者を同一 directory の別 file へ carve-out する根拠のひとつ。分離を確定した。
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    contract_refs: [contract-session-identity-types]
+  - decision_input_ref: decision-input-implicit-local-server-fallback
+    disposition: >-
+      not_applicable (scope 外。到達性を実測して decision-2 の前提に接地させた)。App.tsx:80-85 の
+      `return selected ?? "local"` は transport binding 専用の sentinel であり id 空間に入らない。
+      実測 (静的 call graph) — (1) HTTP routing の serverId は parseSessionKey(id)?.serverId か
+      fleet.initialServerId() から得るが、後者 (provider.ts:237-242 の explicitServerId) は hostedModeInfo か
+      ?server= を返し、無ければ null を返す ("local" は返らず api/sessions.ts:472 が "No server selected" を throw する)。
+      (2) store 行の serverId は App.tsx:134-141 が FleetSnapshot の ref.serverId から作る。
+      (3) "local" の唯一の consumer は fleet.activeConnection と Connection cfg で、
+      webProvider.activeConnection (provider.ts:441-452) は serverId === "local" の明示分岐で
+      same-origin の /api/ws-ticket と /ws を選ぶ。(4) その endpoint はどの shipping host にも存在しない。
+      (5) "local" が生じるのは activeSessionID も explicitServerId も無いときだけで、その状態では data plane 送出も起きない。
+      したがって decision-2 の無退行主張は成立する。限界 — runtime 観測ではなく静的 call graph の実測。
+      falsifier — 同一 origin で SPA と gateway を配信する host 構成が追加されると "local" 接続と P5 が
+      同時に活性化する (decision-2 と同一の falsifier)。ARCHITECTURE.md の implicit default server 禁止への
+      抵触判断は follow-up issue で起票する。
+    adr_refs: [adr-fleet-session-identity-boundary-ownership]
+    contract_refs: [contract-http-route-resolution, contract-wire-id-ingress]
