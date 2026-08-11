@@ -16,8 +16,17 @@ function stringifyConsoleArg(value: unknown): string {
   }
 }
 
+/**
+ * Files that opt out of the project-wide happy-dom environment with a
+ * `// @vitest-environment node` docblock still run this shared setup file.
+ * Console capture, allowlist enforcement and store hygiene stay active there;
+ * only the DOM-touching hooks stand down. Keep the guard on `document` so a
+ * DOM environment never takes the no-op path.
+ */
+const hasDOM = typeof document !== "undefined";
+
 beforeEach(() => {
-  window.history.replaceState({}, "", "/?server=test-server");
+  if (hasDOM) window.history.replaceState({}, "", "/?server=test-server");
   consoleCalls = [];
   console.error = (...args: unknown[]) => {
     const message = args.map(stringifyConsoleArg).join(" ");
@@ -33,7 +42,7 @@ beforeEach(() => {
 
 afterEach((context) => {
   // Unmount subscriptions before test-local afterEach hooks reset shared stores.
-  act(() => cleanup());
+  if (hasDOM) act(() => cleanup());
   console.error = originalConsole.error;
   console.warn = originalConsole.warn;
   const testName = context.task.name;
@@ -326,6 +335,7 @@ const _xtermTokenDefaults: ReadonlyArray<[string, string]> = [
 ];
 
 function _applyXtermTokenDefaults(): void {
+  if (!hasDOM) return;
   for (const [token, value] of _xtermTokenDefaults) {
     // Only set if not already explicitly set by the current test's beforeEach.
     // Use setProperty unconditionally — a test that needs different values
@@ -335,6 +345,7 @@ function _applyXtermTokenDefaults(): void {
 }
 
 function _removeXtermTokenDefaults(): void {
+  if (!hasDOM) return;
   for (const [token] of _xtermTokenDefaults) {
     document.documentElement.style.removeProperty(token);
   }
