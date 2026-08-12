@@ -170,7 +170,7 @@ func resolveCodexModelEffort(cs CodexState, stripped string) (CodexState, string
 	return cs, stripped
 }
 
-func (d CodexDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, baseCommand string, options state.LaunchOptions, sandboxed bool) (state.LaunchPlan, error) {
+func (d CodexDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, baseCommand string, options state.LaunchOptions) (state.LaunchPlan, error) {
 	cs, ok := s.(CodexState)
 	if !ok {
 		cs = CodexState{}
@@ -197,10 +197,6 @@ func (d CodexDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, p
 		if cfg, parseErr := libcodex.ParseCommand(argv); parseErr == nil {
 			stream.DangerouslyBypassPermissions = cfg.DangerouslyBypassPermissions
 		}
-	}
-	if sandboxed {
-		stream.SandboxPolicy = state.StreamSandboxPolicyExternal
-		stream.ApprovalPolicy = state.StreamApprovalPolicyAutoApprove
 	}
 	if mode != state.LaunchModeColdStart || hasResumeToken(base) {
 		if mode == state.LaunchModeColdStart && hasResumeToken(base) {

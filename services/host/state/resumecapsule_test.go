@@ -23,7 +23,7 @@ func (capsuleSrcDriver) Name() string                       { return "capsulesrc
 func (capsuleSrcDriver) DisplayName() string                { return "capsulesrc" }
 func (capsuleSrcDriver) Status(s DriverState) Status        { return s.(capsuleSrcState).status }
 func (capsuleSrcDriver) NewState(now time.Time) DriverState { return capsuleSrcState{} }
-func (capsuleSrcDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, _ bool) (LaunchPlan, error) {
+func (capsuleSrcDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions) (LaunchPlan, error) {
 	return LaunchPlan{Command: baseCommand, StartDir: project}, nil
 }
 func (capsuleSrcDriver) Persist(s DriverState) map[string]string { return nil }

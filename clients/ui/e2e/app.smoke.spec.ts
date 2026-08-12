@@ -14,7 +14,7 @@ test("keeps 16px horizontal palette margins on a narrow Workspace viewport", asy
     sessionConfig: {
       project_roots: ["/repo/app"],
       project_paths: ["/repo/app"],
-      projects: [{ path: "/repo/app", isGit: true, isSandboxed: false }],
+      projects: [{ path: "/repo/app", isGit: true }],
       commands: ["claude"],
       push_commands: [],
     },
@@ -62,7 +62,7 @@ test("New Session keeps Execution Server compact above Command and changes to a 
     sessionConfig: {
       project_roots: ["/repo/app"],
       project_paths: ["/repo/app"],
-      projects: [{ path: "/repo/app", isGit: true, isSandboxed: false }],
+      projects: [{ path: "/repo/app", isGit: true }],
       commands: ["claude"],
       push_commands: [],
     },
@@ -185,8 +185,8 @@ test("renders live sessions and completes a new-session submission against the f
       project_roots: ["/repo/app", "/repo/tools"],
       project_paths: ["/repo/app", "/repo/tools"],
       projects: [
-        { path: "/repo/app", isGit: true, isSandboxed: false },
-        { path: "/repo/tools", isGit: false, isSandboxed: true },
+        { path: "/repo/app", isGit: true },
+        { path: "/repo/tools", isGit: false },
       ],
       commands: ["claude", "gemini"],
       push_commands: ["save", "status"],
@@ -297,7 +297,6 @@ test("project and command candidate lists remain scrollable while their filters 
   const projects = Array.from({ length: 60 }, (_, index) => ({
     path: `/repo/project-${String(index).padStart(2, "0")}`,
     isGit: true,
-    isSandboxed: true,
   }));
   const commands = Array.from(
     { length: 60 },
@@ -394,9 +393,7 @@ test("project and command candidate lists remain scrollable while their filters 
   const commandFilterY = (await commandFilter.boundingBox())?.y;
   const actionsY = (await page.getByTestId("palette-actions").boundingBox())?.y;
   const worktree = page.getByRole("switch", { name: "worktree" });
-  const host = page.getByRole("switch", { name: "Run on host" });
   const worktreeY = (await worktree.boundingBox())?.y;
-  const hostY = (await host.boundingBox())?.y;
   await commandList.hover();
   await page.mouse.wheel(0, 500);
   await expect.poll(() => commandList.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
@@ -406,7 +403,6 @@ test("project and command candidate lists remain scrollable while their filters 
   expect((await commandFilter.boundingBox())?.y).toBe(commandFilterY);
   expect((await page.getByTestId("palette-actions").boundingBox())?.y).toBe(actionsY);
   expect((await worktree.boundingBox())?.y).toBe(worktreeY);
-  expect((await host.boundingBox())?.y).toBe(hostY);
 
   const dialog = page.getByRole("dialog", { name: "Command Palette" });
   const dialogBox = await dialog.boundingBox();
@@ -448,7 +444,7 @@ test("renders resumed Codex status updates from running to waiting", async ({ pa
     sessionConfig: {
       project_roots: ["/repo/app"],
       project_paths: ["/repo/app"],
-      projects: [{ path: "/repo/app", isGit: true, isSandboxed: false }],
+      projects: [{ path: "/repo/app", isGit: true }],
       commands: ["codex"],
       push_commands: [],
     },

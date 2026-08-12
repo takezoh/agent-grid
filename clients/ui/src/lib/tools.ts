@@ -4,8 +4,6 @@
 // ADRs:
 //   - 0036 palette-2phase-store-architecture (store is pure state; I/O lives
 //     in ToolDef.submit, ctx-injected)
-//   - 0042 palette-new-session-payload-wire-mirror (new-session sends
-//     sandbox: "host" on the wire; the in-UI "host" toggle maps to that)
 //   - 0047 palette-disabledreason-single-source (push availability and
 //     submit-time re-validation share a single disabledReason(daemon)
 //     function per ToolDef)
@@ -259,27 +257,16 @@ function readOptionalBool(payload: Record<string, unknown>, key: string): boolea
   return v;
 }
 
-// readOptionalHostFlag interprets the in-UI "host" toggle (boolean) and
-// projects it onto the wire vocabulary defined by ADR-0042: true → "host",
-// false / absent → undefined (= "auto" on the server). We keep "host" the
-// only legal string so a future "sandbox": "auto" leak in the payload is
-// caught at the type level.
-function readSandboxFromHostToggle(payload: Record<string, unknown>): "host" | undefined {
-  const host = readOptionalBool(payload, "host");
-  return host === true ? "host" : undefined;
-}
-
 const newSessionTool: ToolDef = {
   id: "new-session",
   label: "New Session",
   scope: "standard",
   // project = dynamic listbox (materialized from ctx.daemon.projects at
   // param-select time via materializeKey = 'projects'); command = free-form
-  // text input. worktree / sandbox are NOT declared as params here because
-  // the ParamSelectPhase gates them via Tab / Shift+Tab toggles whose
-  // visibility depends on the selected project's isGit / isSandboxed flags
-  // (FR-013, FR-014). They flow through `payload` as optional fields
-  // ("worktree": bool, "host": bool) — see submit below.
+  // text input. worktree is NOT declared as a param here because the
+  // ParamSelectPhase gates it via a Tab toggle whose visibility depends on
+  // the selected project's isGit flag (FR-013). It flows through `payload`
+  // as an optional field ("worktree": bool) — see submit below.
   params: [
     {
       id: "project",
@@ -308,11 +295,10 @@ const newSessionTool: ToolDef = {
         : selectedProject?.serverId;
     const command = readString(payload, "command");
     const worktree = readOptionalBool(payload, "worktree");
-    const sandbox = readSandboxFromHostToggle(payload);
     const geometry = ctx.getTerminalGeometry();
     // Build the payload with only present fields so JSON.stringify doesn't
-    // serialize "worktree": undefined / "sandbox": undefined (which would
-    // break the server's omitempty contract on round-trip).
+    // serialize "worktree": undefined (which would break the server's
+    // omitempty contract on round-trip).
     const profile =
       target.source === "project"
         ? selectedProject?.commandProfiles?.find((candidate) => candidate.id === command)
@@ -350,7 +336,6 @@ const newSessionTool: ToolDef = {
       cols?: number;
       rows?: number;
       worktree?: boolean;
-      sandbox?: "host";
     } = {
       project: project as string,
       version: 2,
@@ -364,7 +349,6 @@ const newSessionTool: ToolDef = {
       req.rows = geometry.rows;
     }
     if (worktree !== undefined) req.worktree = worktree;
-    if (sandbox !== undefined) req.sandbox = sandbox;
     const rc = await ctx.http.createSession(req);
     ctx.daemonActions.selectSession(rc.id);
     // Notification first, then close: if notify throws the palette stays

@@ -26,9 +26,6 @@ func TestDirectDispatcher_WrapManagedMCPToolsPreservesHomeAndInjectsMCPConfig(t 
 	if wrapped.Env["HOME"] != realHome {
 		t.Fatalf("HOME = %q, want preserved %q", wrapped.Env["HOME"], realHome)
 	}
-	if wrapped.Cleanup != nil {
-		t.Fatal("launch-scoped MCP configuration must not install HOME cleanup")
-	}
 	if wrapped.Env["AG_SOCKET_TOKEN"] != "tok" {
 		t.Fatalf("AG_SOCKET_TOKEN = %q, want preserved 'tok' for authority-requiring tools", wrapped.Env["AG_SOCKET_TOKEN"])
 	}

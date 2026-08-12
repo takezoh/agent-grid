@@ -56,7 +56,7 @@ func TestDriverMetadataSourcePriorityConformance(t *testing.T) {
 				Now:    now,
 				Result: TranscriptParseResult{Model: "fallback-model"},
 			})
-			plan, err := d.PrepareLaunch(next, state.LaunchModeColdStart, "/repo", "claude --model fallback-model --effort low", state.LaunchOptions{}, false)
+			plan, err := d.PrepareLaunch(next, state.LaunchModeColdStart, "/repo", "claude --model fallback-model --effort low", state.LaunchOptions{})
 			if err != nil {
 				panic(err)
 			}
@@ -227,7 +227,7 @@ func (d conformanceStubDriver) Restore(bag map[string]string, now time.Time) sta
 	return gs
 }
 
-func (conformanceStubDriver) PrepareLaunch(_ state.DriverState, _ state.LaunchMode, project, baseCommand string, options state.LaunchOptions, _ bool) (state.LaunchPlan, error) {
+func (conformanceStubDriver) PrepareLaunch(_ state.DriverState, _ state.LaunchMode, project, baseCommand string, options state.LaunchOptions) (state.LaunchPlan, error) {
 	return state.LaunchPlan{
 		Command:  baseCommand,
 		StartDir: project,

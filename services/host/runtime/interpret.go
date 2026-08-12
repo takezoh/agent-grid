@@ -41,7 +41,7 @@ func (r *Runtime) execute(eff state.Effect) {
 		r.executeSurfaceEffect(e)
 
 	case state.EffRepositoryPersist, state.EffRepositoryStartClone,
-		state.EffRepositoryEnsureEnvironment, state.EffRepositoryStopOwnedWork:
+		state.EffRepositoryLaunchSession, state.EffRepositoryStopOwnedWork:
 		r.executeRepositoryEffect(e)
 
 	default:
@@ -95,7 +95,7 @@ func (r *Runtime) executeMiscEffect(eff state.Effect) {
 			r.enqueueLifecycle(state.EvShutdownSaveBarrierSucceeded(e))
 		}
 
-	case state.EffReleaseFrameSandboxes:
+	case state.EffReleaseFrames:
 		r.startShutdownCleanup(e.TransactionID)
 
 	case state.EffCompleteShutdown:
@@ -114,12 +114,12 @@ func (r *Runtime) executeMiscEffect(eff state.Effect) {
 		default:
 		}
 
-	case state.EffReleaseFrameSandbox:
+	case state.EffReleaseFrame:
 		// Release every resource owned on behalf of the frame. Subsystem
 		// release must live here rather than under EffKillFrame because a
 		// vanished backend intentionally skips the kill effect.
 		r.releaseFrameSubsystem(e.FrameID)
-		r.invokeFrameCleanup(e.FrameID)
+		r.releaseFrameRegistration(e.FrameID)
 
 	default:
 		slog.Warn("runtime: unhandled effect type", "type", fmt.Sprintf("%T", eff))
@@ -258,13 +258,8 @@ func (r *Runtime) executeKillSessionWindow(e state.EffKillFrame) {
 			slog.Error("runtime: kill frame failed", "target", target, "err", err)
 		}
 	}
-	if r.warmFrames != nil {
-		if err := r.warmFrames.Delete(e.FrameID); err != nil {
-			slog.Warn("runtime: warm frame delete failed", "frame", e.FrameID, "err", err)
-		}
-	}
-	// Subsystem and sandbox cleanup are driven together by the separate
-	// EffReleaseFrameSandbox emitted for every frame teardown path.
+	// Subsystem and frame-registry release are driven together by the separate
+	// EffReleaseFrame emitted for every frame teardown path.
 	// This handler only terminates the backend frame.
 }
 
@@ -419,7 +414,6 @@ func (r *Runtime) snapshotSessions() []SessionSnapshot {
 			Frames:          frames,
 			HeadFrameID:     string(sess.HeadFrameID),
 			MRUFrameIDs:     mruIDs,
-			Sandbox:         sess.Sandbox,
 			FrameMessaging:  snapshotFrameMessaging(sess.FrameMessaging),
 			FrameGeneration: sess.FrameGeneration,
 			ResumeCapsule:   snapshotResumeCapsule(sess.ResumeCapsule),

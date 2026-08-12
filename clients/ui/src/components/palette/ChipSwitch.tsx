@@ -1,4 +1,4 @@
-// ChipSwitch.tsx — role='switch' chip for Worktree / Host toggles.
+// ChipSwitch.tsx — role='switch' chip for the Worktree toggle.
 // FR-016 / FR-017 / FR-019 / FR-020 / FR-023 / FR-029 / UAC-008 / UAC-009 / UAC-010
 //
 // Note — DOM delegation to <SegmentedControl> is intentionally not done here.
@@ -11,14 +11,14 @@
 import type { JSX, KeyboardEvent, PointerEvent } from "react";
 
 export interface ChipSwitchProps {
-  // hintKey: 'W' (worktree) or 'H' (host) — '[W]' / '[H]' icon hint.
-  hintKey: "W" | "H";
-  label: string; // 'Worktree' / 'Host (sandbox)' etc.
+  // hintKey: 'W' (worktree) — '[W]' icon hint.
+  hintKey: "W";
+  label: string; // 'worktree'
   checked: boolean; // aria-checked
   onToggle: () => void;
   disabled?: boolean;
   composing: boolean; // FR-023 IME guard
-  // testid suffix (data-toggle=worktree|host) — for existing test DOM query compat
+  // testid suffix (data-toggle=worktree) — for existing test DOM query compat
   testId?: string;
 }
 

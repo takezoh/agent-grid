@@ -12,7 +12,6 @@ owners: []
 relations:
 - {type: references, target: design-orchestrator}
 - {type: references, target: note-20260624-agent-workflow-authoring}
-- {type: references, target: note-20260624-user-sandbox}
 source_paths:
 - WORKFLOW.md
 - services/cmd/orchestrator/
@@ -154,5 +153,4 @@ Bind to `127.0.0.1` (the default) unless you intentionally expose it.
 ## See also
 
 - [WORKFLOW.md authoring](note-20260624-agent-workflow-authoring.md) — the prompt body, state-routing rules, and the `linear_graphql` tool
-- [sandbox setup](note-20260624-user-sandbox.md) — isolating each dispatched agent in a container
 - [orchestrator internals](../design/design-orchestrator.md) — the poll/dispatch/reconcile pipeline

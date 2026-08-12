@@ -11,47 +11,15 @@ import (
 	"time"
 
 	"github.com/takezoh/agent-grid/services/host/config"
-	"github.com/takezoh/agent-grid/services/host/runtime"
-	"github.com/takezoh/agent-grid/services/host/state"
-	platformconfig "github.com/takezoh/agent-grid/services/platform/config"
 )
 
-func TestNewAgentLauncher_direct(t *testing.T) {
-	for _, mode := range []string{"", "direct"} {
-		resolver := platformconfig.NewSandboxResolver(platformconfig.SandboxConfig{Mode: mode})
-		l, _, mgr, err := newAgentLauncher(context.Background(), platformconfig.SandboxConfig{Mode: mode}, resolver, platformconfig.ProjectsConfig{}, t.TempDir(), "", "")
-		if err != nil {
-			t.Errorf("mode=%q: unexpected error: %v", mode, err)
-			continue
-		}
-		if mgr != nil {
-			t.Errorf("mode=%q: expected nil sandbox manager for direct mode", mode)
-		}
-		if l.IsContainer("/any/project") {
-			t.Errorf("mode=%q: expected IsContainer=false for direct mode", mode)
-		}
-	}
-}
-
-func TestNewAgentLauncher_devcontainer_missing(t *testing.T) {
-	t.Setenv("PATH", "")
-	resolver := platformconfig.NewSandboxResolver(platformconfig.SandboxConfig{Mode: "devcontainer"})
-	_, _, mgr, err := newAgentLauncher(context.Background(), platformconfig.SandboxConfig{Mode: "devcontainer"}, resolver, platformconfig.ProjectsConfig{}, t.TempDir(), "", "")
-	if err == nil {
-		t.Error("expected error when devcontainer CLI is not in PATH, got nil")
-	}
-	if mgr != nil {
-		t.Error("manager must be nil on setup failure")
-	}
-}
-
-// TestBuildRuntimeWiresRepositoryDevcontainer proves the composition root always
-// injects non-nil repository environment authority (typed unavailable in direct mode).
-func TestBuildRuntimeWiresRepositoryDevcontainer(t *testing.T) {
+// TestBuildRuntimeComposesRepositoryPreparation proves the composition root
+// wires the repository preparation controller and that the boot-order
+// reconcile is safe immediately after New.
+func TestBuildRuntimeComposesRepositoryPreparation(t *testing.T) {
 	dir := t.TempDir()
 	cfg := config.DefaultConfig()
 	cfg.DataDir = dir
-	cfg.Sandbox.Mode = "direct"
 	cfg.Monitor.PollIntervalMs = 50
 	rt, sock, err := buildRuntime(context.Background(), cfg, dir)
 	if err != nil {
@@ -60,23 +28,9 @@ func TestBuildRuntimeWiresRepositoryDevcontainer(t *testing.T) {
 	if sock == "" {
 		t.Fatal("socket path empty")
 	}
-	if !rt.TestHasRepositoryDevcontainer() {
-		t.Fatal("RepositoryDevcontainer must be non-nil in production composition")
-	}
-	// Typed failure: direct mode has no manager → environment_authority_unavailable.
 	sessions := filepath.Join(dir, "repository-sessions")
-	_ = os.MkdirAll(sessions, 0o755)
-	// Exercise through the same interface type buildRuntime injects.
-	dc := runtime.UnavailableRepositoryDevcontainer{}
-	res, err := dc.Ensure(context.Background(), runtime.RepositoryEnvironmentRequest{
-		ServerID: "s",
-		Repository: state.GitHubRepositoryIdentity{
-			ID: "42", Owner: "acme", Name: "widgets",
-		},
-		ConfigGen: "g", SessionsRoot: sessions, ClonePath: filepath.Join(sessions, "c"),
-	})
-	if err != nil || res.Code != runtime.EnvCodeUnavailable {
-		t.Fatalf("typed unavailable: %+v err=%v", res, err)
+	if err := os.MkdirAll(sessions, 0o755); err != nil {
+		t.Fatal(err)
 	}
 	// Boot ordering: ReconcileRepositoryPreparations is safe after New (no panic).
 	rt.ReconcileRepositoryPreparations()

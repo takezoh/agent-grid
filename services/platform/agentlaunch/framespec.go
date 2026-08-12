@@ -2,7 +2,6 @@ package agentlaunch
 
 import (
 	"github.com/takezoh/agent-grid/services/platform/framelaunch"
-	"github.com/takezoh/agent-grid/services/platform/sandbox"
 )
 
 // EncodeFrameSpec builds an AG_FRAME_SPEC JSON payload from a LaunchPlan.
@@ -19,21 +18,4 @@ func EncodeFrameSpec(plan LaunchPlan) (string, error) {
 		spec.PreCommandTimeout = plan.PreCommandTimeout.String()
 	}
 	return framelaunch.Encode(spec)
-}
-
-// EncodeFrameSpecFromLaunchSpec is the sandbox.LaunchSpec-oriented variant used
-// by callers that already hold a LaunchSpec. Same wire format as EncodeFrameSpec.
-// Note: sandbox/devcontainer must not import agentlaunch (import cycle with
-// DevcontainerLauncher); it builds framelaunch.FrameSpec directly.
-func EncodeFrameSpecFromLaunchSpec(spec sandbox.LaunchSpec) (string, error) {
-	fs := framelaunch.FrameSpec{
-		PreExec:     spec.PreExec,
-		LoginShell:  spec.LoginShell,
-		PreCommands: spec.PreCommands,
-		MainCommand: spec.Argv,
-	}
-	if spec.PreCommandTimeout > 0 {
-		fs.PreCommandTimeout = spec.PreCommandTimeout.String()
-	}
-	return framelaunch.Encode(fs)
 }

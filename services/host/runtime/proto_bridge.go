@@ -114,8 +114,8 @@ func (r *Runtime) translateResponseBody(body any) proto.Response {
 				ID: string(b.Repository.ID), Owner: string(b.Repository.Owner), Name: string(b.Repository.Name),
 			},
 			Stage: b.Stage, FailureCode: b.FailureCode, RetryOrigin: b.RetryOrigin,
-			EnvironmentDisposition: b.EnvironmentDisposition, Revision: b.Revision,
-			SessionID: b.SessionID, ClonePath: b.ClonePath, EnvironmentID: b.EnvironmentID,
+			Revision:  b.Revision,
+			SessionID: b.SessionID, ClonePath: b.ClonePath,
 		}
 	case state.SurfaceUnsubscribedReply:
 		return proto.RespSurfaceUnsubscribed{
@@ -359,9 +359,6 @@ func (r *Runtime) buildOneSessionInfo(sess state.Session) (proto.SessionInfo, bo
 				view.Card.BorderTitleSecondary = activeDrv.View(activeF.Driver).Card.BorderTitle
 			}
 		}
-	}
-	if sess.Sandbox == state.SandboxOverrideHost {
-		view.Card.Tags = append(view.Card.Tags, state.HostTag())
 	}
 	if sess.FrameMessaging != nil {
 		summary := sess.FrameMessaging.Summary

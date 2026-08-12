@@ -187,7 +187,7 @@ func TestShellStepDEvFramePromptInputPreservesStatusChangedAtWhenAlreadyWaiting(
 func TestShellPrepareLaunchInheritedPlainStartDir(t *testing.T) {
 	d, s, _ := newShellState(t, 0)
 	s.StartDir = "/repo"
-	plan, err := d.PrepareLaunch(s, state.LaunchModeCreate, "/repo", "bash", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(s, state.LaunchModeCreate, "/repo", "bash", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestShellPrepareLaunchInheritedPlainStartDir(t *testing.T) {
 func TestShellPrepareLaunchManagedWorktreePathNoForcedEnable(t *testing.T) {
 	d, s, _ := newShellState(t, 0)
 	s.StartDir = "/repo/.agent-grid/worktrees/test-name"
-	plan, err := d.PrepareLaunch(s, state.LaunchModeColdStart, "/repo", "bash", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(s, state.LaunchModeColdStart, "/repo", "bash", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}

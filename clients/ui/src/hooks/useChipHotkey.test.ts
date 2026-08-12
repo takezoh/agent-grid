@@ -20,21 +20,17 @@ function dispatchKey(init: KeyboardEventInit): KeyboardEvent {
 function defaultOpts(): ChipHotkeyOptions {
   return {
     worktreeChipVisible: true,
-    hostChipVisible: true,
-    commandFieldVisible: true,
   };
 }
 
-// installSpies replaces toggleWorktree / toggleHost with vi.fn() spies via
-// setState so call sites are observable without triggering real reducer paths.
+// installSpies replaces toggleWorktree with a vi.fn() spy via setState so call
+// sites are observable without triggering real reducer paths.
 function installSpies(): {
   toggleWorktree: ReturnType<typeof vi.fn>;
-  toggleHost: ReturnType<typeof vi.fn>;
 } {
   const toggleWorktree = vi.fn();
-  const toggleHost = vi.fn();
-  usePaletteStore.setState({ toggleWorktree, toggleHost });
-  return { toggleWorktree, toggleHost };
+  usePaletteStore.setState({ toggleWorktree });
+  return { toggleWorktree };
 }
 
 // ---------------------------------------------------------------------------
@@ -43,7 +39,6 @@ function installSpies(): {
 
 describe("useChipHotkey", () => {
   const realToggleWorktree = usePaletteStore.getState().toggleWorktree;
-  const realToggleHost = usePaletteStore.getState().toggleHost;
 
   beforeEach(() => {
     // Reset to a clean open paramSelect state with real actions restored.
@@ -53,7 +48,6 @@ describe("useChipHotkey", () => {
       phase: "paramSelect",
       composing: false,
       toggleWorktree: realToggleWorktree,
-      toggleHost: realToggleHost,
     });
   });
 
@@ -67,31 +61,12 @@ describe("useChipHotkey", () => {
 
   it("Alt+W (KeyW + altKey) calls toggleWorktree and calls preventDefault (FR-018 / UAC-009)", () => {
     // UAC-009 / FR-018
-    const { toggleWorktree, toggleHost } = installSpies();
+    const { toggleWorktree } = installSpies();
     const { unmount } = renderHook(() => useChipHotkey(defaultOpts()));
 
     const ev = dispatchKey({ code: "KeyW", altKey: true });
 
     expect(toggleWorktree).toHaveBeenCalledTimes(1);
-    expect(toggleHost).not.toHaveBeenCalled();
-    expect(ev.defaultPrevented).toBe(true);
-
-    unmount();
-  });
-
-  // -------------------------------------------------------------------------
-  // Happy-path: Alt+H toggles host chip
-  // -------------------------------------------------------------------------
-
-  it("Alt+H (KeyH + altKey) calls toggleHost and calls preventDefault (FR-018 / UAC-009)", () => {
-    // UAC-009 / FR-018
-    const { toggleWorktree, toggleHost } = installSpies();
-    const { unmount } = renderHook(() => useChipHotkey(defaultOpts()));
-
-    const ev = dispatchKey({ code: "KeyH", altKey: true });
-
-    expect(toggleHost).toHaveBeenCalledTimes(1);
-    expect(toggleWorktree).not.toHaveBeenCalled();
     expect(ev.defaultPrevented).toBe(true);
 
     unmount();
@@ -110,20 +85,6 @@ describe("useChipHotkey", () => {
     const ev = dispatchKey({ code: "KeyW", altKey: true });
 
     expect(toggleWorktree).not.toHaveBeenCalled();
-    expect(ev.defaultPrevented).toBe(false);
-
-    unmount();
-  });
-
-  it("composing=true suppresses Alt+H (FR-023)", () => {
-    // UAC-009 / FR-023
-    const { toggleHost } = installSpies();
-    usePaletteStore.setState({ composing: true });
-    const { unmount } = renderHook(() => useChipHotkey(defaultOpts()));
-
-    const ev = dispatchKey({ code: "KeyH", altKey: true });
-
-    expect(toggleHost).not.toHaveBeenCalled();
     expect(ev.defaultPrevented).toBe(false);
 
     unmount();
@@ -165,39 +126,18 @@ describe("useChipHotkey", () => {
   });
 
   // -------------------------------------------------------------------------
-  // commandFieldVisible=false is no-op
+  // worktreeChipVisible=false suppresses Alt+W
   // -------------------------------------------------------------------------
 
-  it("commandFieldVisible=false still toggles Alt+W when worktree chip is visible (FR-030)", () => {
+  it("worktreeChipVisible=false suppresses Alt+W", () => {
+    // UAC-009 / FR-018
     const { toggleWorktree } = installSpies();
-    const opts: ChipHotkeyOptions = { ...defaultOpts(), commandFieldVisible: false };
+    const opts: ChipHotkeyOptions = { worktreeChipVisible: false };
     const { unmount } = renderHook(() => useChipHotkey(opts));
 
     const ev = dispatchKey({ code: "KeyW", altKey: true });
-
-    expect(toggleWorktree).toHaveBeenCalledTimes(1);
-    expect(ev.defaultPrevented).toBe(true);
-
-    unmount();
-  });
-
-  // -------------------------------------------------------------------------
-  // worktreeChipVisible=false suppresses only Alt+W (not Alt+H)
-  // -------------------------------------------------------------------------
-
-  it("worktreeChipVisible=false suppresses Alt+W but Alt+H still fires toggleHost", () => {
-    // UAC-009 / FR-018
-    const { toggleWorktree, toggleHost } = installSpies();
-    const opts: ChipHotkeyOptions = { ...defaultOpts(), worktreeChipVisible: false };
-    const { unmount } = renderHook(() => useChipHotkey(opts));
-
-    const evW = dispatchKey({ code: "KeyW", altKey: true });
     expect(toggleWorktree).not.toHaveBeenCalled();
-    expect(evW.defaultPrevented).toBe(false);
-
-    const evH = dispatchKey({ code: "KeyH", altKey: true });
-    expect(toggleHost).toHaveBeenCalledTimes(1);
-    expect(evH.defaultPrevented).toBe(true);
+    expect(ev.defaultPrevented).toBe(false);
 
     unmount();
   });
@@ -219,32 +159,18 @@ describe("useChipHotkey", () => {
     unmount();
   });
 
-  it("altKey=false does not fire toggleHost for KeyH", () => {
-    // UAC-009 / FR-018
-    const { toggleHost } = installSpies();
-    const { unmount } = renderHook(() => useChipHotkey(defaultOpts()));
-
-    const ev = dispatchKey({ code: "KeyH", altKey: false });
-
-    expect(toggleHost).not.toHaveBeenCalled();
-    expect(ev.defaultPrevented).toBe(false);
-
-    unmount();
-  });
-
   // -------------------------------------------------------------------------
   // Unrelated key codes with altKey are no-op
   // -------------------------------------------------------------------------
 
   it("event.code='KeyA' + altKey=true does not fire any action", () => {
     // UAC-009 / FR-018
-    const { toggleWorktree, toggleHost } = installSpies();
+    const { toggleWorktree } = installSpies();
     const { unmount } = renderHook(() => useChipHotkey(defaultOpts()));
 
     const ev = dispatchKey({ code: "KeyA", altKey: true });
 
     expect(toggleWorktree).not.toHaveBeenCalled();
-    expect(toggleHost).not.toHaveBeenCalled();
     expect(ev.defaultPrevented).toBe(false);
 
     unmount();
@@ -286,16 +212,5 @@ describe("useChipHotkey", () => {
     dispatchKey({ code: "KeyW", altKey: true });
 
     expect(toggleWorktree).not.toHaveBeenCalled();
-  });
-
-  it("after unmount, Alt+H no longer calls toggleHost", () => {
-    // UAC-009 / FR-018
-    const { toggleHost } = installSpies();
-    const { unmount } = renderHook(() => useChipHotkey(defaultOpts()));
-    unmount();
-
-    dispatchKey({ code: "KeyH", altKey: true });
-
-    expect(toggleHost).not.toHaveBeenCalled();
   });
 });

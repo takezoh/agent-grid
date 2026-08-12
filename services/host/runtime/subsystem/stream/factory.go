@@ -21,26 +21,14 @@ import (
 type FactoryConfig struct {
 	// Runtime is the hook used by Backends to enqueue events.
 	Runtime RuntimeHook
-	// Dispatcher applies sandbox/container wrapping to each app-server launch.
+	// Dispatcher resolves each app-server launch into its concrete command.
 	// Nil falls back to a direct (no-op) dispatch.
 	Dispatcher agentlaunch.Dispatcher
-	// ResolveSockPath returns the UDS path the per-session app-server binds
-	// for the given launch. When useContainer is true the callback returns a
-	// container-absolute path under ContainerRunDir and the backend derives the
-	// host dial path from the launch's bind mounts; when false the callback
-	// returns a host-absolute path in the daemon's data dir so both the
-	// app-server bind and the daemon dial hit the same host inode. Paths are
-	// unique per session to allow multiple concurrent app-server processes.
-	// useContainer is passed explicitly (rather than re-derived from project)
-	// so a per-launch SandboxOverride flips the routing without the callback
-	// having to re-consult stale project metadata.
-	ResolveSockPath func(sessionID state.SessionID, project string, useContainer bool) (listen string, err error)
-	// IsContainer reports whether the given project's DEFAULT sandbox mode is
-	// devcontainer. This is a project-scoped hint only — Factory.Ensure ANDs
-	// it with the per-launch plan.Sandbox before deciding whether the
-	// app-server actually runs inside the container (see the useContainer
-	// computation there).
-	IsContainer func(project string) bool
+	// ResolveSockPath returns the host-absolute UDS path in the daemon's data
+	// dir that the per-session app-server binds, so both the app-server bind
+	// and the daemon dial hit the same host inode. Paths are unique per
+	// session to allow multiple concurrent app-server processes.
+	ResolveSockPath func(sessionID state.SessionID, project string) (listen string, err error)
 	// ReadTimeout overrides the per-request JSON-RPC timeout.  Zero uses the
 	// default (15 seconds).  Corresponds to the codex.read_timeout_ms config key.
 	ReadTimeout time.Duration
@@ -87,20 +75,7 @@ func (f *Factory) Ensure(ctx context.Context, sessionID state.SessionID, project
 	}
 	f.mu.Unlock()
 
-	// useContainer collapses the two axes that drive app-server placement into
-	// a single bool: (a) the project's default sandbox mode from IsContainer,
-	// and (b) the per-launch state.SandboxOverride from plan.Sandbox. Every
-	// downstream site — listenSock resolution, shim selection, dispatcher
-	// routing — reads this ONE value so a host override cannot silently split
-	// the frame and app-server across host / container namespaces.
-	useContainer := plan.Sandbox != state.SandboxOverrideHost
-	if f.cfg.IsContainer != nil {
-		useContainer = useContainer && f.cfg.IsContainer(project)
-	} else {
-		useContainer = false
-	}
-
-	listen, err := f.cfg.ResolveSockPath(sessionID, project, useContainer)
+	listen, err := f.cfg.ResolveSockPath(sessionID, project)
 	if err != nil {
 		return nil, "", fmt.Errorf("stream factory: resolve sock path: %w", err)
 	}
@@ -122,13 +97,10 @@ func (f *Factory) Ensure(ctx context.Context, sessionID state.SessionID, project
 		cmdCfg.ConfigArgs,
 		cmdCfg.Model,
 		cmdCfg.Effort,
-		plan.Stream.SandboxPolicy == state.StreamSandboxPolicyExternal,
-		plan.Stream.ApprovalPolicy == state.StreamApprovalPolicyAutoApprove,
 		listen,
 		f.cfg.ReadTimeout,
 	)
 	b.helperBin = helperBin
-	b.isContainer = useContainer
 	b.tracker = f.cfg.Tracker
 
 	f.mu.Lock()

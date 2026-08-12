@@ -106,28 +106,17 @@ func spawnFrameWindow(deps spawnDeps, e state.EffSpawnFrame) {
 	spawnCmd := buildSpawnCommand(wrapped.Command, e.Plan.Stdin)
 	slog.Info("runtime: spawning window", "frame", e.FrameID, "cmd", spawnCmd)
 	if err := deps.backend.SpawnFrame(string(e.FrameID), name, spawnCmd, wrapped.StartDir, wrapped.Env, e.Plan.Options.Cols, e.Plan.Options.Rows); err != nil {
-		// wrapLaunchForSpawn already acquired the sandbox/container; the frame never
-		// launched and no EvFrameSpawned/kill path will reach this frame, so
-		// release it here to avoid leaking the container ref + cleanup closure.
-		if wrapped.Cleanup != nil {
-			if cerr := wrapped.Cleanup(); cerr != nil {
-				slog.Warn("runtime: cleanup after spawn failure", "frame", e.FrameID, "err", cerr)
-			}
-		}
 		sub.ReleaseFrame(e.FrameID)
 		sendFailed(err.Error())
 		return
 	}
 
 	deps.sendInternal(internalSpawnComplete{
-		effect:           e,
-		subsystemID:      subsystemID,
-		sub:              sub,
-		cleanup:          wrapped.Cleanup,
-		token:            wrapResult.token,
-		mounts:           wrapped.Mounts,
-		containerSockDir: wrapped.ContainerSockDir,
-		bindResult:       bindResult,
+		effect:      e,
+		subsystemID: subsystemID,
+		sub:         sub,
+		token:       wrapResult.token,
+		bindResult:  bindResult,
 	})
 }
 
@@ -172,13 +161,9 @@ func (r *Runtime) handleSpawnComplete(e internalSpawnComplete) {
 	r.subsystems[e.subsystemID] = e.sub
 	r.frameSubsystems[e.effect.FrameID] = e.sub
 	r.frameSubsystemIDs[e.effect.FrameID] = e.subsystemID
-	r.storeFrameCleanup(e.effect.FrameID, e.cleanup)
 
-	if e.token != "" && e.containerSockDir == "" {
+	if e.token != "" {
 		r.registerFrameToken(e.effect.FrameID, e.token)
-	}
-	if e.token != "" && e.containerSockDir != "" {
-		r.registerContainerFrame(e.effect.FrameID, e.effect.Plan.Project, e.containerSockDir, e.token, e.mounts)
 	}
 
 	e.sub.ActivateFrame(e.effect.FrameID)
@@ -228,7 +213,7 @@ func (r *Runtime) spawnTargetAlive(sessionID state.SessionID, frameID state.Fram
 // kill of any frame on the same subsystem reaps it via reapSubsystemIfLast,
 // or — if no such kill ever fires for the rest of the daemon's life — until
 // the daemon process exits and the OS tears down its process group. Graceful
-// EffReleaseFrameSandboxes does NOT clean this up because we deliberately
+// EffReleaseFrames does NOT clean this up because we deliberately
 // skip writing the orphan into r.subsystems (that write is what 027 was
 // removing). Container-backed subsystems do survive daemon exit, so this is
 // a true leak on the container side; non-container CLI subsystems die with
@@ -246,16 +231,10 @@ func (r *Runtime) discardSpawnResult(e internalSpawnComplete) {
 	}
 	frameID := e.effect.FrameID
 	sub := e.sub
-	cleanup := e.cleanup
-	// Off-loop: ReleaseFrame may block on container shutdown, Cleanup may
-	// release worktrees. Captures only the values we need (no *Runtime).
+	// Off-loop: ReleaseFrame may block on the agent's shutdown. Captures only
+	// the values we need (no *Runtime).
 	go func() {
 		sub.ReleaseFrame(frameID)
-		if cleanup != nil {
-			if err := cleanup(); err != nil {
-				slog.Warn("runtime: cleanup after discarded spawn", "frame", frameID, "err", err)
-			}
-		}
 	}()
 	// Reply to the original spawn caller so it doesn't hang on its HTTP
 	// timeout. The reducer is safe to invoke here because (a) evictFrame

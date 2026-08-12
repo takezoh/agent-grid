@@ -14,12 +14,6 @@ func (r *Runtime) TestState() state.State {
 	return r.state
 }
 
-// TestHasRepositoryDevcontainer reports whether production authority is wired
-// (never nil in a correctly composed production Runtime).
-func (r *Runtime) TestHasRepositoryDevcontainer() bool {
-	return r.cfg.RepositoryDevcontainer != nil
-}
-
 // TestRepositoryPrepSweepCount returns how many never-available orphans the
 // production sweep path has cleaned (boot + tick).
 func (r *Runtime) TestRepositoryPrepSweepCount() uint64 {

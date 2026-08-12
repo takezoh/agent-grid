@@ -11,15 +11,31 @@ import (
 
 	rsubsystem "github.com/takezoh/agent-grid/services/host/runtime/subsystem"
 	"github.com/takezoh/agent-grid/services/host/state"
-	"github.com/takezoh/agent-grid/services/platform/pathmap"
 )
 
 // minimalDriver is a zero-behaviour driver for testing bootstrap paths.
 type minimalDriver struct{}
 
-// successfulCleanupResult keeps cleanup callbacks typed as func() error while
-// allowing tests to exercise their success path without unparam false positives.
-var successfulCleanupResult error
+// blockingSubsystem stalls Stop until release is closed, so the shutdown
+// drain's deadline behaviour can be exercised deterministically.
+type blockingSubsystem struct {
+	fakeSubsystem
+	release <-chan struct{}
+}
+
+func (b *blockingSubsystem) Stop(ctx context.Context, cause rsubsystem.StopCause) {
+	<-b.release
+	b.fakeSubsystem.Stop(ctx, cause)
+}
+
+// registerBlockingSubsystem installs a subsystem whose Stop blocks until
+// release is closed. Returns nothing: tests assert via shutdown results.
+func registerBlockingSubsystem(r *Runtime, id state.SubsystemID, release <-chan struct{}) {
+	r.subsystems[id] = &blockingSubsystem{
+		fakeSubsystem: fakeSubsystem{id: id, kind: state.LaunchSubsystemStream},
+		release:       release,
+	}
+}
 
 func (minimalDriver) Name() string        { return "minimal-test" }
 func (minimalDriver) DisplayName() string { return "minimal-test" }
@@ -35,301 +51,13 @@ func (minimalDriver) View(_ state.DriverState) state.View { return state.View{} 
 func (minimalDriver) Step(prev state.DriverState, _ state.FrameContext, _ state.DriverEvent) (state.DriverState, []state.Effect, state.View) {
 	return prev, nil, state.View{}
 }
-func (minimalDriver) PrepareLaunch(_ state.DriverState, _ state.LaunchMode, project, command string, _ state.LaunchOptions, _ bool) (state.LaunchPlan, error) {
+func (minimalDriver) PrepareLaunch(_ state.DriverState, _ state.LaunchMode, project, command string, _ state.LaunchOptions) (state.LaunchPlan, error) {
 	return state.LaunchPlan{Command: command, StartDir: project}, nil
 }
 func (minimalDriver) StartDir(_ state.DriverState) string                          { return "" }
 func (minimalDriver) WithStartDir(s state.DriverState, _ string) state.DriverState { return s }
 
-// TestRegisterContainerFrame_warmSaveIsSynchronous guards the 029 F4 fix:
-// warm Save runs synchronously inside registerContainerFrame so it cannot
-// race a follow-up Delete from executeKillSessionWindow. Before the fix,
-// Save was fired off in a goroutine and could win against a kill-path Delete
-// for the same frame's warm file, leaving a stale token on disk.
-func TestRegisterContainerFrame_warmSaveIsSynchronous(t *testing.T) {
-	dir := t.TempDir()
-	r := New(Config{Backend: newFakeBackend(), DataDir: dir})
-	t.Cleanup(r.shutdownContainerEndpoints)
-	if r.warmFrames == nil {
-		t.Fatal("warm-frame store not initialised with DataDir set")
-	}
-	r.state.Sessions["s1"] = state.Session{
-		ID: "s1", Project: "/p",
-		Frames: []state.SessionFrame{{ID: "f1", Project: "/p", Command: "shell"}},
-	}
-
-	r.registerContainerFrame("f1", "/p", dir, "tok-1", pathmap.Mounts{{Host: "/h", Container: "/c"}})
-
-	// Synchronous contract: by the time registerContainerFrame returns the
-	// warm state for the frame must be visible to LoadAll. No sleep, no poll.
-	states, err := r.warmFrames.LoadAll()
-	if err != nil {
-		t.Fatalf("warmFrames.LoadAll: %v", err)
-	}
-	var got *WarmFrameState
-	for i := range states {
-		if states[i].FrameID == "f1" {
-			got = &states[i]
-			break
-		}
-	}
-	if got == nil {
-		t.Fatal("warm save did not land synchronously: f1 missing from LoadAll")
-		return
-	}
-	if got.ContainerToken != "tok-1" {
-		t.Errorf("warm token = %q, want tok-1", got.ContainerToken)
-	}
-}
-
-func TestStoreAndInvokeFrameCleanup(t *testing.T) {
-	r := New(Config{})
-
-	var called atomic.Bool
-	r.storeFrameCleanup("f1", func() error {
-		called.Store(true)
-		return nil
-	})
-
-	r.invokeFrameCleanup("f1")
-
-	// invokeFrameCleanup runs the fn in a goroutine; wait briefly.
-	deadline := time.Now().Add(200 * time.Millisecond)
-	for !called.Load() && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
-	}
-	if !called.Load() {
-		t.Error("cleanup fn was not called after invokeFrameCleanup")
-	}
-
-	// Second invoke for same frame should be a no-op (already deleted).
-	called.Store(false)
-	r.invokeFrameCleanup("f1")
-	time.Sleep(20 * time.Millisecond)
-	if called.Load() {
-		t.Error("cleanup fn called twice for same frame")
-	}
-}
-
-func TestInvokeFrameCleanup_noopWhenNil(t *testing.T) {
-	r := New(Config{})
-	// No cleanup registered; must not panic.
-	r.invokeFrameCleanup("unknown")
-}
-
-func TestDrainFrameCleanups(t *testing.T) {
-	r := New(Config{})
-
-	var count atomic.Int32
-	for _, id := range []state.FrameID{"f1", "f2", "f3"} {
-		r.storeFrameCleanup(id, func() error {
-			count.Add(1)
-			return nil
-		})
-	}
-
-	r.drainFrameCleanups()
-
-	if got := count.Load(); got != 3 {
-		t.Errorf("drain called %d cleanups, want 3", got)
-	}
-
-	// Map must be empty after drain.
-	remaining := len(r.sandboxCleanups)
-	if remaining != 0 {
-		t.Errorf("frameCleanups has %d entries after drain, want 0", remaining)
-	}
-}
-
-func TestInvokeFrameCleanup_errorLogged(t *testing.T) {
-	r := New(Config{})
-	r.storeFrameCleanup("ferr", func() error {
-		return errors.New("container stop failed")
-	})
-	// Must not panic; the error is logged internally.
-	r.invokeFrameCleanup("ferr")
-	time.Sleep(20 * time.Millisecond)
-}
-
-func TestDirectLauncher_adoptFrame_noop(t *testing.T) {
-	l := DirectLauncher{}
-	cleanup, _, err := l.AdoptFrame(context.Background(), state.FrameID("f1"), "/workspace/foo")
-	if err != nil {
-		t.Fatalf("AdoptFrame returned error: %v", err)
-	}
-	if cleanup != nil {
-		t.Error("DirectLauncher.AdoptFrame should return nil cleanup")
-	}
-}
-
-// TestCtxCancel_doesNotDrainCleanups verifies that cancelling the runtime
-// context (= daemon SIGINT / detach) does not invoke frame cleanup callbacks.
-// Containers must survive so backend frames stay alive for warm-restart adoption.
-// The explicit shutdown path drains via EffReleaseFrameSandboxes (see
-// TestEffReleaseFrameSandboxes_drainsCleanups).
-func TestCtxCancel_doesNotDrainCleanups(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	var called atomic.Bool
-	r := New(Config{Backend: newFakeBackend()})
-	r.storeFrameCleanup("f-shutdown", func() error {
-		called.Store(true)
-		return nil
-	})
-
-	go func() { _ = r.Run(ctx) }()
-	cancel()
-	select {
-	case <-r.Done():
-	case <-time.After(2 * time.Second):
-		t.Fatal("runtime did not stop within timeout")
-	}
-
-	// Allow a brief window for any async goroutines to run.
-	time.Sleep(50 * time.Millisecond)
-	if called.Load() {
-		t.Error("frame cleanup must NOT be called on ctx cancel (warm-restart requires containers to survive)")
-	}
-}
-
-// TestEffReleaseFrameSandboxes_drainsCleanups verifies that executing
-// EffReleaseFrameSandboxes runs all registered per-frame cleanup closures.
-// This is the explicit shutdown path (reduceShutdown emits this effect).
-func TestEffReleaseFrameSandboxes_drainsCleanups(t *testing.T) {
-	var count atomic.Int32
-	r := New(Config{Backend: newFakeBackend()})
-	for _, id := range []state.FrameID{"f1", "f2", "f3"} {
-		r.storeFrameCleanup(id, func() error {
-			count.Add(1)
-			return nil
-		})
-	}
-
-	r.execute(state.EffReleaseFrameSandboxes{})
-	deadline := time.Now().Add(time.Second)
-	for count.Load() != 3 && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
-	if got := count.Load(); got != 3 {
-		t.Errorf("EffReleaseFrameSandboxes called %d cleanups, want 3", got)
-	}
-}
-
-// TestSpawnFrameWindow_cleanupCalledOnSpawnError verifies that when WrapLaunch
-// returns a Cleanup callback but SpawnFrame subsequently fails, the Cleanup is
-// still invoked — preventing sandbox resource leaks (ref-count, containers).
-func TestSpawnFrameWindow_cleanupCalledOnSpawnError(t *testing.T) {
-	saved := state.GetRegistry()
-	t.Cleanup(func() {
-		state.ClearRegistry()
-		for _, d := range saved {
-			state.Register(d)
-		}
-	})
-	if _, ok := saved[minimalDriver{}.Name()]; !ok {
-		state.Register(minimalDriver{})
-	}
-
-	var cleanupCalled atomic.Bool
-	fakeLauncher := &testLauncher{
-		cleanup: func() error {
-			cleanupCalled.Store(true)
-			return nil
-		},
-	}
-
-	backend := newFakeBackend()
-	backend.spawnErr = errors.New("backend spawn failed")
-
-	r := New(Config{Backend: backend, Launcher: fakeLauncher})
-	frame := state.SessionFrame{
-		ID:      "frame-spawn-err",
-		Command: "minimal-test",
-		Project: "/test/project",
-		Driver:  state.DriverStateBase{},
-	}
-
-	err := r.spawnFrameWindow("sess-1", state.SandboxOverrideAuto, frame)
-	if err == nil {
-		t.Fatal("expected error from spawnFrameWindow, got nil")
-	}
-	if !cleanupCalled.Load() {
-		t.Error("Cleanup was not called after SpawnFrame failure")
-	}
-}
-
-// testLauncher is a WrapLaunch stub that injects a caller-supplied cleanup.
-type testLauncher struct {
-	cleanup func() error
-}
-
-func (l *testLauncher) WrapLaunch(_ state.FrameID, plan state.LaunchPlan, env map[string]string) (WrappedLaunch, error) {
-	return WrappedLaunch{Command: plan.Command, StartDir: plan.StartDir, Env: env, Cleanup: l.cleanup}, nil
-}
-
-func (l *testLauncher) AdoptFrame(_ context.Context, _ state.FrameID, _ string) (func() error, pathmap.Mounts, error) {
-	return nil, nil, nil
-}
-
-func (l *testLauncher) EnsureProject(_ context.Context, _ string) error { return nil }
-
-func (l *testLauncher) IsContainer(_ string) bool { return false }
-
-// TestEffKillSessionWindow_doesNotInvokeCleanup asserts that
-// EffKillFrame is responsible for frame-backend kill only
-// — sandbox cleanup (Manager.ReleaseFrame → DestroyInstance) is driven
-// by EffReleaseFrameSandbox emitted from the reducer for the same frame.
-// Splitting the responsibilities lets EvFrameVanished release the
-// container even though it skips the frame kill (`killWindow=false`).
-func TestEffKillSessionWindow_doesNotInvokeCleanup(t *testing.T) {
-	var called atomic.Bool
-	backend := noopBackend{}
-	r := New(Config{Backend: backend})
-
-	frameID := state.FrameID("f-kill")
-	r.storeFrameCleanup(frameID, func() error {
-		called.Store(true)
-		return nil
-	})
-
-	r.execute(state.EffKillFrame{FrameID: frameID})
-
-	time.Sleep(50 * time.Millisecond)
-	if called.Load() {
-		t.Error("cleanup must not be called by EffKillFrame alone; expected EffReleaseFrameSandbox to drive cleanup")
-	}
-}
-
-// TestEffReleaseFrameSandbox_invokesCleanup asserts the new effect fires
-// the per-frame cleanup closure (devcontainer.makeCleanup =
-// Manager.ReleaseFrame → 0 なら DestroyInstance). reducer emits this
-// effect for every evicted frame regardless of killWindow so
-// EvFrameVanished and reduceFrameCommandExited (abnormal exit) routes
-// also free the container.
-func TestEffReleaseFrameSandbox_invokesCleanup(t *testing.T) {
-	var called atomic.Bool
-	backend := noopBackend{}
-	r := New(Config{Backend: backend})
-
-	frameID := state.FrameID("f-release")
-	r.storeFrameCleanup(frameID, func() error {
-		called.Store(true)
-		return nil
-	})
-
-	r.execute(state.EffReleaseFrameSandbox{FrameID: frameID})
-
-	deadline := time.Now().Add(200 * time.Millisecond)
-	for !called.Load() && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
-	}
-	if !called.Load() {
-		t.Error("cleanup not called after EffReleaseFrameSandbox")
-	}
-}
-
-func TestEffReleaseFrameSandbox_releasesSubsystemFrame(t *testing.T) {
+func TestEffReleaseFrame_releasesSubsystemFrame(t *testing.T) {
 	frameID := state.FrameID("f-vanished")
 	sub := &fakeSubsystem{id: "stream:vanished", kind: state.LaunchSubsystemStream}
 	reaped := make(chan state.SubsystemID, 1)
@@ -338,7 +66,7 @@ func TestEffReleaseFrameSandbox_releasesSubsystemFrame(t *testing.T) {
 	r.frameSubsystemIDs[frameID] = sub.id
 	r.subsystemFactories[state.LaunchSubsystemStream] = &reapingFakeFactory{sub: sub, reaped: reaped}
 
-	r.execute(state.EffReleaseFrameSandbox{FrameID: frameID})
+	r.execute(state.EffReleaseFrame{FrameID: frameID})
 
 	if got := atomic.LoadInt32(&sub.releaseN); got != 1 {
 		t.Fatalf("subsystem ReleaseFrame calls = %d, want 1", got)
@@ -367,11 +95,11 @@ func (f *reapingFakeFactory) Remove(ctx context.Context, id state.SubsystemID) {
 	f.reaped <- id
 }
 
-// TestRequestShutdown_returnsAfterEffReleaseFrameSandboxes asserts the
+// TestRequestShutdown_returnsAfterEffReleaseFrames asserts the
 // signal-handler contract: RequestShutdown waits until the reducer receives
 // the cleanup result. Without this, signal handling could take its fallback
 // cancellation path before containers had a chance to teardown.
-func TestRequestShutdown_returnsAfterEffReleaseFrameSandboxes(t *testing.T) {
+func TestRequestShutdown_returnsAfterEffReleaseFrames(t *testing.T) {
 	r := New(Config{Backend: noopBackend{}})
 	runErr := make(chan error, 1)
 	go func() { runErr <- r.Run(context.Background()) }()
@@ -449,7 +177,7 @@ func TestRequestShutdown_secondCallSharesAck(t *testing.T) {
 	persist := &recordingPersist{}
 	r := New(Config{Backend: noopBackend{}, Persist: persist})
 	release := make(chan struct{})
-	r.sandboxCleanups["join"] = func() error { <-release; return successfulCleanupResult }
+	registerBlockingSubsystem(r, "join", release)
 	runErr := make(chan error, 1)
 	go func() { runErr <- r.Run(context.Background()) }()
 	done1 := make(chan ShutdownResult, 1)
@@ -485,10 +213,7 @@ func TestRequestShutdown_secondCallSharesAck(t *testing.T) {
 func TestRequestShutdownDeadlineTerminatesWithNonCooperativeCleanup(t *testing.T) {
 	r := New(Config{Backend: noopBackend{}})
 	release := make(chan struct{})
-	r.sandboxCleanups["blocked"] = func() error {
-		<-release
-		return successfulCleanupResult
-	}
+	registerBlockingSubsystem(r, "blocked", release)
 	runErr := make(chan error, 1)
 	go func() { runErr <- r.Run(context.Background()) }()
 
@@ -521,11 +246,8 @@ func (p *failingShutdownPersist) Save([]SessionSnapshot) error {
 func TestRequestShutdownSaveFailureRollsBackWithoutCleanupOrTermination(t *testing.T) {
 	persist := &failingShutdownPersist{}
 	r := New(Config{Backend: noopBackend{}, Persist: persist})
-	var cleanupCalls atomic.Int32
-	r.sandboxCleanups["preserved"] = func() error {
-		cleanupCalls.Add(1)
-		return successfulCleanupResult
-	}
+	stopped := &fakeSubsystem{id: "preserved", kind: state.LaunchSubsystemStream}
+	r.subsystems["preserved"] = stopped
 	ctx, cancel := context.WithCancel(context.Background())
 	runErr := make(chan error, 1)
 	go func() { runErr <- r.Run(ctx) }()
@@ -534,7 +256,7 @@ func TestRequestShutdownSaveFailureRollsBackWithoutCleanupOrTermination(t *testi
 	if result != ShutdownResultCommitFailed {
 		t.Fatalf("RequestShutdown result = %q, want %q", result, ShutdownResultCommitFailed)
 	}
-	if cleanupCalls.Load() != 0 {
+	if atomic.LoadInt32(&stopped.stopN) != 0 {
 		t.Fatal("Save failure started cleanup")
 	}
 	select {
@@ -585,11 +307,8 @@ func TestRequestShutdownPartialSaveKeepsMixedStoreAndSkipsTeardown(t *testing.T)
 	for _, id := range []state.SessionID{"s1", "s2"} {
 		r.state.Sessions[id] = state.Session{ID: id, Project: "/new/" + string(id)}
 	}
-	var cleanupCalls atomic.Int32
-	r.sandboxCleanups["preserved"] = func() error {
-		cleanupCalls.Add(1)
-		return successfulCleanupResult
-	}
+	stopped := &fakeSubsystem{id: "preserved", kind: state.LaunchSubsystemStream}
+	r.subsystems["preserved"] = stopped
 	ctx, cancel := context.WithCancel(context.Background())
 	runErr := make(chan error, 1)
 	go func() { runErr <- r.Run(ctx) }()
@@ -597,7 +316,7 @@ func TestRequestShutdownPartialSaveKeepsMixedStoreAndSkipsTeardown(t *testing.T)
 	if result := r.RequestShutdown(time.Second); result != ShutdownResultCommitFailed {
 		t.Fatalf("RequestShutdown result = %q, want %q", result, ShutdownResultCommitFailed)
 	}
-	if cleanupCalls.Load() != 0 {
+	if atomic.LoadInt32(&stopped.stopN) != 0 {
 		t.Fatal("partial Save failure started teardown")
 	}
 	if len(persist.store) != 2 {

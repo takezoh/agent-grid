@@ -448,7 +448,6 @@ func TestParseCodexShimArgs(t *testing.T) {
 		"--session-id", "sess-1",
 		"--server-arg", "-c",
 		"--server-arg", "foo=bar",
-		"--sandbox-external",
 	})
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -456,7 +455,7 @@ func TestParseCodexShimArgs(t *testing.T) {
 	if cfg.listenSock != "/tmp/a.sock" || cfg.upstreamSock != "/tmp/b.sock" || cfg.serverBin != "codex" || cfg.sessionID != "sess-1" {
 		t.Fatalf("cfg = %+v", cfg)
 	}
-	if len(cfg.serverArgs) != 2 || !cfg.sandboxExternal {
+	if len(cfg.serverArgs) != 2 {
 		t.Fatalf("cfg = %+v", cfg)
 	}
 }

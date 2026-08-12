@@ -29,8 +29,8 @@ func toCloneReady(t *testing.T, s State, rev uint64) (State, RepositoryPreparati
 	prep, _ := FindPreparation(s, "prep-1")
 	s, effs := Reduce(s, EvRepository{ConnID: 1, ReqID: "s2", Kind: "clone_ready", PreparationID: "prep-1", ObservedRevision: prep.Revision, ClonePath: "clone/path-1"})
 	mustOK(t, effs)
-	if !hasEff[EffRepositoryEnsureEnvironment](effs) {
-		t.Fatal("clone-ready must ensure environment")
+	if !hasEff[EffRepositoryLaunchSession](effs) {
+		t.Fatal("clone-ready must request the session launch")
 	}
 	prep, _ = FindPreparation(s, "prep-1")
 	return s, prep
@@ -39,19 +39,17 @@ func toCloneReady(t *testing.T, s State, rev uint64) (State, RepositoryPreparati
 func TestRepositoryLifecycleSoleAvailability(t *testing.T) {
 	s, prep := createPrep(t)
 	s, prep = toCloneReady(t, s, prep.Revision)
-	s, _ = Reduce(s, EvRepository{ConnID: 1, ReqID: "d1", Kind: "devcontainer_started", PreparationID: "prep-1", ObservedRevision: prep.Revision})
-	prep, _ = FindPreparation(s, "prep-1")
 	_, effs := Reduce(s, EvRepository{
 		ConnID: 1, ReqID: "bad", Kind: "commit_available", PreparationID: "prep-1", ObservedRevision: prep.Revision,
-		SessionID: "sess-1", ClonePath: "c", EnvironmentID: "e", CloneDurable: true, LaunchSucceeded: true,
+		SessionID: "sess-1", ClonePath: "c", CloneDurable: true,
 	})
 	if _, ok := findEff[EffSendError](effs); !ok {
 		t.Fatal("incomplete commit must fail")
 	}
 	s, effs = Reduce(s, EvRepository{
 		ConnID: 1, ReqID: "ok", Kind: "commit_available", PreparationID: "prep-1", ObservedRevision: prep.Revision,
-		SessionID: "sess-1", ClonePath: "c", EnvironmentID: "e", Command: "codex",
-		CloneDurable: true, EnvironmentReady: true, LaunchSucceeded: true,
+		SessionID: "sess-1", ClonePath: "c", Command: "codex",
+		CloneDurable: true, LaunchSucceeded: true,
 	})
 	mustOK(t, effs)
 	prep, _ = FindPreparation(s, "prep-1")
@@ -75,13 +73,11 @@ func TestRepositoryTransitionsAndFences(t *testing.T) {
 	}
 	prep, _ = FindPreparation(s, "prep-1")
 	s, prep = toCloneReady(t, s, prep.Revision)
-	s, _ = Reduce(s, EvRepository{ConnID: 1, ReqID: "d", Kind: "devcontainer_started", PreparationID: "prep-1", ObservedRevision: prep.Revision})
-	prep, _ = FindPreparation(s, "prep-1")
 	s, _ = Reduce(s, EvRepository{ConnID: 1, ReqID: "f2", Kind: "failed", PreparationID: "prep-1", ObservedRevision: prep.Revision})
 	prep, _ = FindPreparation(s, "prep-1")
 	s, effs = Reduce(s, EvRepository{ConnID: 1, ReqID: "r2", Kind: "retry", PreparationID: "prep-1", ObservedRevision: prep.Revision})
-	if hasEff[EffRepositoryStartClone](effs) || !hasEff[EffRepositoryEnsureEnvironment](effs) {
-		t.Fatal("devcontainer retry")
+	if hasEff[EffRepositoryStartClone](effs) || !hasEff[EffRepositoryLaunchSession](effs) {
+		t.Fatal("launch retry must resume from the durable clone")
 	}
 
 	s, prep = createPrep(t)
@@ -132,15 +128,13 @@ func TestRepositoryTransitionsAndFences(t *testing.T) {
 	}
 }
 
-func TestCancelDevcontainerInProgressRetryOriginAndResume(t *testing.T) {
+// TestCancelCloneReadyRetryOriginAndResume pins that cancelling after the clone
+// is durable records retry_origin=launch, so the retry resumes the session
+// launch instead of re-cloning.
+func TestCancelCloneReadyRetryOriginAndResume(t *testing.T) {
 	s, prep := createPrep(t)
 	s, prep = toCloneReady(t, s, prep.Revision)
-	s, _ = Reduce(s, EvRepository{
-		ConnID: 1, ReqID: "d", Kind: "devcontainer_started",
-		PreparationID: "prep-1", ObservedRevision: prep.Revision,
-	})
-	prep, _ = FindPreparation(s, "prep-1")
-	if prep.Stage != PrepStageDevcontainerInProgress {
+	if prep.Stage != PrepStageCloneReady {
 		t.Fatalf("stage=%s", prep.Stage)
 	}
 	s, effs := Reduce(s, EvRepository{
@@ -148,8 +142,8 @@ func TestCancelDevcontainerInProgressRetryOriginAndResume(t *testing.T) {
 		PreparationID: "prep-1", ObservedRevision: prep.Revision,
 	})
 	prep, _ = FindPreparation(s, "prep-1")
-	if prep.Stage != PrepStageCancelled || prep.RetryOrigin != RetryOriginDevcontainer {
-		t.Fatalf("cancel must set retry_origin=devcontainer: %+v", prep)
+	if prep.Stage != PrepStageCancelled || prep.RetryOrigin != RetryOriginLaunch {
+		t.Fatalf("cancel must set retry_origin=launch: %+v", prep)
 	}
 	if !hasEff[EffRepositoryStopOwnedWork](effs) {
 		t.Fatal("cancel must stop owned work")
@@ -159,26 +153,14 @@ func TestCancelDevcontainerInProgressRetryOriginAndResume(t *testing.T) {
 		PreparationID: "prep-1", ObservedRevision: prep.Revision,
 	})
 	if hasEff[EffRepositoryStartClone](effs) {
-		t.Fatal("devcontainer retry must not re-enter clone-in-progress")
+		t.Fatal("launch retry must not re-enter clone-in-progress")
 	}
-	if !hasEff[EffRepositoryEnsureEnvironment](effs) {
-		t.Fatal("devcontainer retry must resume ensure-environment")
+	if !hasEff[EffRepositoryLaunchSession](effs) {
+		t.Fatal("launch retry must resume the session launch")
 	}
 	prep, _ = FindPreparation(s, "prep-1")
 	if prep.Stage != PrepStageCloneReady {
 		t.Fatalf("retry lands on clone-ready (not clone-in-progress): %s", prep.Stage)
-	}
-	// Production ensure path then emits devcontainer_started without clone_started.
-	s, _ = Reduce(s, EvRepository{
-		ConnID: 1, ReqID: "d2", Kind: "devcontainer_started",
-		PreparationID: "prep-1", ObservedRevision: prep.Revision,
-	})
-	prep, _ = FindPreparation(s, "prep-1")
-	if prep.Stage != PrepStageDevcontainerInProgress {
-		t.Fatalf("must resume devcontainer-in-progress: %s", prep.Stage)
-	}
-	if prep.Stage == PrepStageCloneInProgress {
-		t.Fatal("must not be clone-in-progress after devcontainer retry")
 	}
 }
 

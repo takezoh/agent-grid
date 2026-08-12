@@ -18,7 +18,7 @@ export async function bootstrapScreenshotApp(page: Page): Promise<void> {
     sessionConfig: {
       project_roots: ["/home/dev/dev/agent-grid"],
       project_paths: ["/home/dev/dev/agent-grid"],
-      projects: [{ path: "/home/dev/dev/agent-grid", isGit: true, isSandboxed: false }],
+      projects: [{ path: "/home/dev/dev/agent-grid", isGit: true }],
       commands: ["claude"],
       push_commands: ["save", "status"],
     },

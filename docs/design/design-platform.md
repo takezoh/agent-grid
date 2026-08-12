@@ -4,21 +4,17 @@ kind: design
 title: Platform architecture
 status: active
 created: '2026-06-24'
-summary: Governs shared process launch, PTY, agent protocol, sandbox, broker, observability,
-  and test-double infrastructure.
+summary: Governs shared process launch, PTY, agent protocol, observability, and
+  test-double infrastructure.
 scope_type: area
 responsibilities:
 - id: RESP-001
   statement: Provide dependency-light infrastructure shared by client server and orchestrator
     areas.
 - id: RESP-002
-  statement: Own canonical process-launch and lifecycle primitives across host and
-    sandbox execution.
+  statement: Own canonical process-launch and lifecycle primitives for host execution.
 - id: RESP-003
   statement: Define agent protocol transport and versioned wire contracts.
-- id: RESP-004
-  statement: Mediate credentials host execution MCP tools secrets and path translation
-    across trust boundaries.
 - id: RESP-005
   statement: Supply routing-safe PTY multiplexing and fidelity-backed test doubles
     for external protocols.
@@ -38,14 +34,6 @@ invariants:
   statement: PTY and protocol fan-out preserves per-session and per-subscriber isolation
     under concurrency.
   enforcement: test
-- id: INV-004
-  statement: Host mediation is deny-first and scopes credentials and capabilities
-    to the requesting project.
-  enforcement: contract
-- id: INV-005
-  statement: Long-lived host credentials are not copied into sandbox state when brokered
-    access is available.
-  enforcement: review
 - id: INV-006
   statement: Generated protocol types remain pinned to an explicit upstream schema
     and drift check.
@@ -66,16 +54,10 @@ invariants:
   statement: Every SCM, WSL, Windows process, ACL, resume, and OS-record dependency
     ships a fake, invariant-naming contract test, and FakeVsReal fidelity backstop.
   enforcement: contract
-- id: INV-901
-  statement: Repository devcontainer identity is keyed by immutable repository scope
-    while every session clone remains an independent frame workspace.
-  enforcement: contract
 boundaries:
   provides:
   - Process launch, process-group lifecycle, PTY multiplexing, and path translation.
   - Agent JSON-RPC transport, schemas, command builders, and compatibility shims.
-  - Sandbox lifecycle and brokered access to credentials, host commands, MCP, and
-    secrets.
   - Shared logging, metrics, tracker adapters, and protocol-focused test doubles.
   - Runtime-authoritative shim identity and search-path ordering for frame-launched
     processes.
@@ -84,17 +66,13 @@ boundaries:
   - Upstream agent schemas and external provider protocols.
   forbidden:
   - Owning client session policy, browser behavior, or orchestrator scheduling decisions.
-  - Bypassing broker policy with direct host credential or executable access from
-    a sandbox.
   - Introducing caller-specific launch implementations parallel to the canonical launch
     path.
 variability:
   fixed:
   - Dependency direction toward platform and away from policy layers.
-  - Deny-first host mediation and scoped credentials.
   - Routing isolation, explicit process ownership, and deterministic cleanup.
   free:
-  - Sandbox and provider implementations conforming to the platform contracts.
   - Agent protocol versions selected explicitly by consumers.
   - Test-double implementations paired with contract and fidelity checks.
 capabilities:
@@ -103,8 +81,6 @@ capabilities:
 - id: cap:pty-multiplexing
   uniqueness: global
 - id: cap:agent-protocol-transport
-  uniqueness: global
-- id: cap:sandbox-and-host-mediation
   uniqueness: global
 - id: cap:shared-observability
   uniqueness: global
@@ -122,7 +98,6 @@ relations:
 - {type: references, target: adr-20260716-shim-priority-hardening-and-migration}
 - {type: references, target: note-20260624-technical-code-enforcement}
 - {type: references, target: note-20260624-technical-guardrails}
-- {type: references, target: note-20260624-user-sandbox}
 failure_responsibilities:
 - Reject unsafe launch, path, credential, executable, tool, and secret requests at
   the platform boundary.
@@ -132,12 +107,8 @@ failure_responsibilities:
   execution path.
 - Contain subscriber and fake-backend failures so they cannot corrupt unrelated routes.
 trust_boundaries:
-- The sandbox-to-host socket boundary requires project-scoped authentication and per-operation
-  policy.
 - Agent protocol streams and upstream schemas are external inputs requiring framing
   and version validation.
-- Host filesystem paths crossing into containers require explicit canonical translation
-  and containment.
 - Writers of runtime-authoritative shim directories hold executable precedence and
   must remain limited to governed providers.
 - id: TRUST-901
@@ -165,7 +136,7 @@ updated: '2026-07-24'
 
 # Platform architecture
 
-The platform area is the shared infrastructure boundary below product policy. It standardizes process launch, terminal fan-out, agent protocol, sandboxing, and constrained host mediation. Frame launch owns final PATH ordering after pre-exec evaluation; stable platform identities define authoritative shim locations, while providers materialize shims without independently mutating PATH.
+The platform area is the shared infrastructure boundary below product policy. It standardizes process launch, terminal fan-out, and the agent protocol. Frame launch owns final PATH ordering after pre-exec evaluation; stable platform identities define authoritative shim locations.
 
 The complete legacy sources remain below as migration history. The governing contract above is the maintained design surface.
 
@@ -187,7 +158,6 @@ owners: []
 relations:
 - {type: referencedBy, target: component-20260624-orchestrator-overview}
 - {type: references, target: component-20260624-orchestrator-overview}
-- {type: references, target: component-20260624-platform-sandbox}
 - {type: references, target: component-20260624-platform-spawn-and-launch}
 - {type: referencedBy, target: component-20260624-platform-overview}
 - {type: referencedBy, target: component-20260624-platform-spawn-and-launch}
@@ -334,12 +304,12 @@ flowchart LR
     CLI <-->|"tool calls"| BRIDGE
 ```
 
-- `cli/argv.go`'s `AppServerArgs(resumeSessionID, appendSystemPrompt, prompt)` (`:29`) builds argv like `-p --output-format stream-json --verbose --resume <id>`. `SandboxFlags` (`:15`) adds sandbox flags.
+- `cli/argv.go`'s `AppServerArgs(resumeSessionID, appendSystemPrompt, prompt)` (`:29`) builds argv like `-p --output-format stream-json --verbose --resume <id>`.
 - `streamjson` (`streamjson.go`) parses the CLI's NDJSON into typed events (`SystemInit` / `AssistantMessage` / `ToolResult` / `ToolResults` / `Result` / `Unknown`). `Usage.Total()` returns the token total.
 - `turnRunner.scanStream` (`turn.go:170`) translates events into Codex notifications: `SystemInit` → record sessionID, `AssistantMessage` → `EmitAgentMessageDelta`, `ToolResult` → `item/completed`, `Result` → `completeTurn` (which emits `EmitTokenUsage` + `turn/completed`).
 - Claude's tool execution is forwarded to an in-band tool bridge over `TOOL_BRIDGE_SOCKET` (`turn.go:99`).
 
-approval / sandbox policy hints are logged but not enforced by the shim — isolation is provided by the devcontainer (see [sandbox.md](../component/component-20260624-platform-sandbox.md)).
+approval / sandbox policy hints are logged but not enforced by the shim.
 
 ## lib/codex — argv builders for codex
 
@@ -348,235 +318,12 @@ approval / sandbox policy hints are logged but not enforced by the shim — isol
 | Function | Purpose |
 |---|---|
 | `ParseCommand(argv []string)` (`:26`) | Parse `codex.command` into a `CommandConfig` |
-| `AppServerListenArgs(serverBin, sock, extra, sandboxExternal)` (`:54`) | listen-socket mode |
-| `AppServerStdioArgs(extra, sandboxExternal)` (`:64`) | stdio mode |
+| `AppServerListenArgs(serverBin, sock, extra)` (`:54`) | listen-socket mode |
+| `AppServerStdioArgs(extra)` (`:64`) | stdio mode |
 | `RemoteAttachArgs(sock, threadID, startDir)` (`:79`) | remote attach over the app-server UDS (`--remote unix://<sock>`) |
 | `ShellJoinArgv(args)` (`:93`) | shell-join argv for a pty frame |
 
 `ShellJoinArgv` is what populates the `Command` form (pty frame) in [spawn-and-launch.md](../component/component-20260624-platform-spawn-and-launch.md).
-
-````
-
-## Legacy Source: component-20260624-platform-brokers
-
-````markdown
----
-id: component-20260624-platform-brokers
-kind: component
-title: Brokers — Host Mediation and Policy Enforcement
-status: active
-created: '2026-06-24'
-updated: '2026-07-04'
-tags:
-- technical
-- platform
-- legacy-import
-owners: []
-relations:
-- {type: references, target: component-20260624-platform-sandbox}
-- {type: references, target: component-20260624-platform-spawn-and-launch}
-- {type: references, target: note-20260624-technical-guardrails}
-- {type: referencedBy, target: component-20260624-platform-overview}
-- {type: referencedBy, target: component-20260624-platform-spawn-and-launch}
-- {type: referencedBy, target: note-20260624-technical-guardrails}
-- {type: referencedBy, target: note-20260624-technical-overview}
-source_paths:
-- services/platform/credproxy/
-- services/platform/hostexec/
-- services/platform/mcpproxy/
-- services/platform/secretenv/
-- services/platform/secretenv/broker.go
-- services/platform/secretenv/gate.go
-provides:
-- brokers-host-mediation-and-policy-enforcement
-summary: Implementation deep dive of the three brokers that give an in-container agent
-  limited access to host privileges, credentials, and MCP servers.
----
-
-<!-- migrated_from: docs/technical/platform/brokers.md -->
-
-# Brokers — Host Mediation and Policy Enforcement
-
-Implementation deep dive of the three brokers that give an in-container agent **limited** access to host privileges, credentials, and MCP servers.
-
-> This document covers the **"how"** (the implementation). The **"why"** — why this shape is a security boundary (long-lived secrets stay on the host; the container only ever sees short-lived tokens and brokered stdio) — is owned by [sandbox.md → Credential Proxy / Host-exec broker / MCP proxy](../component/component-20260624-platform-sandbox.md#credential-proxy). The two cross-link and avoid duplicating content.
-
-| Package | Role | Enforcement |
-|---|---|---|
-| `platform/credproxy/` | In-process credential server. Bundles providers and issues a per-project bearer token | token ↔ projectID verification |
-| `platform/hostexec/` | Runs allowlisted host binaries on behalf of the container (SCM_RIGHTS stdio forwarding) | deny-first allowlist (`Policy.Check`) |
-| `platform/mcpproxy/` | Runs MCP servers on the host and relays JSON-RPC stdio | per-tool policy (`Policy.CheckTool`) |
-| `platform/secretenv/` | Resolves secret references from an env-file on the host; injects into subprocess env | env-file path allowlist (`Gate.Check`, default-deny) |
-
-## The big picture: credproxy bundles the providers
-
-Both hostexec and mcpproxy implement the external `credproxy/container` `container.Provider` interface and register with the `credproxy.Runner` (`credproxy/credproxy.go:83`, `buildProviders`). This collapses credentials, host-exec, and MCP behind a single per-project Unix-socket server.
-
-```mermaid
-flowchart LR
-    subgraph container["container (agent process)"]
-        AGENT["codex / claude agent"]
-        SHIM_GH["shim: gh / aws …<br/>(injected into PATH)"]
-        MCPJSON[".mcp.json overlay<br/>(alias → client shim)"]
-    end
-
-    subgraph host["host"]
-        subgraph runner["credproxy.Runner (in-process server)"]
-            TOK["per-project<br/>bearer token"]
-            HEB["hostexec broker"]
-            MPB["mcpproxy broker"]
-            AWS["awssso / gcloudcli / sshagent<br/>provider"]
-        end
-        BIN["host binary<br/>(gh, aws, …)"]
-        MCPSRV["MCP server<br/>(child process)"]
-    end
-
-    AGENT -->|"credential request<br/>(with token)"| TOK
-    AGENT --> SHIM_GH -->|"unix socket<br/>+ SCM_RIGHTS"| HEB
-    HEB -->|"Policy.Check passes"| BIN
-    AGENT --> MCPJSON -->|"unix socket<br/>JSON-RPC"| MPB
-    MPB -->|"CheckTool passes"| MCPSRV
-    TOK -.->|verify projectID| AWS
-```
-
-## credproxy — per-project tokens and provider fan-out
-
-`Runner` (`credproxy.go:36`) holds a `credproxylib.Server` and the provider set. `Start` (`credproxy.go:72`) brings up the server and `buildProviders` registers the awssso / gcloudcli / sshagent providers plus the hostexec and mcpproxy `SpecBuilder`s. The server runs on a child context so `Shutdown` deterministically reaps provider-managed processes such as ssh-agent.
-
-**Token scoping** (`ProjectToken`, `credproxy.go:53`):
-
-- Each project gets a 32-byte (256-bit) token from `crypto/rand` (`generateToken`, `credproxy.go:231`).
-- `srv.AddAuthToken(token, projectID)` registers it, where `projectID = container.ProjectRunHash(projectPath)`.
-- Repeat requests for the same project reuse the cached token (`tokens map[string]string`).
-
-Container-side requests present this token, and the server matches token → projectID. **This is the boundary that blocks credential leakage across projects.**
-
-## hostexec — proxied execution over SCM_RIGHTS
-
-A container-side shim asks over a Unix socket to "run this binary with this argv"; the broker executes it on the host and returns the exit code. stdio is passed as **the actual file descriptors** via SCM_RIGHTS.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant SH as container shim<br/>(/…/gh)
-    participant BR as host broker
-    participant PO as Policy
-    participant BIN as host binary
-
-    SH->>BR: connect (unix socket)
-    Note over BR: peerPID(conn) via SO_PEERCRED<br/>(for the audit log)
-    SH->>BR: SendRequest(Request{Binary, Args}, fds[3])
-    Note over SH,BR: stdin/stdout/stderr fds passed<br/>as SCM_RIGHTS ancillary data
-    BR->>BR: loadEntries()[req.Binary]
-    alt unknown binary
-        BR-->>SH: "unknown binary" → exit 127
-    else registered
-        BR->>PO: Check(argv)
-        Note over PO: deny-first → allow-second<br/>(default-deny)
-        alt rejected
-            PO-->>BR: error
-            BR-->>SH: reason on stderr + non-zero exit
-        else allowed
-            BR->>BIN: executeRequest (forwarded fds as stdio)
-            BIN-->>BR: exit code
-            BR-->>SH: Response{ExitCode}
-        end
-    end
-```
-
-**Policy** (`hostexec/policy.go`) evaluates deny → allow and rejects anything matching neither (default-deny, `Check` `policy.go:77`).
-
-- Patterns are globs (`*` matches any string, including spaces). In `"gh pr *"` the space before `*` is **literal**, so it does not match `"gh preview"` (`CompilePolicy` `policy.go:49`).
-- argv is reconstructed into a string by `shellJoin` before matching. This is **to align with Claude Code's Bash permission pattern semantics**; tokens that are not `isShellSafe` get single-quoted (`policy.go:95`).
-- Leading `KEY=VALUE` env-assignment tokens are stripped by `trimEnvPrefix` before comparison, so `"ENV=x gh pr *"` and `"gh pr *"` are treated identically.
-
-For audit, the caller PID is read via `SO_PEERCRED` (`peerPID`, `broker.go:81`) and logged together with `/proc/<pid>/comm` (`procComm`).
-
-## mcpproxy — JSON-RPC relay and tool gating
-
-MCP servers run as host-side child processes, with newline-delimited JSON-RPC 2.0 relayed bidirectionally between them and the container. `SpecBuilder` (`mcpproxy/provider.go:21`) is also a `container.Provider`.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant A as container agent
-    participant FR as forwardRequests
-    participant PO as Policy
-    participant SRV as MCP server (host)
-    participant FRES as forwardResponses
-
-    A->>FR: JSON-RPC line
-    alt method == "tools/call"
-        FR->>PO: CheckTool(params.name)
-        alt rejected
-            PO-->>FR: error
-            FR-->>A: JSON-RPC error (-32601)<br/>(never reaches upstream)
-        else allowed
-            FR->>SRV: relay line
-        end
-    else other method
-        FR->>SRV: relay unchanged
-    end
-    SRV-->>FRES: response line
-    Note over FRES: tools/list results<br/>filtered by policy
-    FRES-->>A: only permitted tools
-```
-
-- `forwardRequests` (`relay.go:54`) intercepts `tools/call` and gates it with `policy.CheckTool(name)` (`policy.go:43`, deny-first). A rejected call is answered directly to the container with an error and never forwarded upstream.
-- `forwardResponses` (`relay.go:86`) filters `tools/list` results by policy so disallowed tools are never shown to the container.
-- `ContainerSpec` (`provider.go:61`) takes the project's `.mcp.json` as a base and generates an overlay pointing each alias at the client shim (`writeMCPJSON`), then returns two bind mounts (broker socket + `.mcp.json` overlay) plus the `AG_MCP_SOCK` env. With no servers configured it returns an empty Spec.
-
-## secretenv — secret reference resolver
-
-`secretenv` resolves opaque references (e.g. `op://vault/item/field`) in an env-file and injects the real values into a single subprocess environment. Invoked ad-hoc within a running session — not at container startup.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant SH as container shim<br/>(credproxy on PATH)
-    participant RB as bridge secret-run
-    participant BR as host broker
-    participant GE as Gate
-    participant CP as credproxy resolve<br/>(host binary)
-
-    SH->>RB: exec with "run --env-file X -- cmd"
-    RB->>BR: connect (unix socket) + Request{env_file_path}
-    BR->>GE: Check(path)
-    alt denied (not in allowlist)
-        GE-->>BR: error
-        BR-->>RB: Response{error}
-        RB-->>SH: exit 1
-    else allowed
-        BR->>CP: credproxy resolve --env-file <path>
-        CP-->>BR: stdout: {"env":{"K":"V",...}}
-        BR-->>RB: Response{env: {K:V,...}}
-        RB->>RB: merge into os.Environ()
-        RB->>RB: syscall.Exec(cmd, args, merged_env)
-    end
-```
-
-**Container shim** (`secretenv-shims/credproxy`): a shell script that calls `bridge secret-run "$@"`. It is written to `<projRunDir>/secretenv-shims/` and prepended to container `PATH`, so existing scripts that call `credproxy run` work without modification.
-
-**Broker** (`platform/secretenv/broker.go`): per-project Unix socket server (`<projRunDir>/secretenv.sock`, bind-mounted at `/opt/agent-grid/run/secretenv.sock`). Each connection is handled in its own goroutine. `gate`, `credproxyBin`, and `hostPathMountPrefix` are guarded by a `sync.RWMutex` so concurrent request handling during config reload is race-free.
-
-Before the gate is checked, the broker applies path canonicalization in order:
-1. Reject non-absolute paths — the container shim performs `filepath.Abs` (container CWD); a relative path arriving at the broker means a shim bug or a direct socket attempt.
-2. `filepath.Clean` — collapse any `.`/`..` sequences.
-3. `containerToHost` — strip `HostPathMountPrefix` (boundary-safe: `/mnt` does not strip `/mnternal`). When the prefix is empty (bare-host or no devcontainer) the path is unchanged.
-
-After canonicalization, `gate.Check(hostPath)` runs against the resulting **host absolute path**, and the same `hostPath` is forwarded to `credproxy resolve --env-file`. This is the **gate ≡ open invariant**: the path checked by the gate is byte-identical to the path credproxy opens. The broker must never expand `~`/`$VAR` (that would use the host daemon's env, not the container's, and break the invariant with any post-gate expansion).
-
-**Gate** (`platform/secretenv/gate.go`): `filepath.Match` allowlist, default-deny. `*` matches within a single path segment only — does not cross `/`. Patterns are matched against the **host absolute path** (after `HostPathMountPrefix` is stripped). `allow` values in `settings.toml` should use host paths.
-
-**Resolution**: entirely credproxy's concern. Hook backend (op/mise/vault) and its configuration (`~/.config/credproxy/config.toml`) are never known to the client. the client's role is gate + socket plumbing only. The `credproxy resolve` output contains only env-file-declared secrets; host environment variables are never included.
-
-**Bare-host path**: the real `credproxy run` binary resolves locally with no gate. The shim/broker path is only active inside a devcontainer.
-
-## Related documentation
-
-- The full security model and sandbox lifecycle: [sandbox.md](../component/component-20260624-platform-sandbox.md)
-- Where brokers are injected into the container along the launch path: [spawn-and-launch.md](../component/component-20260624-platform-spawn-and-launch.md) (`DevcontainerLauncher`)
-- Capability sandboxing as an agent-control guardrail: [guardrails.md → capability](../note/note-20260624-technical-guardrails.md#3-capability-sandboxing--what-a-running-agent-can-touch)
 
 ````
 
@@ -597,21 +344,14 @@ tags:
 owners: []
 relations:
 - {type: references, target: component-20260624-platform-agent-protocol}
-- {type: references, target: component-20260624-platform-brokers}
-- {type: references, target: component-20260624-platform-sandbox}
 - {type: references, target: component-20260624-platform-spawn-and-launch}
 - {type: references, target: note-20260624-technical-code-enforcement}
 - {type: references, target: note-20260624-technical-guardrails}
-- {type: references, target: note-20260624-user-sandbox}
 - {type: referencedBy, target: note-20260624-agent-overview}
 - {type: referencedBy, target: note-20260624-docs-overview}
 - {type: referencedBy, target: note-20260624-technical-code-enforcement}
 - {type: referencedBy, target: note-20260624-technical-overview}
 source_paths:
-- services/platform/sandbox/
-- services/platform/hostexec/
-- services/platform/mcpproxy/
-- services/platform/pathmap/
 - services/platform/logger/
 - services/platform/lib/
 - services/platform/tracker/
@@ -637,7 +377,7 @@ Because it sits below both services, `platform/` is where tool-specific knowledg
 
 - **Testability via DI seams** — code that wraps an external dependency (`exec`, docker, the network, a filesystem path) puts that dependency behind an injectable interface or an env-var override, so tests substitute a fake. Examples: subprocess wrappers expose a `Runner` interface (`lib/github.Runner`) with a `DefaultRunner` for production and a fake for tests; external config paths accept overrides (`CODEX_CONFIG_DIR`). "We can't test it without the real binary" is a design defect — cover the parsing/command-assembly logic behind the seam.
 - **Base layer, no upward imports** — `platform/` imports neither `client/` nor `orchestrator/` (enforced by `depguard` rule `platform-no-host-or-orchestrator`). It knows nothing about the services above it.
-- **Tool-specific knowledge concentrated here** — paths, env-var names, and CLI invocations live in `lib/<tool>/` and `credproxy/` so the generic layers above stay tool-agnostic. This is the receiving side of client's Driver isolation.
+- **Tool-specific knowledge concentrated here** — paths, env-var names, and CLI invocations live in `lib/<tool>/` so the generic layers above stay tool-agnostic. This is the receiving side of client's Driver isolation.
 - **Agent-agnostic launch primitive** — `agentlaunch` (`Spawn`/`SplitArgs`/`Dispatcher`) turns a command string into a running process without knowing which agent it launches; per-agent argv construction stays in `lib/<tool>`.
 - **Wire-format / persistence is stdlib-only** — types that cross the wire or hit disk depend only on the standard library, for portability.
 
@@ -645,303 +385,19 @@ Because it sits below both services, `platform/` is where tool-specific knowledg
 
 | Package | Responsibility |
 |---|---|
-| `platform/sandbox/` | Project-level sandbox backends (generic `Manager[I]`). `devcontainer/` implements per-project container lifecycle via docker. See [sandbox.md](../component/component-20260624-platform-sandbox.md). |
-| `platform/hostexec/` | Host-exec broker — a `container.Provider` that runs allowlisted host binaries on behalf of container processes via SCM_RIGHTS stdio forwarding. |
-| `platform/mcpproxy/` | MCP proxy broker — runs MCP servers on the host with JSON-RPC stdio relayed into the container, with tool-level policy enforcement. Generates a `.mcp.json` overlay so Claude Code routes configured aliases through the broker. |
-| `platform/pathmap/` | Container↔host path translation using `WrappedLaunch.Mounts`. |
 | `platform/logger/` | `slog` initialization + log file management. |
-| `platform/lib/` | External tool integration — `git`, `github`, `gemini`, `wsl`, `openurl`, `notify`, …  Per-agent argv builders: `lib/codex/argv.go` (`AppServerListenArgs`, `RemoteAttachArgs`, `ParseCommand([]string)`, `ShellJoinArgv`, driver constants) and `lib/claude/cli/argv.go` (`SandboxFlags`, `AppServerArgs`). |
+| `platform/lib/` | External tool integration — `git`, `github`, `gemini`, `wsl`, `openurl`, `notify`, …  Per-agent argv builders: `lib/codex/argv.go` (`AppServerListenArgs`, `RemoteAttachArgs`, `ParseCommand([]string)`, `ShellJoinArgv`, driver constants) and `lib/claude/cli/argv.go` (`AppServerArgs`). |
 | `platform/tracker/` | Issue tracker adapters (e.g. `linear/`). Shared by the orchestrator. |
 | `platform/metrics/` | Token / runtime metrics accumulation. |
 | `platform/agentlaunch/` | Agent launch primitives: `LaunchPlan`/`WrappedLaunch` (dual `Command` string for pty frame + `Argv []string` for `Spawn`), `Dispatcher.Wrap` interface, `Spawn` (argv-direct exec via `procgroup`, no host shell), `SplitArgs` POSIX tokenizer. Shared by client and orchestrator. |
 | `platform/procgroup/` | Process-group spawn wrapper (`procgroup.Command`) with `WaitDelay`-bounded SIGKILL. `Tracker` records pgids so a future boot's `PruneOrphans` can reap orphaned processes. |
 | `platform/agent/` | Shared agent launch interfaces (e.g. `codexclient/`). |
-| `platform/credproxy/` | Credential providers (AWS SSO, gcloud CLI, ssh-agent) — the external `credproxy` library; the only place tool-specific credential env var names live. |
 
 ## Per-subsystem deep dives
 
-- **[spawn-and-launch.md](../component/component-20260624-platform-spawn-and-launch.md)** — `agentlaunch` + `procgroup` + `pathmap`. The layer that turns a command string into a running process: `LaunchPlan`/`WrappedLaunch`/`Dispatcher`/`Spawn`, process-group lifecycle and orphan reaping, container↔host path translation.
-- **[brokers.md](../component/component-20260624-platform-brokers.md)** — implementation of `hostexec` + `mcpproxy` + `credproxy`: SCM_RIGHTS proxied execution, JSON-RPC tool gating, per-project tokens. The security model is in [sandbox.md](../component/component-20260624-platform-sandbox.md).
+- **[spawn-and-launch.md](../component/component-20260624-platform-spawn-and-launch.md)** — `agentlaunch` + `procgroup`. The layer that turns a command string into a running process: `LaunchPlan`/`WrappedLaunch`/`Dispatcher`/`Spawn`, process-group lifecycle and orphan reaping.
 - **[agent-protocol.md](../component/component-20260624-platform-agent-protocol.md)** — `agent/codexclient` + `codexschema` (v1/v2) + `lib/codex` + `lib/claude`. The Codex app-server stdio protocol, the turn sequence, and the claude-app-server shim's translation.
-- **[sandbox.md](../component/component-20260624-platform-sandbox.md)** — `sandbox/` backends: per-project devcontainer isolation, image resolution, credential proxy.
-- Agent-control guardrails (capability sandboxing, autonomy policy, concurrency, liveness) are in [guardrails.md](../note/note-20260624-technical-guardrails.md); code-level enforcement (import boundaries, length limits) is in [code-enforcement.md](../note/note-20260624-technical-code-enforcement.md).
-
-## Sandbox isolation and credential brokering
-
-The sandbox, host-exec, and MCP-proxy packages together provide the security model: long-lived secrets stay on the host, and the container only ever sees short-lived tokens or brokered stdio. The architecture and lifecycle are documented in [sandbox.md](../component/component-20260624-platform-sandbox.md); user-facing configuration is in the [sandbox setup guide](../note/note-20260624-user-sandbox.md).
-
-````
-
-## Legacy Source: component-20260624-platform-sandbox
-
-````markdown
----
-id: component-20260624-platform-sandbox
-kind: component
-title: Sandbox Backends
-status: active
-created: '2026-06-24'
-updated: '2026-07-04'
-tags:
-- technical
-- platform
-- legacy-import
-owners: []
-relations:
-- {type: referencedBy, target: component-20260624-client-ipc}
-- {type: referencedBy, target: component-20260624-client-process-model}
-- {type: referencedBy, target: component-20260624-orchestrator-overview}
-- {type: referencedBy, target: component-20260624-platform-agent-protocol}
-- {type: referencedBy, target: component-20260624-platform-brokers}
-- {type: referencedBy, target: component-20260624-platform-overview}
-- {type: references, target: note-20260624-user-sandbox}
-- {type: referencedBy, target: note-20260624-technical-guardrails}
-- {type: referencedBy, target: note-20260624-technical-overview}
-- {type: referencedBy, target: note-20260624-user-sandbox}
-source_paths:
-- services/platform/sandbox/
-- services/platform/sandbox/devcontainer/
-provides:
-- sandbox-backends
-summary: User-facing setup (devcontainer.json, [sandbox.*] settings, credential proxy
-  provider config) lives in the user guide docs/user/sandbox.md. This document covers
-  the architecture, security model, and lifecycle.
----
-
-<!-- migrated_from: docs/technical/platform/sandbox.md -->
-
-# Sandbox Backends
-
-User-facing setup (devcontainer.json, `[sandbox.*]` settings, credential proxy provider config) lives in the user guide [docs/user/sandbox.md](../note/note-20260624-user-sandbox.md). This document covers the architecture, security model, and lifecycle.
-
-## Purpose
-
-Sandbox backends isolate agent processes per project — each project directory runs inside its own container with scoped filesystem, network, and capability restrictions.
-
-The state layer knows only `LaunchPlan.Project` (the project path); it has no awareness of which backend is active. Backend selection and command wrapping live in the runtime layer; container lifecycle lives in the `sandbox/` package.
-
-Reactor does not build images. The image name is declared by the user in `devcontainer.json` (`image:` or `build.name`). Container lifecycle (create / start / exec / remove) uses docker directly.
-
-## Layer Responsibilities
-
-| Layer | Sandbox role |
-|---|---|
-| `state/` | Holds `LaunchPlan.Project`. Backend-agnostic |
-| `runtime/` | `AgentLauncher` wraps `LaunchPlan` into `WrappedLaunch{Command, Argv, Env, Mounts, ContainerSockDir, Cleanup}`. `Wrap` populates both `Command` (shell-joined string for pty-frame launch) and `Argv` (structured argv for `agentlaunch.Spawn`). `SandboxDispatcher` resolves which launcher (direct / devcontainer) to use per project via `config.SandboxResolver` |
-| `sandbox/` | `Manager[I any]` interface + backend implementations. Owns container lifecycle only; does not import driver / lib / runtime |
-| `credproxy` library (`providers/<name>/`) | AWS SSO / gcloud / ssh-agent providers. Tool-specific env var names (`AWS_*`, `GOOGLE_*`, `SSH_AUTH_SOCK`) live exclusively here |
-| `hostexec/` | Host-exec broker — runs allowlisted host binaries on behalf of container processes via SCM_RIGHTS stdio forwarding |
-
-`sandbox/` is tool-agnostic. It does not contain knowledge of any specific tool (e.g. Claude). Tool-specific host paths are declared by the user in `devcontainer.json` or `~/.agent-grid/settings.toml`; they are never hardcoded in Go source.
-
-## Design Decisions
-
-| Decision | Choice | Rationale |
-|---|---|---|
-| Backend abstraction | `sandbox.Manager[I any]` + typed `Instance[I]` | Eliminates `any` and forced type-asserts. Backend-specific state (e.g. `*devcontainer.ContainerState`) is carried as the type parameter |
-| Instance scope | Per-container, keyed by isolation mode | Project isolation: one container per project (key = projectPath). Shared isolation: a single `__shared__` container hosts every project's frames. `AcquireFrame` / `ReleaseFrame` manage the per-instance ref-count; `DestroyInstance` is called when the count reaches zero. The image is shared across projects at build time |
-| Config resolution | User scope + project scope merged by `config.SandboxResolver` with mtime-based caching | Default direct mode; individual repos opt into devcontainer without daemon restart |
-| Lifecycle and effect | client disconnect → containers survive; explicit shutdown → `EffReleaseFrameSandboxes` (`DestroyInstance` runs `docker rm` for both shared and project containers); SIGINT (ctx cancel) → same as client disconnect | Container lifetime decisions are expressed as state-layer effects, ordered in the event loop rather than a defer stack. The destroy step removes `docker rm`'s side effect on shared containers too: in-container daemons (per-session `codex app-server`) only exist on a freshly-`postCreate`-d container, so reusing a stale one breaks cold start |
-| Cold-start fresh provisioning | `coordinator.coldStart` brackets `PrewarmContainers` / `RecreateAll` with `BeginColdStart` / `EndColdStart` on the `ColdStartAware` launcher. `Manager.EnsureInstance` then sees `opts.ColdStart=true` and `docker rm`s any surviving container before calling `createContainer` | Even when graceful shutdown is skipped (SIGKILL / crash), the next cold start guarantees `postCreate` runs on a fresh container |
-| Crash recovery | `PruneOrphans` at daemon startup enumerates containers labelled `reactor-managed=1` and kills any whose project is not in sessions.json | Covers SIGKILL / panic paths where defer and effects never run. sessions.json is the ground truth |
-| Image resolution | `LoadSpec` reads `image:` (top-level) then `build.name` from devcontainer.json | Reactor does not build images. The user builds externally and declares the image name in devcontainer.json |
-
-## Frame Lifecycle Interaction
-
-**New frame**
-`AgentLauncher.WrapLaunch` → `EnsureInstance` (singleflight-serialized per project) → `AcquireFrame` → the resulting `WrappedLaunch` is embedded in `EffSpawnFrame`
-
-**Warm start**
-`AdoptFrame` reclaims the still-running container and increments the ref-count for each restored frame; `RecoverSandboxFrames` replays per-frame bearer tokens from `<dataDir>/warm/`
-
-**Frame exit / shutdown**
-`Cleanup` callback → `ReleaseFrame` → if count reaches zero → `DestroyInstance`
-
-**Daemon startup**
-`PruneOrphans` kills containers outside the known project set; `<dataDir>/warm/` is wiped at cold start
-
-## Devcontainer Backend
-
-### Image Resolution
-
-At session start, `LoadSpec` reads the image name from `.devcontainer/devcontainer.json`:
-
-1. If `image:` is set → use it.
-2. Else if `build.name` is set → use it.
-3. Neither found → error: `devcontainer.json: image or build.name is required`.
-
-The image must already exist locally (or be pullable by docker on first `docker create`). the client never invokes a build.
-
-### Container Identity
-
-Frames join via `docker exec` rather than spawning a new container per frame. TTY allocation is consumer-dependent: interactive pty-frame launches (attached to the browser frontend through the gateway) use `-it`; the stream daemon (JSON-RPC over stdio pipe) uses `-i` only. Both consumers share the same `sandbox.Manager` instance but use separate `DevcontainerLauncher` instances configured for their respective TTY mode. The container scope is determined by the resolved isolation mode:
-
-- **Project isolation** (default): one long-lived container per project. Container name `reactor-<sha256[:6] of project path>`; labels `reactor-managed=1`, `reactor-project=<abs-path>`
-- **Shared isolation**: a single container named `reactor-shared` hosts every project's frames. All bind-mounts for every reactor-managed project are added at create time so any frame inside can reach its workspace. Per-frame state (workspace, env, credentials) is supplied via `docker exec -e` / `-w` at launch time, never frozen onto the spec
-
-Multiple projects can share the same image name regardless of isolation mode.
-
-### Workspace Mount
-
-The project directory is bind-mounted into the container. By default the container-side path mirrors the host path exactly (e.g. host `/home/u/proj` → container `/home/u/proj`), so editor path resolution and CLI commands work without translation.
-
-`workspaceMount` in devcontainer.json overrides the bind-mount entirely. `host_path_mount_prefix` (client setting) prepends a fixed prefix (e.g. `/mnt`) when devcontainer.json does not pin the workspace path. Working directory is set via `docker create -w` — no `WORKDIR` is needed in the Dockerfile.
-
-### devcontainer.json Keys Honored by the client
-
-| Key | Effect |
-|---|---|
-| `image` | Image name to use (standard devcontainer.json field) |
-| `build.name` | Image name to use when `build:` is present (client extension; `--image-name` equivalent) |
-| `mounts` | Extra bind-mounts passed as `--mount` / `-v` to `docker create` |
-| `containerEnv` | Environment variables injected via `-e` |
-| `containerUser` | User for `docker create -u` |
-| `remoteUser` | User for `docker exec -u` (takes precedence over `containerUser`) |
-| `workspaceFolder` | Container-side workspace path (default: mirror of host path) |
-| `workspaceMount` | Replaces the default workspace bind-mount |
-| `runArgs` | Extra args appended to `docker create` (resource limits, capabilities, etc.) |
-| `postCreateCommand` | Command (string or array) run once after the container is created |
-| `preExecCommand` | Shell string (client extension) run inside the container before each `docker exec` launch |
-
-Variable substitution in string values: `${localWorkspaceFolder}`, `${localWorkspaceFolderBasename}`, `${containerWorkspaceFolder}`, `${localEnv:VAR}`. All other devcontainer.json keys (`features`, `customizations`, …) are ignored.
-
-### Crash Recovery
-
-`PruneOrphans` runs at daemon startup. It lists containers with label `reactor-managed=1` and removes any whose `reactor-project` label value is absent from sessions.json.
-
-## Container IPC Endpoint
-
-Each sandboxed project gets a dedicated Unix socket at `<dataDir>/run/<project-hash>/server.sock` on the host. It is bind-mounted read-write into the container at `/opt/agent-grid/run/server.sock` (via the per-project run dir mount that already exists for credential helper files). The container agent reads `AG_SOCKET` (set to `/opt/agent-grid/run/server.sock`) to locate it.
-
-**API surface**: `hook-event` and `subsystem-event` are implemented. Commands such as `event`, `surface.send_text`, `peer.send`, `shutdown`, and all others are structurally absent — no handler is registered, so they receive a protocol error without touching state.
-
-**Authentication**: at frame spawn time, a 32-byte `crypto/rand` token is generated and injected into the container via `AG_SOCKET_TOKEN`. Every `hook-event` and `subsystem-event` message carries the token; server-side Lookup resolves it to the owning frame ID. No client-supplied frame ID is trusted.
-
-**Warm-start recovery**: tokens are persisted to `<dataDir>/warm/<frameID>.json` (atomic write, `0o600`). On daemon warm restart (containers survive, daemon replaces), `RecoverSandboxFrames` reads `warm/*.json` and re-registers each token for live frames so hook events continue to work immediately. The `warm/` directory is never bind-mounted into containers — a container process cannot read other frames' tokens.
-
-**Cold start**: `warm/` is wiped before `LoadSnapshot` runs, ensuring stale tokens from a previous run do not survive a session-destroying restart.
-
-## Container↔Host Path Translation
-
-Sandboxed agents emit hook payloads and subsystem payloads containing container-absolute paths (e.g. `/workspaces/proj/.../session.jsonl`), but the daemon, drivers, and IPC consumers operate on host-absolute paths. `lib/pathmap` translates at the IPC boundary using the bind-mount table captured in `WrappedLaunch.Mounts`. State, runtime above the launcher, and proto never see container paths.
-
-## Host Mounts
-
-Bind-mounts are declared in devcontainer.json `mounts`. `sandbox/` does not have a global host-mounts config for arbitrary paths — tool-specific paths belong in project or user devcontainer.json, keeping the sandbox layer tool-agnostic.
-
-## Credential Proxy
-
-In devcontainer mode the client always runs an in-process HTTP server backed by the `credproxy` library. The server listens on `<dataDir>/run/credproxy.sock` on the host and is bind-mounted per project into each container at `/opt/agent-grid/run/credproxy.sock`. Its lifetime is tied to the client process — no external daemon is needed. Each provider self-gates on its own configuration and contributes nothing to the container when its settings are empty.
-
-Providers come from two sources: the external `credproxy` library's `providers/<name>/` packages (AWS SSO, gcloud, ssh-agent) and local packages — `hostexec/` (host-exec broker), `mcpproxy/` (MCP proxy), `secretenv/` (secret env resolver) — all using the same `container.Provider` interface. Each provider contributes to the runtime by:
-
-1. Building a `container.Spec` (env vars to inject, files to materialize under the per-project run dir, optional bind-mounts).
-2. Optionally registering an HTTP route on the proxy server (AWS SSO uses this; others rely on bind-mounts only).
-
-Generic layers (`runtime/`, `sandbox/`, `state/`, `proto/`) never reference tool-specific env var names (`AWS_*`, `GOOGLE_*`, `SSH_AUTH_SOCK`). Those names appear only inside the corresponding provider package.
-
-### AWS SSO, gcloud CLI, SSH Agent
-
-Behavior of each provider (credential fetch flow, security model, container env vars) is documented in the credproxy repository:
-
-- [providers/awssso](https://github.com/takezoh/credproxy/tree/main/providers/awssso) — `credential_process` via proxy HTTP route; `~/.aws/sso/cache` never bind-mounted
-- [providers/gcloudcli](https://github.com/takezoh/credproxy/tree/main/providers/gcloudcli) — GCE metadata server emulator + synthetic `CLOUDSDK_CONFIG`; tokens fetched on demand via `gcloud auth print-access-token`; `~/.config/gcloud` never bind-mounted
-- [providers/sshagent](https://github.com/takezoh/credproxy/tree/main/providers/sshagent) — per-project ephemeral agent; container receives socket only
-
-`SSH_AUTH_SOCK` is injected at both container-creation time (`docker create -e`) and at each frame launch (`docker exec -e`), so updating the key list takes effect on the next launch without recreating the container.
-
-### Host-exec broker
-
-The `hostexec` provider lets container processes invoke host binaries (e.g. `gh`, `aws`, `kubectl`) without receiving any credentials or tokens. The host executes the binary; the container only sees stdio.
-
-**Mechanism:**
-
-1. The host starts a per-project Unix socket broker (`<dataDir>/run/<project-hash>/hostexec.sock`) bind-mounted at `/opt/agent-grid/run/hostexec.sock` inside the container.
-2. Shell shim scripts are written to `<dataDir>/run/<project-hash>/hostexec-shims/<name>`. Each shim calls `bridge host-exec <name> "$@"`. The shim directory is placed at the front of every framelaunched process's PATH by `framelaunch.Run()` (see [Runtime PATH ordering](#runtime-path-ordering-case-d)) — the provider itself does NOT contribute `Env["PATH"]` to the container spec.
-3. If `overlay` paths are configured, additional shims are written to `<dataDir>/run/<project-hash>/hostexec-overlay/<name>` and bind-mounted read-only at each path. Each entry is a project-relative path (resolved against the container-side workspace folder, `..` allowed) or an absolute path. This lets existing scripts that invoke binaries via relative paths (`./bin/gh`) or scripts in parent directories mounted via `extra_create_args` route through the same broker.
-4. The shim sends the request (binary name, args, cwd) plus the three stdio fds via SCM_RIGHTS over the socket.
-5. The broker policy-checks the command, then exec's the host binary with the transferred fds as its stdin/stdout/stderr. The exit code is returned to the shim.
-
-**Policy (deny-first, default-deny):**
-
-Allow and deny patterns follow Claude Code's Bash permission semantics: argv is reconstructed into a shell string with single-quoting, and patterns use `*` as a wildcard matching any substring including spaces.
-
-```
-deny?  → reject
-allow? → permit
-else   → reject
-```
-
-Leading `KEY=VALUE` env assignments in patterns are stripped before matching, so `"GH_TOKEN=x gh pr *"` is equivalent to `"gh pr *"` for both matching and binary name extraction.
-
-Binary names must match `[a-zA-Z0-9][a-zA-Z0-9._-]*`; patterns whose first non-env token fails this check are rejected at config load time.
-
-User-scope and project-scope `allow`/`deny` lists are concatenated; project patterns cannot remove user-level deny rules. `overlay` lists are also concatenated, with duplicates removed. Relative entries from different scopes are resolved independently against each project's workspace folder at runtime.
-
-### MCP proxy
-
-The `mcpproxy` provider runs MCP server processes on the host and relays JSON-RPC stdio into the container via a per-project Unix socket broker (`<dataDir>/run/<project-hash>/mcp.sock`). Credentials (GCP ADC, AWS profiles, etc.) are never transmitted — the MCP process itself runs on the host where the credentials reside.
-
-**Mechanism:**
-
-1. The host starts a per-project Unix socket broker bind-mounted at `/opt/agent-grid/run/mcp.sock` inside the container.
-2. At container launch, the client generates a `.mcp.json` in the project workspace (read-only bind-mount) that overrides any project-local `.mcp.json` for configured aliases, routing them through `server mcp-exec <alias>`.
-3. `server mcp-exec <alias>` (the in-container shim) sends its three stdio fds via SCM_RIGHTS over the socket.
-4. The broker starts the actual MCP server process on the host and relays JSON-RPC messages. `tools/call` requests are policy-checked before forwarding; `tools/list` responses are filtered to the allowed set.
-
-**Policy (deny-first, default-deny):** patterns match the tool name directly with `*` as wildcard. User-scope and project-scope server definitions are merged; project entries override user entries on the same alias.
-
-**Container env var:** `AG_MCP_SOCK=/opt/agent-grid/run/mcp.sock` (set when any server is configured).
-
-### Secret env resolver
-
-`secretenv` lets an in-session command (`credproxy run --env-file X -- cmd`) resolve opaque references in an env-file and inject the real values into a **single subprocess** environment. The design follows the `op run --env-file` model.
-
-This is an **intentional exception** to the "long-lived secrets stay on host" invariant. The resolved value enters the subprocess env for its lifetime only and never persists in the container env, session env, or any file. The trade-off is explicit and scoped.
-
-**Bare-host** (no devcontainer, trusted user): the real `credproxy` binary resolves locally via the configured hook. No gate.
-
-**Container**: a shim script named `credproxy` (placed in `<projRunDir>/secretenv-shims/`, prepended to `PATH` by `framelaunch.Run()` — see [Runtime PATH ordering](#runtime-path-ordering-case-d); the provider itself does NOT contribute `Env["PATH"]`) impersonates `credproxy run`. The shim calls `bridge secret-run`, which connects to a per-project host broker socket. The broker:
-
-1. Gates the request by checking the env-file path against a per-project `filepath.Match` allowlist (default-deny, host config, container cannot modify).
-2. Delegates resolution to the host `credproxy resolve --env-file <path>` binary.
-3. Returns the resolved `{name: value}` map over the Unix socket.
-4. The shim merges resolved values into `os.Environ()` and `syscall.Exec`s the target command.
-
-The container sends only the env-file path. Hook backend (op/mise/vault) and its configuration live entirely in credproxy (`~/.config/credproxy/config.toml`); the client has no knowledge of it. The `credproxy resolve` output contains only env-file-declared secrets — host environment variables are never included.
-
-**Gate details:** `filepath.Match` glob patterns, single-level `*` only (does not cross `/`). Empty allowlist = default-deny. Patterns are evaluated against the raw path sent by the container — paths are not cleaned by the broker; callers should send canonical paths.
-
-### Subscription credentials (interactive auth)
-
-Some tools (Claude Code, etc.) authenticate via OAuth flows that store refresh tokens in user-config files. The credential proxy cannot synthesise these — they require a real interactive login. The user opts in by declaring a bind-mount in devcontainer.json for the credential file/directory. This exposes the OAuth refresh token to the container; the trade-off is the user's call.
-
-**Container reuse**: `/opt/agent-grid/run` is bind-mounted at container-creation time. If an existing container lacks this mount (created with an older client version), remove it with `docker rm -f reactor-<hash>` and relaunch.
-
-### Runtime PATH ordering (case D)
-
-**Contract**: `platform/framelaunch.Run()` is the sole owner of the invariant "runtime-authoritative shim dirs first in PATH". After preExec evaluation (which may reorder PATH via `mise activate` / user dotfiles), Run() unconditionally prepends the entries of `appid.RuntimeAuthoritativePathList()` to the PATH inherited by PreCommands and MainCommand, deduplicated and order-preserving.
-
-**SSOT**: `platform/appid` owns the shim subdirectory names as constants:
-
-| appid const | value | provider |
-|---|---|---|
-| `HostExecShimsDir` | `hostexec-shims` | hostexec |
-| `HostExecShimsPath` | `/opt/agent-grid/run/hostexec-shims` | (derived) |
-| `SecretEnvShimsDir` | `secretenv-shims` | secretenv |
-| `SecretEnvShimsPath` | `/opt/agent-grid/run/secretenv-shims` | (derived) |
-
-`appid.RuntimeAuthoritativePathList()` returns `[HostExecShimsPath, SecretEnvShimsPath]` in that order, fresh slice per call.
-
-**Provider contract**: `hostexec.SpecBuilder.ContainerSpec` and `secretenv.SpecBuilder.ContainerSpec` MUST NOT set `Env["PATH"]` on their returned `container.Spec` — the container-side runtime path ordering is owned by framelaunch, not by provider ContainerEnv contribution. The rationale is that PATH ordering the provider tries to establish is defeated by preExec's shell rc anyway (RCA); a defense-in-depth panic at `NewSpecBuilder` time fires when `cfg.ContainerRunDir != appid.ContainerRunDir` to guarantee shim locations match what framelaunch prepends.
-
-**Trust boundary**: any binary placed under `appid.HostExecShimsPath` or `appid.SecretEnvShimsPath` on disk is exec'd in preference to `/usr/bin` counterparts of the same command name for every framelaunched process. Writers of those directories (only the hostexec / secretenv providers today) hold implicit exec priority. Overlay-registered shims (via `sandbox.proxy.host_exec.overlay`) share this priority via bind-mount rather than PATH ordering.
-
-**Rollback toggle**: setting the env `AG_FRAMELAUNCH_DISABLE_PATH_REASSERT=1` (or `true`/`yes`, case-insensitive) skips the merge wiring while still emitting the `framelaunch.path_reassert` slog record with `skip_branch=toggle_disabled`. Provided per `adr-20260716-shim-priority-hardening-and-migration` as an emergency escape hatch. Reverts to pre-case-D behavior (preExec's PATH wins) for the affected frame.
-
-**Migration note (observable PATH surface)**: with case D, `docker exec -it reactor-<hash> bash -c 'echo $PATH'` no longer shows `/opt/agent-grid/run/hostexec-shims` at the front — provider `Env["PATH"]` contribution is gone. This is not a behavior regression: interactive shells re-source shell rc anyway (which already displaced the shim from the front), so effective shim resolution in interactive shells was never guaranteed by the old provider ContainerEnv contribution. Agent-invoked processes (via `framelaunch.Run()`) do see the shim first as the case-D contract guarantees.
-
-Related: `adr-20260716-framelaunch-runtime-path-owner`, `adr-20260716-provider-shim-root-appid-ssot`, `adr-20260716-shim-priority-hardening-and-migration`.
+- Agent-control guardrails (autonomy policy, concurrency, liveness) are in [guardrails.md](../note/note-20260624-technical-guardrails.md); code-level enforcement (import boundaries, length limits) is in [code-enforcement.md](../note/note-20260624-technical-code-enforcement.md).
 
 ````
 
@@ -963,17 +419,13 @@ owners: []
 relations:
 - {type: referencedBy, target: component-20260624-orchestrator-overview}
 - {type: referencedBy, target: component-20260624-platform-agent-protocol}
-- {type: referencedBy, target: component-20260624-platform-brokers}
 - {type: referencedBy, target: component-20260624-platform-overview}
 - {type: references, target: component-20260624-platform-agent-protocol}
-- {type: references, target: component-20260624-platform-brokers}
-- {type: references, target: note-20260624-user-sandbox}
 - {type: referencedBy, target: note-20260624-technical-guardrails}
 - {type: referencedBy, target: note-20260624-technical-overview}
 source_paths:
 - services/platform/agentlaunch/
 - services/platform/procgroup/
-- services/platform/pathmap/
 - WORKFLOW.md
 - services/host/state/
 provides:
@@ -991,11 +443,10 @@ The `platform/` layer owns the single answer to **"how does a command string bec
 
 | Package | Responsibility |
 |---|---|
-| `platform/agentlaunch/` | Launch specs (`LaunchPlan`/`WrappedLaunch`), sandbox application (`Dispatcher`), argv-direct exec (`Spawn`), POSIX tokenizer (`SplitArgs`) |
+| `platform/agentlaunch/` | Launch specs (`LaunchPlan`/`WrappedLaunch`), launch resolution (`Dispatcher`), argv-direct exec (`Spawn`), POSIX tokenizer (`SplitArgs`) |
 | `platform/procgroup/` | Process-group lifecycle (`Command`), orphan reaping (`Tracker`) |
-| `platform/pathmap/` | container↔host path translation (`Mounts`) |
 
-User-facing sandbox configuration is in the [sandbox setup guide](../note/note-20260624-user-sandbox.md); the in-container broker implementation is in [brokers.md](../component/component-20260624-platform-brokers.md); the agent protocol spoken over the spawned stdio is in [agent-protocol.md](../component/component-20260624-platform-agent-protocol.md).
+The agent protocol spoken over the spawned stdio is in [agent-protocol.md](../component/component-20260624-platform-agent-protocol.md).
 
 ## Core design: two launch forms and shell-less exec
 
@@ -1018,7 +469,7 @@ universal product-capability flag.
 Container provisioning uses the same catalog with an explicit container-scope
 default set and materializes one read-only `.mcp.json` overlay per workspace.
 It does not derive provisioning from a per-frame launch plan.
-`platform/mcpproxy` contributes configured external aliases only; agentlaunch
+agentlaunch
 composes those aliases with managed endpoints. Codex `dynamicTools` remains a
 separate app-server protocol boundary.
 
@@ -1028,16 +479,14 @@ separate app-server protocol boundary.
 flowchart TD
     subgraph input["Launch input"]
         CMD["command string<br/>(WORKFLOW.md codex.command)"]
-        LP["LaunchPlan<br/>Command / Argv / Env<br/>StartDir / Project / ForceHost<br/>ManagedMCPTools"]
+        LP["LaunchPlan<br/>Command / Argv / Env<br/>StartDir / Project<br/>ManagedMCPTools"]
     end
 
-    subgraph disp["Dispatcher (applies sandbox)"]
-        SD["SandboxDispatcher<br/>(multiplexes by mode)"]
+    subgraph disp["Dispatcher (resolves the launch)"]
         DD["DirectDispatcher<br/>(pass-through)"]
-        DC["DevcontainerLauncher<br/>(container exec)"]
     end
 
-    WL["WrappedLaunch<br/>Command / Argv / StartDir<br/>Env / Cleanup / Mounts"]
+    WL["WrappedLaunch<br/>Command / Argv / StartDir / Env"]
 
     subgraph spawn["Execution"]
         SP["agentlaunch.Spawn"]
@@ -1046,11 +495,8 @@ flowchart TD
     end
 
     CMD -->|SplitArgs| LP
-    LP --> SD
-    SD -->|"mode: direct / ForceHost"| DD
-    SD -->|"mode: devcontainer"| DC
+    LP --> DD
     DD --> WL
-    DC --> WL
     WL --> SP
     SP --> PG
     PG --> PROC
@@ -1058,24 +504,15 @@ flowchart TD
 
 ### `LaunchPlan` → `WrappedLaunch`
 
-`LaunchPlan` carries pure launch parameters (`types.go:11`). `ForceHost` replaces the host/state `SandboxOverride == SandboxOverrideHost` sentinel, forcing a bypass of the container.
+`LaunchPlan` carries pure launch parameters (`types.go:11`).
 
-`Dispatcher.Wrap` (`dispatcher.go:8`) applies sandbox logic and returns a `WrappedLaunch` (`types.go:32`), which includes the teardown hook `Cleanup func(context.Context) error` and the `Mounts []Mount` used for in-container path translation.
+`Dispatcher.Wrap` (`dispatcher.go:8`) resolves it into a `WrappedLaunch` (`types.go:32`).
 
-### The three Dispatcher implementations
+### The Dispatcher implementation
 
 | Implementation | Behaviour |
 |---|---|
-| `DirectDispatcher` (`direct.go`) | Pass-through. Strips `AG_SOCKET_TOKEN` (`stripContainerOnlyEnv`); injects `AG_SOCKET` when configured |
-| `DevcontainerLauncher` (`devcontainer.go`) | Ensures a container via `sandbox.Manager`, rewrites to a `docker exec` command, builds mounts via pathmap, and injects the credproxy token |
-| `SandboxDispatcher` (`dispatcher_mode.go`) | Resolves the per-project mode via `SandboxResolver` and delegates to Direct / Devcontainer. `ForceHost` always goes Direct |
-
-`SandboxDispatcher.Wrap` (`dispatcher_mode.go:19`) branches:
-
-- `plan.ForceHost == true` → `Direct.Wrap`
-- `mode == "devcontainer"` → `Devcontainer.Wrap` (error if the backend is unavailable)
-- `mode == "" | "direct"` → `Direct.Wrap`
-- otherwise → error (an unknown mode is rejected at runtime)
+| `DirectDispatcher` (`direct.go`) | Resolves every launch through `<SelfBin> frame-exec`. Strips `AG_SOCKET_TOKEN` (`stripContainerOnlyEnv`) unless the launch needs frame-messaging authority; injects `AG_SOCKET` when configured |
 
 ## End-to-end launch sequence
 
@@ -1094,7 +531,7 @@ sequenceDiagram
     AL-->>R: argv []string
     R->>R: LaunchPlan{Command, Argv, Env,<br/>StartDir=wsPath, Project=root}
     R->>D: Wrap(ctx, frameID, plan)
-    Note over D: applies sandbox<br/>(direct = pass-through /<br/>devcontainer = docker exec + mounts)
+    Note over D: resolves the launch<br/>(frame-exec on the host)
     D-->>R: WrappedLaunch{Argv, Env, Cleanup, Mounts}
     R->>AL: Spawn(ctx, wrapped, {InheritEnv:true})
     AL->>PG: Command(Spec{Bin:argv[0], Args:argv[1:],<br/>Dir, Env, WaitDelay})
@@ -1129,10 +566,6 @@ stateDiagram-v2
 
 - `Command` (`procgroup.go:45`) — `WaitDelay` defaults to `DefaultWaitDelay = 5s` (`procgroup.go:28`). After `Cancel=Kill(-pgid)` it gives this grace window before os/exec force-closes I/O. Non-Linux degrades to `exec.CommandContext` defaults.
 - `Tracker` (`procgroup.go:81`) — holds `Dir`/`Nonce` and records live pgids as marker files. `NewBootNonce` (`procgroup.go:69`) issues a per-boot token, so `Prune` (`procgroup.go:103`) only reaps orphans from **earlier** boots and never touches the current boot's groups. A nil Tracker / empty Dir is a no-op, so callers without crash-reaping configured need no branching.
-
-## pathmap: container↔host translation
-
-`Mounts` (`pathmap/pathmap.go`) is the list of bind mounts. `ToHost`/`ToContainer` use **longest-prefix matching** so nested mounts (e.g. `/workspaces/foo` and `/workspaces/foo/cache` from different hosts) resolve correctly. `DevcontainerLauncher` uses it to translate `StartDir` into a container-relative path. The same mechanism round-trips host/container paths at the IPC boundary (see [brokers.md](../component/component-20260624-platform-brokers.md)).
 
 ## Callers
 

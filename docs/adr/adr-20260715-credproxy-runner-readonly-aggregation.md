@@ -4,7 +4,7 @@ kind: adr
 title: ADR — agent-grid credproxy Runner is a read-only aggregation built from the
   caller's own Materialize/ContainerSpec outcomes; no peek into credproxy internal
   state
-status: accepted
+status: superseded
 created: '2026-07-15'
 tags:
 - adr
@@ -28,6 +28,10 @@ summary: agent-grid credproxy.Runner は自身が発行した Materialize 呼び
   する consumer-side aggregator。ReadinessSnapshot (defensive copy) と distinguishable
   slog を提供するが、credproxy library の内部 state は覗かない。境界は本 ADR で pin される。
 ---
+
+> **Superseded 2026-08-12** — the sandbox feature (devcontainer backend, credential/host-exec/MCP
+> brokers, container path translation) was removed; agents always launch directly on the host.
+> This record is kept for history and no longer describes current behaviour.
 
 ## Context
 

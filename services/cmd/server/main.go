@@ -19,12 +19,6 @@
 //     hooks the daemon registers at startup (via host/lib/agenthook)
 //     invoke this to forward state-change/Stop/PreToolUse/... events to a
 //     running backend over its host socket.
-//     - `server host-exec <bin> [args ...]` — in-container shim that
-//     routes an allowlisted host binary invocation through the
-//     per-project host-exec broker via SCM_RIGHTS stdio forwarding.
-//     - `server mcp-exec <alias>` — in-container shim that relays MCP
-//     stdio to a host-side MCP server through the per-project
-//     mcp-proxy broker.
 //     - `server frame-exec` — host-side frame launch sequencer (AG_FRAME_SPEC).
 //     - `server help` / `server -h` prints usage.
 //
@@ -217,10 +211,6 @@ func runCommand(args []string, df *daemonFlagSet, stdout io.Writer) error {
 	switch args[0] {
 	case "event":
 		return event.Run(args[1:])
-	case "host-exec":
-		return runHostExec(args[1:])
-	case "mcp-exec":
-		return runMCPExec(args[1:])
 	case "agent-frames-mcp":
 		return runAgentFramesMCP(args[1:])
 	case "frame-exec":
@@ -271,8 +261,6 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Subcommands:")
 	fmt.Fprintf(w, "  %s event <type>                 Send an event to a running daemon\n", appid.ClientBin)
-	fmt.Fprintf(w, "  %s host-exec <binary> [args...] Run a host binary via the hostexec broker\n", appid.ClientBin)
-	fmt.Fprintf(w, "  %s mcp-exec <alias>             Relay stdio to a host MCP server\n", appid.ClientBin)
 	fmt.Fprintf(w, "  %s agent-frames-mcp --sock <path>  Run the managed agent_frames MCP server\n", appid.ClientBin)
 	fmt.Fprintf(w, "  %s frame-exec                   Run preExec/pre-commands then exec main\n", appid.ClientBin)
 	fmt.Fprintf(w, "  %s supervisor-probe [flags]     Typed JSON lock/process ownership probe\n", appid.ClientBin)

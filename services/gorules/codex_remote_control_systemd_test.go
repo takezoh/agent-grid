@@ -42,7 +42,6 @@ func TestCodexRemoteControlSystemdContract(t *testing.T) {
 		"make install-codex-remote-control-systemd",
 		"codex remote-control pair",
 		"再ペアリングは不要です",
-		"devcontainer ごとの daemon 起動やペアリングは不要です",
 	} {
 		if !strings.Contains(readme, want) {
 			t.Errorf("README missing pairing guidance %q", want)

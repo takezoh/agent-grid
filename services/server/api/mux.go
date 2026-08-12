@@ -20,13 +20,12 @@ import (
 	"github.com/takezoh/agent-grid/services/host/config"
 	"github.com/takezoh/agent-grid/services/host/proto"
 	"github.com/takezoh/agent-grid/services/host/state"
-	platformconfig "github.com/takezoh/agent-grid/services/platform/config"
 )
 
 // isAbsoluteProjectPath reports whether p is suitable as a session project
-// directory. The daemon and its downstream launchers (devcontainer, direct
-// fork) treat req.Project as the working directory; a non-absolute value
-// reaches docker create as workdir and fails with a confusing message
+// directory. The daemon and its downstream launcher treat req.Project as the
+// working directory; a non-absolute value
+// reaches the frame launcher as workdir and fails with a confusing message
 // ("the working directory 'foo' is invalid, it needs to be an absolute
 // path") that surfaces as an opaque 502 from inside the launcher chain.
 // Guard at the gateway boundary so the operator sees a 400 stating the
@@ -81,15 +80,13 @@ type apiSessionInfo struct {
 
 // apiProjectMeta is the per-project entry returned in apiSessionConfig.Projects
 // (ADR-0041). Path is the absolute project directory (same value the legacy
-// string[] shape carried); IsGit and IsSandboxed are derived flags the web UI
-// uses to gate the new-session palette toggles (worktree visibility depends on
-// IsGit; the "host" sandbox-bypass toggle on IsSandboxed). Computing the flags
-// here, on the gateway, keeps the browser from having to reach across the
-// daemon boundary for every project listing.
+// string[] shape carried); IsGit is a derived flag the web UI uses to gate the
+// new-session palette's worktree toggle. Computing it here, on the gateway,
+// keeps the browser from having to reach across the daemon boundary for every
+// project listing.
 type apiProjectMeta struct {
 	Path            string                          `json:"path"`
 	IsGit           bool                            `json:"isGit"`
-	IsSandboxed     bool                            `json:"isSandboxed"`
 	CommandProfiles []config.ResolvedCommandProfile `json:"command_profiles"`
 }
 
@@ -97,8 +94,8 @@ type apiProjectMeta struct {
 // surfaces the subset of the user's settings.toml the create-session form
 // and the web UI palette need to render: typed command profiles attached to
 // the resolved [projects] list
-// (project_roots fan-out + project_paths) annotated with isGit/isSandboxed
-// flags, and the [session].push_commands list used by the palette's push
+// (project_roots fan-out + project_paths) annotated with the isGit
+// flag, and the [session].push_commands list used by the palette's push
 // scope. Sourcing these from config rather than hardcoding driver names in
 // the UI lets the user customize behaviour without rebuilding.
 //
@@ -316,13 +313,6 @@ func handleSessionConfig(loadConfig func() (*config.Config, error)) http.Handler
 		if projectPaths == nil {
 			projectPaths = []string{}
 		}
-		// SandboxResolver merges the user-scope sandbox config with the
-		// project-scope override (if a project ships its own settings.toml).
-		// Reusing it here keeps the wire's IsSandboxed in lockstep with how
-		// the daemon actually launches each project; a hand-rolled "does this
-		// path appear in some allowlist" check would diverge the moment any
-		// new sandbox-routing knob (e.g. isolation=shared) gets added.
-		resolver := platformconfig.NewSandboxResolver(cfg.Sandbox)
 		raw := cfg.ListProjects()
 		projects := make([]apiProjectMeta, 0, len(raw))
 		for _, p := range raw {
@@ -335,7 +325,6 @@ func handleSessionConfig(loadConfig func() (*config.Config, error)) http.Handler
 			projects = append(projects, apiProjectMeta{
 				Path:            p,
 				IsGit:           gitChildExists(r.Context(), p),
-				IsSandboxed:     resolver.Resolve(p).IsSandboxed(),
 				CommandProfiles: profiles,
 			})
 		}

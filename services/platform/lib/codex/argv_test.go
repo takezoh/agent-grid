@@ -90,28 +90,20 @@ func TestParseCommand(t *testing.T) {
 
 func TestAppServerListenArgs(t *testing.T) {
 	tests := []struct {
-		name            string
-		serverBin       string
-		sock            string
-		extra           []string
-		sandboxExternal bool
-		wantContains    []string
-		wantAbsent      []string
+		name         string
+		serverBin    string
+		sock         string
+		extra        []string
+		wantContains []string
+		wantAbsent   []string
 	}{
 		{
-			name:         "basic no sandbox",
+			name:         "basic",
 			serverBin:    "codex",
 			sock:         "/tmp/codex-abc.sock",
 			extra:        nil,
 			wantContains: []string{"codex", "app-server", "--listen", "unix:///tmp/codex-abc.sock"},
 			wantAbsent:   []string{"sandbox_mode"},
-		},
-		{
-			name:            "with sandbox",
-			serverBin:       "codex",
-			sock:            "/run/codex-xyz.sock",
-			sandboxExternal: true,
-			wantContains:    []string{"-c", `sandbox_mode="danger-full-access"`},
 		},
 		{
 			name:         "extra args passed through",
@@ -121,17 +113,16 @@ func TestAppServerListenArgs(t *testing.T) {
 			wantContains: []string{"-c", "model=gpt-4o"},
 		},
 		{
-			name:            "sandbox_mode element not split",
-			serverBin:       "codex",
-			sock:            "/s.sock",
-			sandboxExternal: true,
-			// Verify the sandbox_mode value is a single element (no splitting on =)
-			wantContains: []string{`sandbox_mode="danger-full-access"`},
+			name:         "caller-supplied config element is not split",
+			serverBin:    "codex",
+			sock:         "/s.sock",
+			extra:        []string{"-c", `model_reasoning_effort="high"`},
+			wantContains: []string{`model_reasoning_effort="high"`},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := AppServerListenArgs(tt.serverBin, tt.sock, tt.extra, tt.sandboxExternal)
+			got := AppServerListenArgs(tt.serverBin, tt.sock, tt.extra)
 			for _, want := range tt.wantContains {
 				found := false
 				for _, g := range got {

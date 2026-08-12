@@ -31,7 +31,7 @@ func reduceShutdownSaveSucceeded(s State, e EvShutdownSaveBarrierSucceeded) (Sta
 	if !currentShutdown(s, e.TransactionID) {
 		return s, nil
 	}
-	return s, []Effect{EffReleaseFrameSandboxes(e)}
+	return s, []Effect{EffReleaseFrames(e)}
 }
 
 func reduceShutdownSaveFailed(s State, e EvShutdownSaveBarrierFailed) (State, []Effect) {

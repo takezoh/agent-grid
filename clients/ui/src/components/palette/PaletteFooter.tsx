@@ -1,7 +1,7 @@
 // PaletteFooter — single-line context + key hints (FR-026).
 //
 // Replaces the old ActiveContextHeader row and title chrome. Context flashes
-// on active session change. Session options (worktree / host) live in the
+// on active session change. The session option (worktree) lives in the
 // param phase actions row next to the confirm button; closing is Esc or an
 // overlay click — the footer carries no chrome buttons besides Back.
 

@@ -2,7 +2,7 @@
 id: adr-20260705-fakedocker-path-injection
 kind: adr
 title: 'fakedocker: PATH-injected docker CLI fake with real-docker backstop'
-status: accepted
+status: superseded
 created: '2026-07-05'
 decision_makers:
 - Takehito Gondo
@@ -22,6 +22,10 @@ summary: devcontainer lifecycle を PATH 注入 fake docker で常時テスト�
   で fake 忠実性を保証する (ADR-20260704 パターンの docker 適用)
 updated: '2026-07-05'
 ---
+
+> **Superseded 2026-08-12** — the sandbox feature (devcontainer backend, credential/host-exec/MCP
+> brokers, container path translation) was removed; agents always launch directly on the host.
+> This record is kept for history and no longer describes current behaviour.
 
 # fakedocker: PATH-injected docker CLI fake with real-docker backstop
 

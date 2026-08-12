@@ -1,12 +1,10 @@
 // Package framelaunch owns the "run pre-conditions, then exec main" sequencing
-// used by every frame launch (container-sandboxed via `bridge frame-exec` and
-// host-direct via `<self-bin> frame-exec`). Sequencing lives here so both
-// callers share exactly one Go implementation; only the sandbox harness (docker
-// exec vs direct spawn) differs upstream. See adr-20260711-0082.
+// used by every frame launch (`<self-bin> frame-exec`). Sequencing lives here
+// so every caller shares exactly one Go implementation. See adr-20260711-0082.
 //
-// Fallback note (R-4): if `env -0` is unavailable on a container's shell,
-// a future path may emit env via `/proc/self/exe --emit-env` instead of
-// shell `env -0`. The wire format (FrameSpec + AG_FRAME_SPEC) stays unchanged.
+// Fallback note (R-4): if `env -0` is unavailable on the login shell, a future
+// path may emit env via `/proc/self/exe --emit-env` instead of shell `env -0`.
+// The wire format (FrameSpec + AG_FRAME_SPEC) stays unchanged.
 package framelaunch
 
 import (
@@ -29,7 +27,7 @@ import (
 // FrameSpec is transported via AG_FRAME_SPEC env var (JSON).
 // See adr-20260711-0084 for the transport rationale.
 type FrameSpec struct {
-	PreExec           string     `json:"pre_exec,omitempty"`            // devcontainer.json preExecCommand
+	PreExec           string     `json:"pre_exec,omitempty"`            // optional shell snippet evaluated before pre-commands
 	LoginShell        string     `json:"login_shell,omitempty"`         // optional override; empty → resolve from /etc/passwd
 	PreCommands       [][]string `json:"pre_commands,omitempty"`        // argv列 (all must exit 0 before main)
 	MainCommand       []string   `json:"main_command"`                  // argv, required
@@ -79,8 +77,7 @@ func pathReassertDisabled() bool {
 }
 
 // Encode marshals spec into the AG_FRAME_SPEC wire format (JSON string).
-// This is the single source of truth for the on-wire encoding used by both
-// the devcontainer path and DirectLauncher.
+// This is the single source of truth for the on-wire encoding.
 func Encode(spec FrameSpec) (string, error) {
 	b, err := json.Marshal(spec)
 	if err != nil {

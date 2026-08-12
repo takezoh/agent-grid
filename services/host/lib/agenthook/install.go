@@ -11,7 +11,7 @@
 // This is the canonical writer for that registration. It is invoked
 // directly from the runtime — once at server startup against the host's
 // settings.json for each supported agent, and once inside every
-// devcontainer's postCreate against the container's settings.json (via the
+// bridge against the agent's settings.json (via the
 // bridge `claude-setup-hooks` / `gemini-setup-hooks` subcommands).
 // Registration is NOT delegated to external Make / shell / dotfiles glue:
 // it is a runtime invariant.
@@ -67,7 +67,7 @@ type Spec struct {
 
 	// SubcmdName is the bridge subcommand that triggers this Spec's
 	// in-container registration. Convention is "<Name>-setup-hooks". Lives
-	// on Spec so cmd/server/coordinator.go can derive devcontainer
+	// on Spec so cmd/server/coordinator.go can derive the
 	// postCreate commands directly from agenthook.All — adding an agent no
 	// longer requires editing a parallel string list.
 	SubcmdName string
@@ -144,7 +144,7 @@ var Gemini = Spec{
 // All is the canonical list of agent Specs the runtime registers. Adding a
 // future agent (e.g. Codex hooks if/when they ship) means appending one
 // Spec here — every site that fans out across agents (host boot,
-// devcontainer postCreate subcmd list, bridge subcommand dispatch)
+// hook-registration subcmd list, bridge subcommand dispatch)
 // reads from this single list.
 var All = []Spec{Claude, Gemini}
 

@@ -33,7 +33,7 @@ func TestGrokPrepareLaunchResumesPersistedSession(t *testing.T) {
 	d := NewGrokDriver("")
 	gs := d.NewState(time.Now()).(GrokState)
 	gs.GrokSessionID = "01234567-89ab-4cde-af01-23456789abcd"
-	plan, err := d.PrepareLaunch(gs, state.LaunchModeColdStart, "/repo", "grok --no-auto-update --session-id stale", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(gs, state.LaunchModeColdStart, "/repo", "grok --no-auto-update --session-id stale", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestGrokPersistRestoreAndFork(t *testing.T) {
 	if child.GrokSessionID == parent.GrokSessionID || child.GrokSessionID == "" {
 		t.Fatalf("child session = %q", child.GrokSessionID)
 	}
-	plan, err := d.PrepareLaunch(child, state.LaunchModeCreate, "/repo", command, state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(child, state.LaunchModeCreate, "/repo", command, state.LaunchOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

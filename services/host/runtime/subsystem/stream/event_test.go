@@ -12,7 +12,7 @@ import (
 
 func newTestBackend() (*Backend, *fakeRuntime) {
 	fr := &fakeRuntime{}
-	b := New(fr, nil, "sid", "sess1", "/p", "codex", nil, "", "", false, false, "/sock", 0)
+	b := New(fr, nil, "sid", "sess1", "/p", "codex", nil, "", "", "/sock", 0)
 	b.resumeObserver = func(opts codexclient.ResumeOptions) (codexclient.ThreadSession, error) {
 		return codexclient.ThreadSession{ThreadID: opts.ThreadID, SessionID: opts.ThreadID, RolloutPath: opts.RolloutPath}, nil
 	}

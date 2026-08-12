@@ -94,7 +94,7 @@ func TestReleaseFrameSandboxesStopsAllSubsystems(t *testing.T) {
 	r.subsystems[a.id] = a
 	r.subsystems[b.id] = b
 
-	r.execute(state.EffReleaseFrameSandboxes{})
+	r.execute(state.EffReleaseFrames{})
 	deadline := time.Now().Add(time.Second)
 	for (atomic.LoadInt32(&a.stopN) != 1 || atomic.LoadInt32(&b.stopN) != 1) && time.Now().Before(deadline) {
 		time.Sleep(time.Millisecond)

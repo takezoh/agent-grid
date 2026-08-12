@@ -4,14 +4,13 @@ package state
 // effects, sole Session availability commit (before external I/O).
 
 type (
-	ExecutionServerID       string
-	GitHubRepositoryID      string
-	RepositoryOwner         string
-	RepositoryName          string
-	CreationIntentID        string
-	PreparationID           string
-	ClonePathID             string
-	RepositoryEnvironmentID string
+	ExecutionServerID  string
+	GitHubRepositoryID string
+	RepositoryOwner    string
+	RepositoryName     string
+	CreationIntentID   string
+	PreparationID      string
+	ClonePathID        string
 )
 
 type TargetSource string
@@ -62,16 +61,15 @@ func (t SessionTarget) Valid() bool {
 type PreparationStage string
 
 const (
-	PrepStageConfirmed              PreparationStage = "confirmed"
-	PrepStageCloneInProgress        PreparationStage = "clone-in-progress"
-	PrepStageCloneReady             PreparationStage = "clone-ready"
-	PrepStageDevcontainerInProgress PreparationStage = "devcontainer-in-progress"
-	PrepStageFailed                 PreparationStage = "failed"
-	PrepStageCancelled              PreparationStage = "cancelled"
-	PrepStageInterrupted            PreparationStage = "interrupted"
-	PrepStageInternalCorruption     PreparationStage = "internal_corruption"
-	PrepStageAvailable              PreparationStage = "available"
-	PrepStageAbandoned              PreparationStage = "abandoned"
+	PrepStageConfirmed          PreparationStage = "confirmed"
+	PrepStageCloneInProgress    PreparationStage = "clone-in-progress"
+	PrepStageCloneReady         PreparationStage = "clone-ready"
+	PrepStageFailed             PreparationStage = "failed"
+	PrepStageCancelled          PreparationStage = "cancelled"
+	PrepStageInterrupted        PreparationStage = "interrupted"
+	PrepStageInternalCorruption PreparationStage = "internal_corruption"
+	PrepStageAvailable          PreparationStage = "available"
+	PrepStageAbandoned          PreparationStage = "abandoned"
 )
 
 func (st PreparationStage) IsSessionAvailable() bool { return st == PrepStageAvailable }
@@ -85,7 +83,7 @@ const (
 	PrepFailureNone              PreparationFailureCode = ""
 	PrepFailureInvalidIdentity   PreparationFailureCode = "invalid_identity"
 	PrepFailureCloneFailed       PreparationFailureCode = "clone_failed"
-	PrepFailureDevcontainerFail  PreparationFailureCode = "devcontainer_failed"
+	PrepFailureLaunchFailed      PreparationFailureCode = "launch_failed"
 	PrepFailureCancelled         PreparationFailureCode = "cancelled"
 	PrepFailureInterrupted       PreparationFailureCode = "interrupted"
 	PrepFailureInternalCorrupt   PreparationFailureCode = "internal_corruption"
@@ -96,19 +94,9 @@ const (
 type RetryOrigin string
 
 const (
-	RetryOriginNone         RetryOrigin = ""
-	RetryOriginClone        RetryOrigin = "clone"
-	RetryOriginDevcontainer RetryOrigin = "devcontainer"
-)
-
-type EnvironmentDisposition string
-
-const (
-	EnvDispositionNone     EnvironmentDisposition = "none"
-	EnvDispositionEnsuring EnvironmentDisposition = "ensuring"
-	EnvDispositionReady    EnvironmentDisposition = "ready"
-	EnvDispositionReused   EnvironmentDisposition = "reused"
-	EnvDispositionFailed   EnvironmentDisposition = "failed"
+	RetryOriginNone   RetryOrigin = ""
+	RetryOriginClone  RetryOrigin = "clone"
+	RetryOriginLaunch RetryOrigin = "launch"
 )
 
 type CreationIntent struct {
@@ -127,14 +115,11 @@ type RepositoryPreparation struct {
 	Stage                     PreparationStage
 	FailureCode               PreparationFailureCode
 	RetryOrigin               RetryOrigin
-	EnvironmentDisposition    EnvironmentDisposition
 	Revision                  uint64
 	LastOwnedWorkerGeneration uint64
 	ClonePath                 ClonePathID
-	EnvironmentID             RepositoryEnvironmentID
 	SessionID                 SessionID
 	CloneDurable              bool
-	EnvironmentReady          bool
 	LaunchSucceeded           bool
 }
 
@@ -186,24 +171,21 @@ func SessionIsAvailableProjection(s State, id SessionID) bool {
 // EvRepository is the closed lifecycle command set for preparation.
 // Kind selects the transition; unused fields are ignored per kind.
 type EvRepository struct {
-	ConnID            ConnID
-	ReqID             string
-	Kind              string // create|clone_started|clone_ready|devcontainer_started|failed|cancelled|interrupted|quarantined|retry|commit_available|abandon
-	IntentID          CreationIntentID
-	PreparationID     PreparationID
-	ServerID          ExecutionServerID
-	Repository        GitHubRepositoryIdentity
-	Fingerprint       string
-	ObservedRevision  uint64
-	ClonePath         ClonePathID
-	Code              PreparationFailureCode
-	SessionID         SessionID
-	EnvironmentID     RepositoryEnvironmentID
-	Command           string
-	CloneDurable      bool
-	EnvironmentReady  bool
-	LaunchSucceeded   bool
-	EnvironmentReused bool
+	ConnID           ConnID
+	ReqID            string
+	Kind             string // create|clone_started|clone_ready|failed|cancelled|interrupted|quarantined|retry|commit_available|abandon
+	IntentID         CreationIntentID
+	PreparationID    PreparationID
+	ServerID         ExecutionServerID
+	Repository       GitHubRepositoryIdentity
+	Fingerprint      string
+	ObservedRevision uint64
+	ClonePath        ClonePathID
+	Code             PreparationFailureCode
+	SessionID        SessionID
+	Command          string
+	CloneDurable     bool
+	LaunchSucceeded  bool
 }
 
 func (EvRepository) isEvent() {}
@@ -218,7 +200,10 @@ type EffRepositoryStartClone struct {
 	Repository    GitHubRepositoryIdentity
 	Generation    uint64
 }
-type EffRepositoryEnsureEnvironment struct {
+
+// EffRepositoryLaunchSession asks the runtime to spawn the session terminal in
+// the prepared clone once the clone is durable on disk.
+type EffRepositoryLaunchSession struct {
 	PreparationID PreparationID
 	ServerID      ExecutionServerID
 	Repository    GitHubRepositoryIdentity
@@ -229,7 +214,7 @@ type EffRepositoryStopOwnedWork struct {
 	Generation    uint64
 }
 
-func (EffRepositoryPersist) isEffect()           {}
-func (EffRepositoryStartClone) isEffect()        {}
-func (EffRepositoryEnsureEnvironment) isEffect() {}
-func (EffRepositoryStopOwnedWork) isEffect()     {}
+func (EffRepositoryPersist) isEffect()       {}
+func (EffRepositoryStartClone) isEffect()    {}
+func (EffRepositoryLaunchSession) isEffect() {}
+func (EffRepositoryStopOwnedWork) isEffect() {}

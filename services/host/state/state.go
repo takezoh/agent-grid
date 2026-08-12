@@ -69,14 +69,13 @@ type State struct {
 	//
 	// Per-ConnID cap: the reducer enforces at most 8 logical subscriptions
 	// (ADR 0007); excess subscribe attempts get RespErr(resource_exhausted).
-	SurfaceSubs      map[ConnID]map[SurfaceSubscription]SurfaceGeometry
-	Jobs             map[JobID]JobMeta
-	NextJobID        JobID
-	NextConnID       ConnID
-	Now              time.Time         // last tick timestamp; deterministic in tests
-	Aliases          map[string]string // command alias expansion (e.g. "cw" → "<tool> --workspace")
-	DefaultCommand   string            // fallback when session command is empty
-	SandboxedProject func(string) bool // nil = not configured; true when project runs in sandbox
+	SurfaceSubs    map[ConnID]map[SurfaceSubscription]SurfaceGeometry
+	Jobs           map[JobID]JobMeta
+	NextJobID      JobID
+	NextConnID     ConnID
+	Now            time.Time         // last tick timestamp; deterministic in tests
+	Aliases        map[string]string // command alias expansion (e.g. "cw" → "<tool> --workspace")
+	DefaultCommand string            // fallback when session command is empty
 
 	// Features is the set of enabled runtime flags, built once at startup
 	// from the config file and never mutated. Reduce reads it as a
@@ -127,7 +126,6 @@ type Session struct {
 	HeadFrameID     FrameID   // head frame: the frame currently receiving I/O in the session's child-agent stack; empty = use Frames[len-1]
 	MRUFrameIDs     []FrameID // MRU stack for fallback on head-frame death
 	Command         string
-	Sandbox         SandboxOverride // session-scoped sandbox mode, set at creation, applies to all frames
 	LaunchOptions   LaunchOptions
 	Driver          DriverState
 	FrameMessaging  *SessionFrameMessaging

@@ -10,14 +10,12 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/takezoh/agent-grid/services/platform/appid"
-	platformconfig "github.com/takezoh/agent-grid/services/platform/config"
 )
 
 // ProjectConfig holds the contents of a project-level .agent-grid/settings.toml.
 type ProjectConfig struct {
-	Workspace ProjectWorkspaceConfig        `toml:"workspace"`
-	Sandbox   *platformconfig.SandboxConfig `toml:"sandbox"`
-	Session   ProjectSessionConfig          `toml:"session"`
+	Workspace ProjectWorkspaceConfig `toml:"workspace"`
+	Session   ProjectSessionConfig   `toml:"session"`
 }
 
 type ProjectSessionConfig struct {
@@ -50,11 +48,7 @@ func LoadProjectFrom(path string) (*ProjectConfig, error) {
 	if err := rejectRemovedCommandProfileFields(metadata); err != nil {
 		return nil, err
 	}
-	if cfg.Sandbox != nil {
-		if err := cfg.Sandbox.Proxy.GCP.Validate(); err != nil {
-			return nil, err
-		}
-	}
+	warnRemovedSandboxTable(metadata, path)
 	session := SessionConfig{CommandProfiles: cfg.Session.CommandProfiles}
 	if err := session.validateCommandProfiles(true); err != nil {
 		return nil, fmt.Errorf("session.command_profiles: %w", err)

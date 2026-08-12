@@ -32,7 +32,7 @@ test("verify-editor-large-file-editing-performance: 200 keystrokes stay within b
     sessionConfig: {
       project_roots: ["/repo/app"],
       project_paths: ["/repo/app"],
-      projects: [{ path: "/repo/app", isGit: true, isSandboxed: false }],
+      projects: [{ path: "/repo/app", isGit: true }],
       commands: ["claude"],
       push_commands: [],
     },

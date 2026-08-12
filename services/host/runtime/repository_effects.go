@@ -1,9 +1,7 @@
 package runtime
 
 import (
-	"context"
 	"log/slog"
-	"path/filepath"
 	"time"
 
 	"github.com/takezoh/agent-grid/services/host/state"
@@ -15,13 +13,13 @@ func (r *Runtime) executeRepositoryEffect(eff state.Effect) {
 		r.persistPreparation(e.PreparationID)
 	case state.EffRepositoryStartClone:
 		r.startPreparationClone(e)
-	case state.EffRepositoryEnsureEnvironment:
-		r.ensurePreparationEnvironment(e)
+	case state.EffRepositoryLaunchSession:
+		r.launchPreparationSession(e)
 	case state.EffRepositoryStopOwnedWork:
 		if r.prepCtrl != nil {
 			r.prepCtrl.StopOwnedWork(e.PreparationID, e.Generation)
 			// Terminal abandon only: cancel/retry must keep durable clone for
-			// RetryOriginDevcontainer. Age sweep handles long-lived orphans.
+			// RetryOriginLaunch. Age sweep handles long-lived orphans.
 			if prep, ok := state.FindPreparation(r.state, e.PreparationID); ok && prep.Stage == state.PrepStageAbandoned {
 				r.prepCtrl.CleanupNeverAvailable(prep)
 			}
@@ -72,47 +70,13 @@ func (r *Runtime) startPreparationClone(e state.EffRepositoryStartClone) {
 	r.prepCtrl.StartCloneAdmitted(prep, intent)
 }
 
-func (r *Runtime) ensurePreparationEnvironment(e state.EffRepositoryEnsureEnvironment) {
+func (r *Runtime) launchPreparationSession(e state.EffRepositoryLaunchSession) {
 	prep, ok := state.FindPreparation(r.state, e.PreparationID)
 	if !ok {
 		return
 	}
 	if prep.LastOwnedWorkerGeneration != e.Generation {
 		return
-	}
-	if r.envMgr == nil {
-		r.dispatch(r.fenceRepo(state.EvRepository{
-			Kind: "failed", PreparationID: prep.ID, Code: state.PrepFailureDevcontainerFail,
-		}))
-		return
-	}
-	r.dispatch(r.fenceRepo(state.EvRepository{
-		Kind: "devcontainer_started", PreparationID: prep.ID,
-	}))
-	prep, ok = state.FindPreparation(r.state, e.PreparationID)
-	if !ok || prep.Stage != state.PrepStageDevcontainerInProgress {
-		return
-	}
-	go r.runEnsureEnvironment(prep)
-}
-
-func (r *Runtime) runEnsureEnvironment(prep state.RepositoryPreparation) {
-	ctx := context.Background()
-	clonePath := string(prep.ClonePath)
-	res, err := r.envMgr.Ensure(ctx, prep.ServerID, prep.Repository, clonePath)
-	if err != nil || res.Code != EnvCodeOK {
-		r.enqueuePreparationEvent(state.EvRepository{
-			Kind: "failed", PreparationID: prep.ID, Code: state.PrepFailureDevcontainerFail,
-		})
-		return
-	}
-	if r.prepCtrl != nil && r.prepCtrl.SessionsRoot != "" {
-		if res.MountScope != "" && filepath.Clean(res.MountScope) != filepath.Clean(r.prepCtrl.SessionsRoot) {
-			r.enqueuePreparationEvent(state.EvRepository{
-				Kind: "failed", PreparationID: prep.ID, Code: state.PrepFailureDevcontainerFail,
-			})
-			return
-		}
 	}
 	sessionID := state.SessionID("sess-" + string(prep.ID))
 	intent, ok := r.state.CreationIntents[prep.IntentID]
@@ -122,22 +86,20 @@ func (r *Runtime) runEnsureEnvironment(prep state.RepositoryPreparation) {
 		})
 		return
 	}
-	cmd := intent.Command
+	clonePath := string(prep.ClonePath)
 	if r.prepCtrl != nil {
 		r.prepCtrl.RegisterPendingLaunch(prep.ID, pendingTerminalLaunch{
 			SessionID: sessionID, ClonePath: state.ClonePathID(clonePath),
-			EnvironmentID: res.EnvironmentID, Command: cmd,
-			EnvReused: res.Reused, Generation: prep.LastOwnedWorkerGeneration,
+			Command: intent.Command, Generation: prep.LastOwnedWorkerGeneration,
 		})
 	}
-	r.launchPreparationTerminal(prep, sessionID, clonePath, res, cmd)
+	r.launchPreparationTerminal(prep, sessionID, clonePath, intent.Command)
 }
 
 func (r *Runtime) launchPreparationTerminal(
 	prep state.RepositoryPreparation,
 	sessionID state.SessionID,
 	clonePath string,
-	envRes RepositoryEnvironmentResult,
 	command string,
 ) {
 	if r.cfg.Backend == nil {
@@ -151,16 +113,13 @@ func (r *Runtime) launchPreparationTerminal(
 		return
 	}
 	r.enqueuePreparationEvent(state.EvRepository{
-		Kind:              "commit_available",
-		PreparationID:     prep.ID,
-		SessionID:         sessionID,
-		ClonePath:         state.ClonePathID(clonePath),
-		EnvironmentID:     envRes.EnvironmentID,
-		Command:           command,
-		CloneDurable:      true,
-		EnvironmentReady:  true,
-		LaunchSucceeded:   true,
-		EnvironmentReused: envRes.Reused,
+		Kind:            "commit_available",
+		PreparationID:   prep.ID,
+		SessionID:       sessionID,
+		ClonePath:       state.ClonePathID(clonePath),
+		Command:         command,
+		CloneDurable:    true,
+		LaunchSucceeded: true,
 	})
 	if r.prepCtrl != nil {
 		// Session now owns the clone; drop never-available accounting without delete.
@@ -174,15 +133,8 @@ func (r *Runtime) failPendingLaunch(id state.PreparationID) {
 		r.prepCtrl.AbandonPendingLaunch(id)
 	}
 	r.enqueuePreparationEvent(state.EvRepository{
-		Kind: "failed", PreparationID: id, Code: state.PrepFailureDevcontainerFail,
+		Kind: "failed", PreparationID: id, Code: state.PrepFailureLaunchFailed,
 	})
-}
-
-func (r *Runtime) fenceRepo(ev state.EvRepository) state.EvRepository {
-	if prep, ok := state.FindPreparation(r.state, ev.PreparationID); ok {
-		ev.ObservedRevision = prep.Revision
-	}
-	return ev
 }
 
 func (r *Runtime) enqueuePreparationEvent(ev state.EvRepository) {

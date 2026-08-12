@@ -5,68 +5,24 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"time"
 
 	"github.com/takezoh/agent-grid/services/host/state"
 	"github.com/takezoh/agent-grid/services/platform/agentlaunch"
-	"github.com/takezoh/agent-grid/services/platform/pathmap"
 )
 
-// WrappedLaunch is the resolved launch specification after the launcher
-// has applied any sandboxing. The runtime passes Command/StartDir/Env
-// directly to FrameBackend.SpawnFrame; Cleanup is called when the frame
-// is destroyed (nil is safe to ignore).
+// WrappedLaunch is the resolved launch specification the launcher produced.
+// The runtime passes Command/StartDir/Env directly to FrameBackend.SpawnFrame.
 type WrappedLaunch struct {
 	Command  string
 	StartDir string
 	Env      map[string]string
-	Cleanup  func() error
-	// ContainerSockDir is set by devcontainer sandbox launchers to the host-side
-	// run directory that is bind-mounted into the container as /opt/agent-grid/run.
-	// When non-empty, the runtime starts the container endpoint for this project.
-	ContainerSockDir string
-	// Mounts is the set of bind mounts for the container instance.
-	// Used to translate container-absolute paths to host-absolute paths at
-	// the IPC boundary. Empty for non-sandbox (DirectLauncher) launches.
-	Mounts pathmap.Mounts
 }
 
-// AgentLauncher wraps a state.LaunchPlan before it reaches the frame backend, allowing
-// sandbox implementations to prepend wrapper commands or spin up isolated
-// environments. The runtime calls WrapLaunch once per spawn;
-// DirectLauncher is used when no Launcher is configured.
-//
-// Sandbox cleanup is handled via state.EffReleaseFrameSandboxes, not through
-// any Shutdown method. The Launcher is responsible only for per-frame wrap
-// and adopt; the runtime interpreter drains frame cleanups on shutdown.
+// AgentLauncher resolves a state.LaunchPlan into the concrete command the frame
+// backend spawns. The runtime calls WrapLaunch once per spawn; DirectLauncher
+// is used when no Launcher is configured.
 type AgentLauncher interface {
 	WrapLaunch(frameID state.FrameID, plan state.LaunchPlan, env map[string]string) (WrappedLaunch, error)
-
-	// AdoptFrame is called during warm start to re-register a pre-existing frame
-	// with the sandbox backend (the agent process is already running in a frame).
-	// Returns the Cleanup callback and the bind-mount map for the frame (may be
-	// nil for non-sandbox backends). Must not start or restart the sandbox.
-	AdoptFrame(ctx context.Context, frameID state.FrameID, projectPath string) (func() error, pathmap.Mounts, error)
-
-	// EnsureProject prepares the sandbox environment for a project without
-	// allocating a frame. No-op for non-sandbox launchers.
-	EnsureProject(ctx context.Context, projectPath string) error
-
-	// IsContainer reports whether the given project will be run inside a
-	// container by this launcher. The runtime uses this to decide whether to
-	// inject AG_SOCKET_TOKEN before calling WrapLaunch.
-	IsContainer(project string) bool
-}
-
-// ColdStartAware は cold-start 区間中の sandbox 再構築を sandbox-bearing な
-// launcher だけが知る optional capability。coordinator.coldStart が
-// BeginColdStart / EndColdStart を defer 越しに呼び、その区間内の
-// EnsureProject / WrapLaunch は pre-existing container を破棄して新規
-// provisioning を行う。capability を持たない launcher (DirectLauncher 等)
-// は実装不要 ― 型 assertion 経由でしか呼ばれない。
-type ColdStartAware interface {
-	BeginColdStart()
-	EndColdStart()
 }
 
 // DirectLauncher is the no-op implementation: it passes the plan through
@@ -119,21 +75,10 @@ func (d DirectLauncher) WrapLaunch(frameID state.FrameID, plan state.LaunchPlan,
 	}, nil
 }
 
-func (DirectLauncher) AdoptFrame(_ context.Context, _ state.FrameID, _ string) (func() error, pathmap.Mounts, error) {
-	return nil, nil, nil
-}
-
-func (DirectLauncher) EnsureProject(_ context.Context, _ string) error { return nil }
-
-func (DirectLauncher) IsContainer(_ string) bool { return false }
-
-func (DirectLauncher) BeginColdStart() {}
-func (DirectLauncher) EndColdStart()   {}
-
 // stripContainerOnlyEnv returns a copy of env with AG_SOCKET_TOKEN forced
 // empty unless the launch explicitly needs host-side frame-messaging access.
-// This keeps host processes from inheriting an ambient container credential
-// while still allowing managed host Claude launches to use agent_frames.
+// This keeps host processes from inheriting an ambient credential while still
+// allowing managed host Claude launches to use agent_frames.
 func stripContainerOnlyEnv(env map[string]string, keepFrameMessagingToken bool) map[string]string {
 	out := cloneEnvMap(env, 1)
 	if !keepFrameMessagingToken {
@@ -163,7 +108,6 @@ func (a dispatcherAdapter) WrapLaunch(frameID state.FrameID, plan state.LaunchPl
 		Env:               env,
 		StartDir:          plan.StartDir,
 		Project:           plan.Project,
-		ForceHost:         plan.Sandbox == state.SandboxOverrideHost,
 		ManagedMCPTools:   plan.ManagedMCPTools,
 	}
 	w, err := a.d.Wrap(context.Background(), string(frameID), pp)
@@ -171,71 +115,15 @@ func (a dispatcherAdapter) WrapLaunch(frameID state.FrameID, plan state.LaunchPl
 		return WrappedLaunch{}, err
 	}
 	return WrappedLaunch{
-		Command:          w.Command,
-		StartDir:         w.StartDir,
-		Env:              w.Env,
-		Cleanup:          adaptCleanup(w.Cleanup),
-		ContainerSockDir: w.ContainerSockDir,
-		Mounts:           toPathmapMounts(w.Mounts),
+		Command:  w.Command,
+		StartDir: w.StartDir,
+		Env:      w.Env,
 	}, nil
-}
-
-func (a dispatcherAdapter) AdoptFrame(ctx context.Context, frameID state.FrameID, projectPath string) (func() error, pathmap.Mounts, error) {
-	cleanupFn, mounts, err := a.d.AdoptFrame(ctx, string(frameID), projectPath)
-	if err != nil {
-		return nil, nil, err
-	}
-	return adaptCleanup(cleanupFn), toPathmapMounts(mounts), nil
-}
-
-func (a dispatcherAdapter) EnsureProject(ctx context.Context, projectPath string) error {
-	return a.d.EnsureProject(ctx, projectPath)
-}
-
-func (a dispatcherAdapter) IsContainer(project string) bool {
-	return a.d.IsContainer(project)
-}
-
-func (a dispatcherAdapter) BeginColdStart() {
-	if cs, ok := a.d.(agentlaunch.ColdStartAware); ok {
-		cs.BeginColdStart()
-	}
-}
-
-func (a dispatcherAdapter) EndColdStart() {
-	if cs, ok := a.d.(agentlaunch.ColdStartAware); ok {
-		cs.EndColdStart()
-	}
 }
 
 // NewDispatcherAdapter wraps an agentlaunch.Dispatcher for use as AgentLauncher.
 func NewDispatcherAdapter(d agentlaunch.Dispatcher) AgentLauncher {
 	return dispatcherAdapter{d: d}
-}
-
-// adaptCleanup converts func(context.Context) error → func() error by
-// supplying a 30-second timeout context.
-func adaptCleanup(f func(context.Context) error) func() error {
-	if f == nil {
-		return nil
-	}
-	return func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		return f(ctx)
-	}
-}
-
-// toPathmapMounts converts []agentlaunch.Mount → pathmap.Mounts.
-func toPathmapMounts(ms []agentlaunch.Mount) pathmap.Mounts {
-	if len(ms) == 0 {
-		return nil
-	}
-	out := make(pathmap.Mounts, len(ms))
-	for i, m := range ms {
-		out[i] = pathmap.Mount{Host: m.Host, Container: m.Container}
-	}
-	return out
 }
 
 // launcher returns cfg.Launcher if set, otherwise a zero-cost DirectLauncher.
@@ -246,35 +134,25 @@ func launcher(cfg Config) AgentLauncher {
 	return DirectLauncher{}
 }
 
-// devcontainerLauncherFor extracts the *agentlaunch.DevcontainerLauncher from l,
-// handling both a bare dispatcherAdapter (wrapping agentlaunch.SandboxDispatcher)
-// and a legacy *SandboxDispatcher or *DevcontainerLauncher.
-func devcontainerLauncherFor(l AgentLauncher) *agentlaunch.DevcontainerLauncher {
-	if a, ok := l.(dispatcherAdapter); ok {
-		return agentlaunch.DevcontainerLauncherFor(a.d)
-	}
-	return nil
-}
-
 // wrapLaunchResult holds the output of wrapLaunchForSpawn.
 type wrapLaunchResult struct {
 	wrapped WrappedLaunch
-	// token is non-empty only for container frames. The token string is
-	// generated here so it can be baked into the spawn env. Registration
-	// (token↔frame) happens on the event loop via internalSpawnComplete, so
-	// no runtime state is mutated from the spawn goroutine.
+	// token is non-empty only when the frame exposes frame-messaging
+	// authority. The token string is generated here so it can be baked into
+	// the spawn env. Registration (token↔frame) happens on the event loop via
+	// internalSpawnComplete, so no runtime state is mutated from the spawn
+	// goroutine.
 	token string
 }
 
 // wrapLaunchForSpawn calls WrapLaunch and generates a bearer token when the
-// launched process needs frame-messaging authority. Today that means either a
-// container launch (token terminates at the container endpoint) or a host
-// Claude launch with managed agent_frames exposure (token terminates at the
-// host IPC socket). It has no side effects on runtime state — token
-// registration happens after spawn completes on the event loop.
+// launched process needs frame-messaging authority — a host Claude launch with
+// managed agent_frames exposure, whose token terminates at the host IPC
+// socket. It has no side effects on runtime state — token registration happens
+// after spawn completes on the event loop.
 func wrapLaunchForSpawn(l AgentLauncher, frameID state.FrameID, project string, plan state.LaunchPlan, baseEnv map[string]string) (wrapLaunchResult, error) {
-	needsToken := l.IsContainer(project) || plan.ManagedMCPTools.RequiresAuthority()
-	if !needsToken {
+	_ = project
+	if !plan.ManagedMCPTools.RequiresAuthority() {
 		wrapped, err := l.WrapLaunch(frameID, plan, baseEnv)
 		return wrapLaunchResult{wrapped: wrapped}, err
 	}

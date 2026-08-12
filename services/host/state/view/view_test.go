@@ -67,13 +67,6 @@ func TestStatusJSON(t *testing.T) {
 	}
 }
 
-func TestHostTag(t *testing.T) {
-	tag := HostTag()
-	if tag.Text != "host" || tag.Foreground == "" || tag.Background == "" {
-		t.Errorf("HostTag malformed: %+v", tag)
-	}
-}
-
 func TestViewJSONOmitEmpty(t *testing.T) {
 	v := View{Card: Card{Title: "x"}}
 	b, err := json.Marshal(v)

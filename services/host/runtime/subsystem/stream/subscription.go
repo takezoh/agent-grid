@@ -93,7 +93,7 @@ func (b *Backend) subscribeObserver(frameID state.FrameID) error {
 		binding.sessionID = session.SessionID
 	}
 	if session.RolloutPath != "" {
-		if _, hostPath, pathErr := translateRolloutPath(session.RolloutPath, b.mounts); pathErr == nil {
+		if _, hostPath, pathErr := translateRolloutPath(session.RolloutPath); pathErr == nil {
 			binding.rolloutPath = hostPath
 		}
 	}

@@ -3,7 +3,7 @@ id: adr-20260715-credproxy-recovery-lever-accepts-degraded-window
 kind: adr
 title: 'ADR — credproxy: accept degraded-window worst case + operator-observable readiness
   snapshot as the recovery lever set'
-status: accepted
+status: superseded
 created: '2026-07-15'
 tags:
 - adr
@@ -30,6 +30,10 @@ summary: 本 iteration では新 operator-facing recovery lever を導入しな�
   slog + Runner.ReadinessSnapshot を lever set とする。SIGHUP repurpose / admin HTTP endpoint
   は future ADR に defer。
 ---
+
+> **Superseded 2026-08-12** — the sandbox feature (devcontainer backend, credential/host-exec/MCP
+> brokers, container path translation) was removed; agents always launch directly on the host.
+> This record is kept for history and no longer describes current behaviour.
 
 ## Context
 

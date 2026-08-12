@@ -647,7 +647,6 @@ describe("CommandPalette", () => {
             {
               path: "/home/foo/bar",
               isGit: false,
-              isSandboxed: false,
               commandProfiles: [
                 {
                   id: "claude",
@@ -709,7 +708,7 @@ describe("CommandPalette", () => {
         activeSessionID: "session-1",
         activeOccupant: "frame",
         sessionConfig: {
-          projects: [{ path: "/home/foo/bar", isGit: false, isSandboxed: false }],
+          projects: [{ path: "/home/foo/bar", isGit: false }],
           commands: [],
           pushCommands: ["push-cmd-1"],
         },
@@ -752,8 +751,8 @@ describe("CommandPalette", () => {
         ],
         sessionConfig: {
           projects: [
-            { path: "/home/foo/bar", isGit: false, isSandboxed: false },
-            { path: "/home/foo/baz", isGit: false, isSandboxed: false },
+            { path: "/home/foo/bar", isGit: false },
+            { path: "/home/foo/baz", isGit: false },
           ],
           commands: [],
           pushCommands: ["push-cmd-1", "push-cmd-2"],
@@ -792,7 +791,7 @@ describe("CommandPalette", () => {
         activeSessionID: "session-1",
         activeOccupant: "frame",
         sessionConfig: {
-          projects: [{ path: "/home/foo/bar", isGit: false, isSandboxed: false }],
+          projects: [{ path: "/home/foo/bar", isGit: false }],
           commands: [],
           pushCommands: ["push-cmd-1"],
         },
@@ -841,8 +840,8 @@ describe("CommandPalette", () => {
         ],
         sessionConfig: {
           projects: [
-            { path: "/home/foo/bar", isGit: false, isSandboxed: false },
-            { path: "/home/foo/baz", isGit: false, isSandboxed: false },
+            { path: "/home/foo/bar", isGit: false },
+            { path: "/home/foo/baz", isGit: false },
           ],
           commands: [],
           pushCommands: ["push-cmd-1", "push-cmd-2"],
@@ -889,7 +888,6 @@ describe("CommandPalette", () => {
             {
               path: "/home/foo/bar",
               isGit: false,
-              isSandboxed: false,
               commandProfiles: [
                 {
                   id: "claude",
@@ -973,7 +971,7 @@ describe("CommandPalette", () => {
         ],
         activeSessionID: "session-abcd1234",
         sessionConfig: {
-          projects: [{ path: "/home/foo/bar", isGit: false, isSandboxed: false }],
+          projects: [{ path: "/home/foo/bar", isGit: false }],
           commands: [],
           pushCommands: [],
         },
@@ -1002,7 +1000,7 @@ describe("CommandPalette", () => {
     act(() => {
       useDaemonStore.setState({
         sessionConfig: {
-          projects: [{ path: "/home/foo/bar", isGit: false, isSandboxed: false }],
+          projects: [{ path: "/home/foo/bar", isGit: false }],
           commands: [],
           pushCommands: [],
         },
@@ -1030,7 +1028,6 @@ describe("CommandPalette", () => {
             {
               path: "/home/foo/bar",
               isGit: false,
-              isSandboxed: false,
               commandProfiles: [
                 {
                   id: "claude",
@@ -1079,7 +1076,6 @@ describe("CommandPalette", () => {
             {
               path: "/repo",
               isGit: false,
-              isSandboxed: false,
               commandProfiles: [
                 {
                   id: "claude",

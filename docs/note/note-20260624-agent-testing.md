@@ -110,7 +110,6 @@ the test-pinned enforcement catalogued in
 - **gateway scenario e2e (T1)** — a real-`server` + fake-agent scenario now verifies `session create → WS viewUpdate` in the always-on Go suite for the server→view path.
 - **clients/ui browser smoke (T1)** — Playwright runs a deterministic fake-backend browser harness for session hydrate, command palette open, and new-session submit. This covers browser wiring that happy-dom cannot prove, while keeping real soft keyboard / assistive-tech flows on the manual-device checklist.
 - **uihost ↔ server UI/UX E2E (T3)** — Playwright runs the real `server` and real `uihost` with a PATH-injected deterministic fake agent, then asserts the browser DOM reached through real `/api` and `/ws`. This is the canonical shared-client UI/UX E2E boundary. Windows E2E owns only Shell WinUI/UIA and Workspace Electron-specific wiring.
-- **fakedocker + `FakeVsRealDocker` (T1 + T3)** — devcontainer lifecycle tests run against PATH-injected `fakedocker`, and an opt-in real-docker backstop verifies the fake's output shape. Enforcement is catalogued in [code-enforcement.md §10](note-20260624-technical-code-enforcement.md).
 
 Local e2e run commands live in [AGENTS.md](../../AGENTS.md) (Build & Test → E2E).
 
@@ -157,10 +156,10 @@ Coverage targets are tiered by architectural blast radius. A regression in `stat
 | Tier | Target | Layer | Members |
 |------|--------|-------|---------|
 | **S** | ≥85% | Pure domain layer & wire types | `state`, `state/view`, `proto`, `features`, `orchestrator/scheduler` (pure `Reduce` + transitions) |
-| **A** | ≥75% | Core execution layer | `runtime`, `runtime/worker`, `runtime/subsystem/stream`, `driver`, `config`, `sandbox/devcontainer`, `platform/termvt`, `uihost`, `server/api` (gateway scenario + browser smoke keep this tier honest) |
+| **A** | ≥75% | Core execution layer | `runtime`, `runtime/worker`, `runtime/subsystem/stream`, `driver`, `config`, `platform/termvt`, `uihost`, `server/api` (gateway scenario + browser smoke keep this tier honest) |
 | **B** | ≥60% | Infrastructure integrations | `lib/*` (except thin CLI wrappers), `proto/sessions`, `hostexec`, `mcpproxy`, `tools`, `platform/agent/fakecodex` |
 | **C** | ≥40% | Thin CLI & wiring | `cmd/claude-app-server`, `cmd/orchestrator`, `runtime/subsystem/cli`, `host/lib/claude/transcript`, `host/lib/codex/transcript` |
-| **D** | smoke tests minimum | Trivial packages | `event`, `internal/globutil`, `lib/wsl`, `runtime/subsystem` (shared utilities), `sandbox`, `cmd/server`, `cmd/bridge`, `cmd/credproxy-run`, `cmd/linear-graphql-cli`; `clients/web-host` is gated independently |
+| **D** | smoke tests minimum | Trivial packages | `event`, `internal/globutil`, `lib/wsl`, `runtime/subsystem` (shared utilities), `cmd/server`, `cmd/bridge`, `cmd/linear-graphql-cli`; `clients/web-host` is gated independently |
 
 Tier S and A packages must not lose coverage in a PR. Tier B packages should improve over time; new B-tier code arrives with tests. Tier C packages aim for the goldenpath; full coverage isn't expected. Tier D packages need at least one test that exercises the package surface.
 
@@ -170,7 +169,7 @@ Tier S and A packages must not lose coverage in a PR. Tier B packages should imp
 cd services && TMPDIR=/tmp go test -short -cover ./...
 ```
 
-`TMPDIR=/tmp` is required because the sandbox blocks Unix socket creation under the default `TMPDIR`. Packages that exercise sockets (`proto`, `proto/sessions`, `mcpproxy`, etc.) will fail without it.
+`TMPDIR=/tmp` is required because the sandbox blocks Unix socket creation under the default `TMPDIR`. Packages that exercise sockets (`proto`, `proto/sessions`, etc.) will fail without it.
 
 Per-package detail:
 
@@ -189,7 +188,7 @@ The `Simplify` workflow (`.github/workflows/simplify.yml`) runs on every pull re
 
 ## When Coverage Can't Be Reached
 
-Some packages still can't hit their Tier target in CI because the dependency is the OS itself — `cmd/bridge` is a process entry point, and low-level helpers such as `platform/lib/tlsdev` still depend on environment-shaped behavior. `platform/sandbox/devcontainer` is no longer the canonical example here: always-on `fakedocker` coverage plus `FakeVsRealDocker` now carry that package's structural backstop. For the remaining low-ceiling packages:
+Some packages still can't hit their Tier target in CI because the dependency is the OS itself — `cmd/bridge` is a process entry point, and low-level helpers such as `platform/lib/tlsdev` still depend on environment-shaped behavior. For the remaining low-ceiling packages:
 
 1. Cover everything that doesn't require the external process (pure parsing, command-string assembly, etc.).
 2. Document the structural ceiling in the package's test file.

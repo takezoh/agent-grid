@@ -19,11 +19,10 @@ import (
 
 // Run implements `server event <eventType> [-data-dir DIR]`.
 // Reads stdin (if piped), captures AG_FRAME_ID and a timestamp,
-// then sends a CmdEvent (host) or CmdHookEvent (container) to the daemon.
+// then sends a CmdEvent / CmdHookEvent to the daemon.
 //
-// Socket resolution order (host path; container path always uses AG_SOCKET):
-//  1. AG_SOCKET env var (set by the daemon when spawning agents; also the
-//     bind-mounted path inside sandbox containers)
+// Socket resolution order:
+//  1. AG_SOCKET env var (set by the daemon when spawning agents)
 //  2. -data-dir flag value → "<dir>/<appid.SocketFileName>". Lets a hook
 //     installed in Claude/Gemini settings.json route to a non-default daemon
 //     when multiple daemons run with different -data-dir on the same host.
@@ -146,7 +145,7 @@ func hookResponse(contract, event string) []byte {
 }
 
 // ResolveSocketPath returns the server daemon UDS path. Resolution order:
-//  1. AG_SOCKET env var (always wins; set by the daemon and the sandbox mount)
+//  1. AG_SOCKET env var (always wins; set by the daemon)
 //  2. dataDirOverride argument when non-empty → "<dir>/<appid.SocketFileName>"
 //  3. config.Load().ResolveDataDir() → "<resolved>/<appid.SocketFileName>"
 //     (which honours AG_DATA_DIR env and config DataDir, falling back to

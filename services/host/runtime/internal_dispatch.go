@@ -8,7 +8,6 @@ import (
 	"github.com/takezoh/agent-grid/services/host/proto"
 	rsubsystem "github.com/takezoh/agent-grid/services/host/runtime/subsystem"
 	"github.com/takezoh/agent-grid/services/host/state"
-	"github.com/takezoh/agent-grid/services/platform/pathmap"
 )
 
 // internalEvent is the closed sum of runtime-internal lifecycle
@@ -107,14 +106,11 @@ func (internalBarrier) isInternalEvent() {}
 // them into loop-owned maps (handleSpawnComplete), keeping spawn off the
 // single-writer state without any direct map writes from the goroutine.
 type internalSpawnComplete struct {
-	effect           state.EffSpawnFrame
-	subsystemID      state.SubsystemID
-	sub              rsubsystem.Subsystem
-	cleanup          func() error
-	token            string         // empty when the frame exposes no frame-messaging authority
-	mounts           pathmap.Mounts // nil for non-container frames
-	containerSockDir string         // raw ContainerSockDir from WrappedLaunch; empty for host frames
-	bindResult       rsubsystem.BindResult
+	effect      state.EffSpawnFrame
+	subsystemID state.SubsystemID
+	sub         rsubsystem.Subsystem
+	token       string // empty when the frame exposes no frame-messaging authority
+	bindResult  rsubsystem.BindResult
 }
 
 func (internalSpawnComplete) isInternalEvent() {}

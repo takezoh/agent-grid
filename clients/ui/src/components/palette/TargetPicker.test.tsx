@@ -66,7 +66,6 @@ describe("TargetPicker a11y (UAC-001 / NFR-GH-005)", () => {
           {
             path: "/repo/demo",
             isGit: true,
-            isSandboxed: false,
             serverId: "srv-a",
             serverLabel: "Alpha",
           },
@@ -162,7 +161,6 @@ describe("TargetPicker a11y (UAC-001 / NFR-GH-005)", () => {
           {
             path: "/repo/demo",
             isGit: true,
-            isSandboxed: false,
             serverId: "srv-a",
             serverLabel: "Alpha",
           },
@@ -205,7 +203,6 @@ describe("TargetPicker a11y (UAC-001 / NFR-GH-005)", () => {
           {
             path: "/repo/demo",
             isGit: true,
-            isSandboxed: false,
             serverId: "srv-a",
             serverLabel: "Alpha",
           },
@@ -250,7 +247,6 @@ describe("TargetPicker a11y (UAC-001 / NFR-GH-005)", () => {
           {
             path: "/repo/demo",
             isGit: true,
-            isSandboxed: false,
             serverId: "srv-a",
             serverLabel: "Alpha",
           },
@@ -317,7 +313,6 @@ describe("TargetPicker a11y (UAC-001 / NFR-GH-005)", () => {
           {
             path: "/repo/demo",
             isGit: true,
-            isSandboxed: false,
             serverId: "srv-a",
             serverLabel: "Alpha",
           },
@@ -406,7 +401,6 @@ describe("TargetPicker a11y (UAC-001 / NFR-GH-005)", () => {
           {
             path: "/repo/demo",
             isGit: true,
-            isSandboxed: false,
             serverId: "srv-a",
             serverLabel: "Alpha",
           },
@@ -509,7 +503,6 @@ describe("TargetPicker a11y (UAC-001 / NFR-GH-005)", () => {
           {
             path: "/repo/demo",
             isGit: true,
-            isSandboxed: false,
             serverId: "srv-a",
             serverLabel: "Alpha",
           },
@@ -557,7 +550,6 @@ describe("TargetPicker focus recovery (UAC-018)", () => {
           {
             path: "/repo/demo",
             isGit: true,
-            isSandboxed: false,
             serverId: "srv-a",
             serverLabel: "Alpha",
           },
@@ -618,7 +610,6 @@ describe("TargetPicker retained projection on poll failure", () => {
           {
             path: "/repo/demo",
             isGit: true,
-            isSandboxed: false,
             serverId: "srv-a",
             serverLabel: "Alpha",
           },
@@ -663,7 +654,6 @@ describe("TargetPicker retained projection on poll failure", () => {
           {
             path: "/repo/demo",
             isGit: true,
-            isSandboxed: false,
             serverId: "srv-a",
             serverLabel: "Alpha",
           },
@@ -700,7 +690,6 @@ describe("TargetPicker retained projection on poll failure", () => {
           {
             path: "/repo/demo",
             isGit: true,
-            isSandboxed: false,
             serverId: "srv-a",
             serverLabel: "Alpha",
           },
@@ -766,7 +755,6 @@ describe("TargetPicker retained projection on poll failure", () => {
           {
             path: "/repo/demo",
             isGit: true,
-            isSandboxed: false,
             serverId: "srv-a",
             serverLabel: "Alpha",
           },

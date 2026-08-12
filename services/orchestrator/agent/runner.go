@@ -26,7 +26,6 @@ type launchResult struct {
 	sessionReady <-chan sessionIDs
 	turnDone     <-chan turnResult
 	doneCh       <-chan struct{}
-	cleanup      func(context.Context) error
 }
 
 // workerParams bundles the per-session state for the multi-turn loop goroutine.
@@ -105,7 +104,6 @@ func (r *Runner) startRunLoop(workerCtx context.Context, lr *launchResult, issue
 	worker := &Worker{
 		cancel:          cancel,
 		done:            lr.doneCh,
-		cleanup:         lr.cleanup,
 		issueID:         issue.ID,
 		issueIdentifier: issue.Identifier,
 	}
@@ -261,11 +259,10 @@ func (r *Runner) nextTurn(workerCtx context.Context, wp *workerParams, turn int)
 	}
 }
 
-// teardown cancels the worker context, waits for process exit, and runs cleanup.
+// teardown cancels the worker context and waits for process exit.
 func (r *Runner) teardown(wp workerParams) {
 	wp.cancel()
 	<-wp.doneCh
-	wp.worker.runCleanup()
 	r.Workspace.AfterRun(context.Background(), wp.issue.Identifier, wp.projectBranch)
 }
 
@@ -339,9 +336,6 @@ func (r *Runner) launchConn(ctx context.Context, frameID, wsPath, issueID string
 
 	res, err := r.spawn(ctx, wrapped, agentlaunch.SpawnOptions{InheritEnv: true})
 	if err != nil {
-		if wrapped.Cleanup != nil {
-			_ = wrapped.Cleanup(ctx)
-		}
 		return nil, err
 	}
 	stdout, stdin := res.Stdout, res.Stdin
@@ -386,7 +380,6 @@ func (r *Runner) launchConn(ctx context.Context, frameID, wsPath, issueID string
 		sessionReady: sessionReady,
 		turnDone:     turnDone,
 		doneCh:       doneCh,
-		cleanup:      wrapped.Cleanup,
 	}, nil
 }
 

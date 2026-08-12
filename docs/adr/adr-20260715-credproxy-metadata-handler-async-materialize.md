@@ -4,7 +4,7 @@ kind: adr
 title: 'ADR — credproxy: metadata handler per-request /token write path becomes an
   asynchronous Materialize invocation; HTTP response reflects token-fetch success
   only'
-status: accepted
+status: superseded
 created: '2026-07-15'
 tags:
 - adr
@@ -27,6 +27,10 @@ summary: metadata.go:78 の per-request /token handler で行われていた sil
   を廃止し、token fetch 成功直後に go b.Materialize(bgCtx, project) を非同期に発火する。HTTP response
   semantics は従来通り (200 + JSON on token fetch success)、既存 curl-based backstop を保存する。
 ---
+
+> **Superseded 2026-08-12** — the sandbox feature (devcontainer backend, credential/host-exec/MCP
+> brokers, container path translation) was removed; agents always launch directly on the host.
+> This record is kept for history and no longer describes current behaviour.
 
 ## Context
 

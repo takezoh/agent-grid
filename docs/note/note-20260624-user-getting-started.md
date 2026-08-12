@@ -11,7 +11,6 @@ tags:
 owners: []
 relations:
 - {type: references, target: note-20260624-user-orchestrator}
-- {type: references, target: note-20260624-user-sandbox}
 - {type: references, target: note-20260624-user-systemd}
 - {type: references, target: note-20260624-user-web-server}
 source_paths:
@@ -95,5 +94,4 @@ If the registration ever needs to be inspected or rebuilt by hand, the canonical
 
 - Run the backend + browser UI together: [web stack](note-20260624-user-web-server.md)
 - Deploy the two-process stack as a system service: [systemd service](note-20260624-user-systemd.md)
-- Isolate each agent in a container: [sandbox setup](note-20260624-user-sandbox.md)
 - Automate issue work end to end: [orchestrator](note-20260624-user-orchestrator.md)

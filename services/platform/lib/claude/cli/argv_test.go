@@ -5,31 +5,6 @@ import (
 	"testing"
 )
 
-func TestSandboxFlags(t *testing.T) {
-	tests := []struct {
-		name      string
-		command   string
-		sandboxed bool
-		want      string
-	}{
-		{"not sandboxed returns unchanged", "claude --verbose", false, "claude --verbose"},
-		{"sandboxed appends skip flag", "claude", true, "claude " + sandboxSkipFlag},
-		{"sandboxed strips auto-mode", "claude --enable-auto-mode", true, "claude " + sandboxSkipFlag},
-		{"sandboxed idempotent when skip already present", "claude " + sandboxSkipFlag, true, "claude " + sandboxSkipFlag},
-		{"sandboxed strips auto-mode and keeps other flags", "claude --verbose --enable-auto-mode", true, "claude --verbose " + sandboxSkipFlag},
-		{"sandboxed preserves quoted args", `claude -c 'foo = "bar baz"' --enable-auto-mode`, true, `claude -c 'foo = "bar baz"' ` + sandboxSkipFlag},
-		{"sandboxed preserves double-quoted expansion", `claude -c "$HOME/conf" --enable-auto-mode`, true, `claude -c "$HOME/conf" ` + sandboxSkipFlag},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := SandboxFlags(tt.command, tt.sandboxed)
-			if got != tt.want {
-				t.Errorf("SandboxFlags(%q, %v) = %q, want %q", tt.command, tt.sandboxed, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestParseCommand(t *testing.T) {
 	tests := []struct {
 		name    string

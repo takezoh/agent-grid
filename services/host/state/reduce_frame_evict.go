@@ -76,7 +76,7 @@ func evictChildFrame(s State, sessID SessionID, sess Session, idx int, frameID F
 // frameTeardownEffects builds the canonical per-frame teardown effect set
 // emitted whenever a frame leaves the session graph: backend frame kill
 // (only when the frame is still alive — frame-vanished routes set
-// killWindow=false), sandbox release (always — frame-vanished must still
+// killWindow=false), frame release (always — frame-vanished must still
 // drop the container refcount), frame unregister, file unwatch.
 //
 // Centralising the set is load-bearing: any new reducer path that
@@ -89,7 +89,7 @@ func frameTeardownEffects(frameID FrameID, killWindow bool) []Effect {
 		effs = append(effs, EffKillFrame{FrameID: frameID})
 	}
 	effs = append(effs,
-		EffReleaseFrameSandbox{FrameID: frameID},
+		EffReleaseFrame{FrameID: frameID},
 		EffUnregisterFrame{FrameID: frameID},
 		EffUnwatchFile{FrameID: frameID},
 	)

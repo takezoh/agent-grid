@@ -45,10 +45,8 @@ Import direction (enforced by `depguard`, `services/.golangci.yml`): `cmd/* → 
 ## Per-layer deep dives
 
 - **[platform/](../design/design-platform.md)** — shared infrastructure
-  - [Spawn & launch](../design/design-platform.md#legacy-source-component-20260624-platform-spawn-and-launch) — `agentlaunch`/`procgroup`/`pathmap`: the command-string → process launch layer
-  - [Brokers](../design/design-platform.md#legacy-source-component-20260624-platform-brokers) — `hostexec`/`mcpproxy`/`credproxy`: host mediation and policy enforcement
+  - [Spawn & launch](../design/design-platform.md#legacy-source-component-20260624-platform-spawn-and-launch) — `agentlaunch`/`procgroup`: the command-string → process launch layer
   - [Agent protocol](../design/design-platform.md#legacy-source-component-20260624-platform-agent-protocol) — `codexclient`/`codexschema`/`lib`: the Codex app-server stdio protocol
-  - [Sandbox backends](../design/design-platform.md#legacy-source-component-20260624-platform-sandbox) — per-project devcontainer isolation, image resolution, credential proxy
 - **[client/](../design/design-host.md)** — the client session lifecycle manager
   - [Process model](../design/design-host.md#legacy-source-component-20260624-client-process-model) — daemon process, pty multiplexer, rendering boundary
   - [IPC and tool system](../design/design-host.md#legacy-source-component-20260624-client-ipc) — message format, command surface, concurrency model

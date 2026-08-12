@@ -1,52 +1,11 @@
 package runtime
 
 import (
-	"context"
 	"log/slog"
-
-	"golang.org/x/sync/errgroup"
 
 	rsubsystem "github.com/takezoh/agent-grid/services/host/runtime/subsystem"
 	"github.com/takezoh/agent-grid/services/host/state"
 )
-
-const coldStartContainerConcurrency = 4
-
-// PrewarmContainers starts devcontainers for all sandboxed projects in parallel
-// before the serial spawn loop. Errors are logged but do not abort cold start;
-// the serial path will surface the same error per-frame if it persists.
-func (r *Runtime) PrewarmContainers(ctx context.Context) {
-	if r.state.SandboxedProject == nil {
-		return
-	}
-	seen := make(map[string]bool)
-	for _, sess := range r.state.Sessions {
-		if sess.Sandbox == state.SandboxOverrideHost {
-			continue
-		}
-		for _, frame := range sess.Frames {
-			if frame.Project != "" && r.state.SandboxedProject(frame.Project) {
-				seen[frame.Project] = true
-			}
-		}
-	}
-	if len(seen) == 0 {
-		return
-	}
-
-	l := launcher(r.cfg)
-	eg, egCtx := errgroup.WithContext(ctx)
-	eg.SetLimit(coldStartContainerConcurrency)
-	for p := range seen {
-		eg.Go(func() error {
-			if err := l.EnsureProject(egCtx, p); err != nil {
-				slog.Warn("cold start: container prewarm failed", "project", p, "err", err)
-			}
-			return nil
-		})
-	}
-	_ = eg.Wait()
-}
 
 // RecreateAll spawns fresh pty sessions for every frame in r.state.
 // Used during cold-start (the frame backend has just been created and
@@ -75,7 +34,7 @@ func (r *Runtime) recreateSessionFrames(id state.SessionID, sess state.Session) 
 		// One frame's spawn failure (e.g. a codex resume against a vanished
 		// thread) must not strand its healthy siblings — keep spawning the rest
 		// and report the first error so the caller logs the session as incomplete.
-		if err := r.spawnFrameWindow(id, sess.Sandbox, frame); err != nil && firstErr == nil {
+		if err := r.spawnFrameWindow(id, frame); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
@@ -110,20 +69,16 @@ func coldStartRecoverable(drv state.Driver, s state.DriverState) bool {
 // It runs PrepareLaunch → WrapLaunch → SpawnFrame and registers the cleanup
 // callback. termvt keys sessions on string(FrameID), so no extra env shadow is
 // written.
-func (r *Runtime) spawnFrameWindow(id state.SessionID, sandbox state.SandboxOverride, frame state.SessionFrame) error {
+func (r *Runtime) spawnFrameWindow(id state.SessionID, frame state.SessionFrame) error {
 	drv := state.GetDriver(frame.Command)
 	if drv == nil {
 		return nil
 	}
-	sandboxed := r.state.SandboxedProject != nil &&
-		r.state.SandboxedProject(frame.Project) &&
-		sandbox != state.SandboxOverrideHost
-	launch, err := drv.PrepareLaunch(frame.Driver, state.LaunchModeColdStart, frame.Project, frame.Command, frame.LaunchOptions, sandboxed)
+	launch, err := drv.PrepareLaunch(frame.Driver, state.LaunchModeColdStart, frame.Project, frame.Command, frame.LaunchOptions)
 	if err != nil {
 		slog.Error("bootstrap: prepare launch failed", "id", id, "frame", frame.ID, "err", err)
 		return err
 	}
-	launch.Sandbox = sandbox
 	launch.Project = frame.Project
 
 	ctx := r.baseContext()
@@ -165,24 +120,13 @@ func (r *Runtime) spawnFrameWindow(id state.SessionID, sandbox state.SandboxOver
 
 	if err := r.spawnWrapped(frame.ID, frame.Project, wrapped); err != nil {
 		slog.Error("bootstrap: spawn failed", "id", id, "frame", frame.ID, "err", err)
-		if wrapped.Cleanup != nil {
-			if cerr := wrapped.Cleanup(); cerr != nil {
-				slog.Warn("bootstrap: cleanup after spawn failure", "frame", frame.ID, "err", cerr)
-			}
-		}
 		sub.ReleaseFrame(frame.ID)
 		delete(r.frameSubsystems, frame.ID)
 		return err
 	}
 
-	if wrapped.Cleanup != nil {
-		r.storeFrameCleanup(frame.ID, wrapped.Cleanup)
-	}
-	if wrapResult.token != "" && wrapped.ContainerSockDir == "" {
+	if wrapResult.token != "" {
 		r.registerFrameToken(frame.ID, wrapResult.token)
-	}
-	if wrapResult.token != "" && wrapped.ContainerSockDir != "" {
-		r.registerContainerFrame(frame.ID, frame.Project, wrapped.ContainerSockDir, wrapResult.token, wrapped.Mounts)
 	}
 	sub.ActivateFrame(frame.ID)
 	return nil

@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 # Build and run the Symphony orchestrator against a WORKFLOW.md.
 #
-# Rebuilds both the orchestrator and the claude-app-server shim before launch:
-# in devcontainer sandbox mode the shim binary is bind-mounted into the agent
-# container, and Docker Desktop/WSL snapshots a file mount at container-create
-# time, so a stale shim would otherwise be used. Skip with --no-build.
+# Rebuilds both the orchestrator and the claude-app-server shim before launch
+# so a stale shim is never used. Skip with --no-build.
 #
 # Usage:
 #   scripts/run-orchestrator.sh [WORKFLOW_PATH] [--port PORT] [--no-build]
@@ -16,8 +14,6 @@
 # Requires:
 #   - LINEAR_API_KEY exported in the environment (the WORKFLOW.md tracker.api_key
 #     is the literal $LINEAR_API_KEY; never commit the key).
-#   - docker in PATH and the devcontainer image present locally (the orchestrator
-#     does not build images) when the workspace project uses devcontainer mode.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -62,11 +58,7 @@ if [ ! -f "$WORKFLOW" ]; then
 	echo "error: workflow file not found: $WORKFLOW" >&2
 	exit 1
 fi
-if ! command -v docker >/dev/null 2>&1; then
-	echo "warn: docker not found in PATH; devcontainer sandbox mode will fail." >&2
-fi
-
-# --- build (orchestrator + the shim that gets mounted into the agent container) ---
+# --- build (orchestrator + the claude-app-server shim) ---
 if [ "$BUILD" = 1 ]; then
 	echo "building orchestrator and claude-app-server..."
 	make build-orchestrator

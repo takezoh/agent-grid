@@ -54,13 +54,6 @@
       "fidelity": {"path":"services/host/driver/agy_real_e2e_test.go","test":"TestFakeVsRealAgyPassiveLifecycle","shared_input":"FakeAgyLifecycle","real_marker":"AG_E2E_AGY_BIN","suite_id":"agy-hooks"}
     },
     {
-      "id": "docker-cli", "strategy": "triple",
-      "seam": {"path":"services/platform/sandbox/devcontainer/manager.go","symbol":"Manager"},
-      "fake": {"path":"services/platform/sandbox/devcontainer/fakedocker/config.go","symbol":"LoadConfig"},
-      "contract": {"path":"services/platform/sandbox/devcontainer/manager_lifecycle_test.go","test":"TestManagerLifecycle_FakeDocker","invariant":"container lifecycle commands preserve state","assertion":"assertCreateArgs"},
-      "fidelity": {"path":"services/platform/sandbox/devcontainer/docker_e2e_test.go","test":"TestE2E_FakeVsRealDocker","shared_input":"createArgs","real_marker":"realBin","suite_id":"docker-cli"}
-    },
-    {
       "id": "pty", "strategy": "exception", "seam": {}, "fake": {}, "contract": {}, "fidelity": {},
       "exception": {"kind":"trusted-runtime","reason":"real kernel terminal semantics are the accepted wired contract","owner":"host-runtime","expiry":"2027-07-15","evidence":"docs/adr/adr-20260715-test-harness-dependency-strategies.md"}
     },

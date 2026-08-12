@@ -94,13 +94,6 @@ var repositoryFidelityTriples = []fidelityTriple{
 		FakeVsRealTest: "TestFakeVsRealFilesystemProcess", FixtureAuthority: "AG_E2E_FILESYSTEM_PROCESS",
 		SkipEvidence: "AG_E2E_FILESYSTEM_PROCESS",
 	},
-	{
-		ID: "repository-devcontainer", FakePath: "services/host/runtime/repository_environment.go",
-		FakeSymbol: "FakeRepositoryDevcontainer", ContractPath: "services/host/runtime/repository_preparation_test.go",
-		ContractTest: "TestRepositoryDevcontainerScopeContract", FakeVsRealPath: "services/host/runtime/repository_devcontainer_e2e_test.go",
-		FakeVsRealTest: "TestFakeVsRealRepositoryDevcontainer", FixtureAuthority: "AG_E2E_REPOSITORY_DEVCONTAINER",
-		SkipEvidence: "environment_authority_unavailable",
-	},
 }
 
 func TestRepositoryExactVersionConsumerInventory(t *testing.T) {
@@ -342,8 +335,8 @@ func TestSessionTargetConformanceRejectsZeroExitFakeTool(t *testing.T) {
 
 func TestExternalDependencyFidelityInventory(t *testing.T) {
 	root := repoRoot(t)
-	if len(repositoryFidelityTriples) != 5 {
-		t.Fatalf("want 5 triples, got %d", len(repositoryFidelityTriples))
+	if len(repositoryFidelityTriples) != 4 {
+		t.Fatalf("want 4 triples, got %d", len(repositoryFidelityTriples))
 	}
 	seen := map[string]bool{}
 	for _, tri := range repositoryFidelityTriples {

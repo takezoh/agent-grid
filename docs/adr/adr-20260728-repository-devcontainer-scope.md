@@ -2,7 +2,7 @@
 id: adr-20260728-repository-devcontainer-scope
 kind: adr
 title: Repository-scoped devcontainer over session-specific clones
-status: accepted
+status: superseded
 created: '2026-07-28'
 decision_makers:
 - pending user consultation
@@ -39,6 +39,10 @@ confirmation: RepositoryDevcontainerContract and FakeVsRealRepositoryDevcontaine
   isolation fallback.
 updated: '2026-07-28'
 ---
+
+> **Superseded 2026-08-12** — the sandbox feature (devcontainer backend, credential/host-exec/MCP
+> brokers, container path translation) was removed; agents always launch directly on the host.
+> This record is kept for history and no longer describes current behaviour.
 
 ## Status
 

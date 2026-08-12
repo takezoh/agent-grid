@@ -73,7 +73,7 @@ boundaries:
   - Interactive session and frame lifecycle operations.
   - Session snapshots, agent status, and terminal streams for local and web consumers.
   consumes:
-  - Platform launch, PTY, agent protocol, sandbox, and broker capabilities.
+  - Platform launch, PTY, and agent protocol capabilities.
   - Server gateway transport for browser clients.
   forbidden:
   - Importing or coordinating through the orchestrator implementation.
@@ -122,7 +122,6 @@ failure_responsibilities:
 trust_boundaries:
 - Treat IPC and browser commands as external input requiring validation and authorization
   at ingress.
-- Keep host and sandbox privilege decisions behind platform-owned adapters and brokers.
 compatibility_policies:
 - Evolve IPC and web message shapes through explicit versioned contracts and paired
   consumers.
@@ -496,10 +495,7 @@ On cold start, the bootstrap walks each session's frames in root-to-tail order a
 | `~/.agent-grid/sessions.json` | JSON | Session metadata and the frame stack. Each session holds a list of frames; each frame carries its own command, normalized `launch_options`, `subsystem_id`, `target_id`, and driver-interpreted `driver_state` bag. Active frame is not persisted — it is always the tail of the frame list | Written on `EffPersistSnapshot` (on Tick / hook / subsystem event / session lifecycle changes). Read only at daemon startup via `runtime.Bootstrap`. `driver_state` entries are opaque key/value pairs interpreted by the driver; runtime knows none of the key names |
 | `~/.agent-grid/events/{frameID}.log` | Text | Per-frame agent hook event log | Appended via `EffEventLogAppend`. The runtime's EventLogBackend manages file handles with lazy-open |
 | `~/.agent-grid/server.log` | slog | Application log | Created/appended at daemon startup |
-| `~/.agent-grid/server.sock` | Unix socket | Host IPC endpoint (SO_PEERCRED auth) — co-resident HTTP/WS gateway, `server event/host-exec/mcp-exec` subcommands | Created at daemon startup. Deleted on exit |
-| `~/.agent-grid/run/<project-hash>/server.sock` | Unix socket | Container IPC endpoint (bearer-token auth) — sandboxed agents only; implements `hook-event` and `subsystem-event` | Started on first container spawn for a project. Bind-mounted into the container as `/opt/agent-grid/run/server.sock` |
-| `~/.agent-grid/run/credproxy.sock` | Unix socket | Credential proxy endpoint (single instance per daemon; bearer token per project) | Listens whenever sandbox mode is `devcontainer`. Bind-mounted per project into the container as `/opt/agent-grid/run/credproxy.sock` |
-| `~/.agent-grid/warm/<frameID>.json` | JSON | Per-frame container bearer token (atomic, `0o600`) | Written when a sandboxed frame is launched; replayed by `RecoverSandboxFrames` on warm restart. Wiped at cold start |
+| `~/.agent-grid/server.sock` | Unix socket | Host IPC endpoint (SO_PEERCRED auth) — co-resident HTTP/WS gateway, `server event` subcommand | Created at daemon startup. Deleted on exit |
 
 The `~/.agent-grid` paths above are defaults. The effective `<dataDir>` is resolved
 in this order:
@@ -532,9 +528,9 @@ name; distinct creation intents for the same repository therefore retain
 independent clone workspaces.
 
 There is no separate `clone_dir` setting. To relocate repository clones, change
-the Execution Server's whole `data_dir`. In devcontainer mode the server mounts
-the repository-sessions root and uses the individual session clone as the frame
-working directory; ownership of the host path remains with the Execution Server.
+the Execution Server's whole `data_dir`. Each session clone under the
+repository-sessions root is the frame working directory; ownership of the host
+path remains with the Execution Server.
 
 User-facing `settings.toml` fields and defaults live in the source code (`host/config/config.go`).
 
@@ -649,23 +645,18 @@ src/
 ├── host/runtime/      Imperative shell — event loop + Effect interpreter
 │   ├── runtime.go       Runtime.Run() — single event loop (select)
 │   ├── interpret.go     execute(Effect) — interpreter for all side effects
-│   ├── interpret_spawn.go    EffSpawnFrame interpreter (sandbox dispatch,
-│   │                         launcher wiring, env propagation)
+│   ├── interpret_spawn.go    EffSpawnFrame interpreter (launcher wiring,
+│   │                         env propagation)
 │   ├── ipc.go           Host IPC server (accept + SO_PEERCRED uid check,
 │   │                    readLoop, writeLoop)
-│   ├── ipc_container.go Container IPC endpoint (per-project Unix socket;
-│   │                    `hook-event` / `subsystem-event`)
-│   ├── framereg/        Per-frame bearer token + bind-mount registry
+│   ├── framereg/        Per-frame bearer token registry
 │   │   └── registry.go  Single-writer / multi-reader (event loop writes;
-│   │                    container endpoint handlers read concurrently)
-│   ├── warm_state.go    Persists / replays container tokens across daemon
-│   │                    warm-restart (`<dataDir>/warm/`)
-│   ├── rundir.go        Per-project run directory (host-side dir bind-mounted as
-│   │                    `/opt/agent-grid/run`)
+│   │                    frame-messaging handlers read concurrently)
+│   ├── rundir.go        Per-project run directory
 │   ├── launcher.go      AgentLauncher interface + DirectLauncher + WrappedLaunch +
-│   │                    container-token wrap
+│   │                    frame-token wrap
 │   ├── notifier.go      Notification dispatch wiring (driven by EffRecordNotification)
-│   ├── resident.go      Long-lived per-project resources (sandbox managers, etc.)
+│   ├── resident.go      Long-lived per-project resources
 │   ├── terminal_relay.go     Per-subscriber frame→client byte relay for the
 │   │                         HTTP/WS gateway (EffSurfaceSubscribeStart)
 │   ├── backends.go      FrameLifecycle / FrameIO / FrameInspect / SessionEnv /
@@ -697,11 +688,9 @@ src/
 │   ├── convert.go            state.View → proto.SessionInfo conversion
 │   ├── proto_bridge.go       proto.Command → state.Event conversion
 │   ├── proto_bridge_surface.go  surface.* command bridging
-│   ├── bootstrap.go          Initial State construction for warm/cold restart;
-│   │                         RecoverSandboxFrames
+│   ├── bootstrap.go          Initial State construction for warm/cold restart
 │   ├── bootstrap_coldstart.go    Cold-start frame reconstruction
-│   ├── cleanup.go            Per-frame cleanup callbacks (sandbox release,
-│   │                         container token revoke)
+│   ├── cleanup.go            Shutdown drain + per-frame token release
 │   ├── filerelay.go          File relay (per-frame file watcher → event log)
 │   ├── testing.go            Test helper (fake backend)
 │   └── worker/               Worker pool
@@ -782,16 +771,8 @@ src/
 │   │                    (single/double quotes, backslash-escape)
 │   ├── types.go         LaunchPlan{Command,Argv,…} /
 │   │                    WrappedLaunch{Command,Argv,…} — dual representation
-│   ├── devcontainer.go  DevcontainerLauncher — Wrap produces docker exec argv
-│   │                    (TTY conditional on consumer)
-│   ├── direct.go        DirectDispatcher — pass-through (no-op wrapping)
-│   └── mounts.go        WrappedLaunch.HostPath — container→host path translation
-│                        via Mounts
-├── platform/sandbox/    Project-level sandbox backends (generic Manager[I any])
-│   ├── manager.go       Instance[I] / Manager[I] / StartOptions interface
-│   │                    definitions
-│   └── devcontainer/    Devcontainer backend (per-project container lifecycle
-│                        via docker)
+│   └── direct.go        DirectDispatcher — resolves every launch through
+│                        `<SelfBin> frame-exec`
 ├── platform/hostexec/   Host-exec broker (`container.Provider` impl): per-project
 │                        Unix socket server that runs allowlisted host binaries on
 │                        behalf of container processes via SCM_RIGHTS stdio
@@ -830,7 +811,6 @@ owners: []
 relations:
 - {type: references, target: component-20260624-client-interfaces}
 - {type: references, target: component-20260624-client-state-monitoring}
-- {type: references, target: component-20260624-platform-sandbox}
 - {type: referencedBy, target: component-20260624-client-overview}
 - {type: referencedBy, target: component-20260624-client-state-monitoring}
 - {type: referencedBy, target: note-20260624-technical-overview}
@@ -856,9 +836,8 @@ JSON messaging over Unix domain sockets. Two physical endpoints serve different 
 | Endpoint | Path | Auth | Clients |
 |---|---|---|---|
 | **Host** | `<dataDir>/server.sock` | SO_PEERCRED UID check | co-resident HTTP/WS gateway, `server event` hook bridges, the `scripts/setup-{claude,codex,gemini}.sh` setup scripts (indirectly via the running backend) |
-| **Container** | `<dataDir>/run/<project-hash>/server.sock` | Bearer token (`AG_SOCKET_TOKEN`) | Sandboxed agent processes inside devcontainers |
 
-The host endpoint exposes the full command surface. The container endpoint accepts `hook-event` and `subsystem-event`; all other commands are structurally absent (no handler registered, not a filter). See [Sandbox Backends](../component/component-20260624-platform-sandbox.md#container-ipc-endpoint) for security properties.
+The host endpoint exposes the full command surface.
 
 ### Topology
 
@@ -930,8 +909,8 @@ Command / Response / ServerEvent are closed sum types. See [interfaces.md](../co
 | `subscribe` | filters (optional) | Start receiving broadcasts |
 | `unsubscribe` | - | Stop receiving broadcasts |
 | `event` | event, timestamp, sender_id, payload | Unified event envelope — domain operations and driver hooks (see below). **Host endpoint only.** |
-| `hook-event` | token, hook, timestamp, payload | Driver hook notification from a sandboxed agent. **Container endpoint only.** Token resolves to the owning frame server-side. |
-| `subsystem-event` | token, source, kind, timestamp, payload | Structured subsystem event from a sandboxed backend. **Container endpoint only.** Token resolves to the owning frame server-side. |
+| `hook-event` | token, hook, timestamp, payload | Driver hook notification from an agent. Token resolves to the owning frame server-side. |
+| `subsystem-event` | token, source, kind, timestamp, payload | Structured subsystem event from a backend. Token resolves to the owning frame server-side. |
 | `surface.read_text` | session_id, lines | Read the trailing N lines of the active frame's VT snapshot |
 | `surface.send_text` | session_id, text | Send text followed by Enter to the session's active frame |
 | `surface.send_key` | session_id, key | Send a named key (e.g. `Escape`, `q`) without Enter |
@@ -1008,7 +987,7 @@ flowchart LR
     Interp -->|EffRegisterFrame| TapMgr["tapManager<br/>(1 goroutine / frame)"]:::async
     Interp -->|EffSendFrameKeys| FrameSync
     Interp -->|EffRecordNotification| EventLog
-    Interp -->|EffReleaseFrameSandboxes| Sandbox["sandbox release"]:::sync
+    Interp -->|EffReleaseFrames| Release["frame release"]:::sync
 
     FrameAsync -->|EvFrameSpawned / EvSpawnFailed| EL["event loop (eventCh)"]
     Pool -->|EvJobResult| EL
@@ -1082,7 +1061,7 @@ sequenceDiagram
 
 **Host frames**: `CmdEvent` (with `SenderID` set to the frame's env var) → IPC reader → event loop → `reduceDriverHook` → `Driver.Step(DEvHook)`.
 
-**Sandboxed frames**: `CmdHookEvent` (with bearer token) → container endpoint accept loop → token Lookup → `EvDriverEvent{SenderID: resolvedFrameID}` → event loop → `reduceDriverHook` → `Driver.Step(DEvHook)`. The client-supplied frame ID is not used; the token resolves it server-side.
+**Token-bearing frames**: `CmdHookEvent` (with bearer token) → host endpoint accept loop → token Lookup → `EvDriverEvent{SenderID: resolvedFrameID}` → event loop → `reduceDriverHook` → `Driver.Step(DEvHook)`. The client-supplied frame ID is not used; the token resolves it server-side.
 
 **Structured backends**: `CmdSubsystemEvent` (host or container bearer-token path) → IPC reader / container endpoint → `EvSubsystem{FrameID: resolvedFrameID}` → event loop → `reduceSubsystem` → `Driver.Step(DEvSubsystem)`.
 
@@ -1252,7 +1231,7 @@ The agent-grid client is a *session lifecycle manager*, not an agent orchestrato
 This is the **canonical statement** of how `client/` realizes the cross-layer core principles ([ARCHITECTURE.md → Design Principles](../../../ARCHITECTURE.md#design-principles)). It is the strict Functional Core / Imperative Shell form — pure reducer plus zero mutexes — shared by **both decision-loop layers**: the orchestrator's `scheduler` realizes the same form (`scheduler.Reduce` over an immutable, mutex-free `State`; see the [orchestrator deep dive](../component/component-20260624-orchestrator-overview.md#design-principles-orchestrator-realization)). The pattern below is the reference implementation; `platform/`, being an I/O-wrapping library rather than a decision loop, uses dependency-injection seams instead.
 
 - **Functional Core (`host/state/`)** — all state transitions are a pure function `state.Reduce(state, event) → (state', []Effect)`. No goroutines, mutexes, or actors (the no-mutex rule is enforced by `forbidigo`). Drivers run synchronously inside `Reduce`; the only permitted synchronous I/O is bounded read-only filesystem stat (e.g. checking whether a resume file exists). Everything else is emitted as an `Effect`.
-- **Imperative Shell (`host/runtime/`)** — a single event loop owns state mutation and interprets `Effect` values into real I/O (PTY spawn / IPC writes / sandbox launch / worker pool). Long-lived I/O readers only *emit* events; they never read or write state. The worker pool (discrete jobs) and stream readers (continuous sources) are both instances of this principle.
+- **Imperative Shell (`host/runtime/`)** — a single event loop owns state mutation and interprets `Effect` values into real I/O (PTY spawn / IPC writes / frame launch / worker pool). Long-lived I/O readers only *emit* events; they never read or write state. The worker pool (discrete jobs) and stream readers (continuous sources) are both instances of this principle.
 
 This split is why the core is testable without mocks: `Reduce` and `Driver.Step` are verified purely by their return values.
 
@@ -1271,7 +1250,7 @@ This split is why the core is testable without mocks: `Reduce` and `Driver.Step`
 | `host/tools/` | Operator tool abstraction (palette-style tool invocation surfaced through IPC). |
 | `clients/ui/` (repo root) | Shared frontend assets consumed through the host-neutral FleetProvider contract. |
 | `clients/web-host/` | Independent Web client host: embeds the SPA, loads client configuration, and provides server-qualified HTTP/WS transport. |
-| `host/config/` | TOML loading, DataDir injection, SandboxResolver. |
+| `host/config/` | TOML loading, DataDir injection. |
 | `client/cli/` | Subcommand registry — tool-specific subcommands registered via `init()`. |
 | `host/lib/peers/` | Peers MCP server (IPC specific to the client). |
 | `host/lib/{claude,codex}/transcript/` | Transcript renderers (depend on `state` for frontend integration). |
@@ -1291,7 +1270,7 @@ This split is why the core is testable without mocks: `Reduce` and `Driver.Step`
 
 - `main` → `runtime`, `driver`, `proto`, `tools`, `config`, `logger`
 - `runtime` → `state` (calls `Reduce`), `proto` (wire codec), `runtime/worker`, `runtime/subsystem` (interface only — no concrete subsystem imports)
-- `runtime/subsystem/<kind>` → `state`, `driver/<tool>` (constants/socket paths only), `lib/*`, `sandbox/`
+- `runtime/subsystem/<kind>` → `state`, `driver/<tool>` (constants/socket paths only), `lib/*`
 - `runtime/worker` → `state` only (JobID, JobInput, EvJobResult); not driver/lib
 - `state` is self-contained — stdlib + stdlib-only internal packages (`features`) only
 - `state/view` → stdlib only; `state` re-exports its types as aliases
@@ -1302,14 +1281,14 @@ Frames route events: `Reduce` routes session-level events by sessionID and frame
 
 ## Daemon ↔ client processes
 
-The daemon exposes typed IPC (`proto`) over a Unix socket. Two physical endpoints serve different client classes: the **host endpoint** (`<dataDir>/server.sock`, SO_PEERCRED auth) serves the co-resident HTTP/WS gateway, the `server event <type>` / `server host-exec` / `server mcp-exec` subcommands, and any future native client; the **container endpoint** (`<dataDir>/run/<project-hash>/server.sock`, bearer-token auth) serves sandboxed agents and accepts only `hook-event`/`subsystem-event`. See [process model](../component/component-20260624-client-process-model.md) and [IPC](../component/component-20260624-client-ipc.md).
+The daemon exposes typed IPC (`proto`) over a Unix socket: the **host endpoint** (`<dataDir>/server.sock`, SO_PEERCRED auth) serves the co-resident HTTP/WS gateway, the `server event <type>` subcommand, and any future native client. See [process model](../component/component-20260624-client-process-model.md) and [IPC](../component/component-20260624-client-ipc.md).
 
 ## Design decisions
 
 | Decision | Choice | Rationale |
 |---|---|---|
 | No optimistic updates | Do not modify view state on IPC error | Auto-recovers on next poll; avoids state inconsistency. |
-| Shutdown semantics | `EffReleaseFrameSandboxes` runs on explicit shutdown; SIGINT/SIGTERM only persist `sessions.json` so containers survive warm restart | Container lifetime is a state-layer effect, ordered in the event loop rather than a defer stack. Sessions restore on the next boot via `sessions.json`. |
+| Shutdown semantics | `EffReleaseFrames` runs on explicit shutdown; SIGINT/SIGTERM only persist `sessions.json` | Frame release is a state-layer effect, ordered in the event loop rather than a defer stack. Sessions restore on the next boot via `sessions.json`. |
 | Claude cold-start launch | Assemble `claude --resume <id>` in `Driver.PrepareLaunch(LaunchModeColdStart, …)` | `--resume` knowledge stays in the driver; the runtime interprets the baked plan verbatim. |
 | Launch plan resolution | In the reducer (pure), with one cold-start bootstrap exception | Driver-specific logic stays in the pure core; the bootstrap goroutine is the only safe direct caller. |
 | Resident tracking | `SubsystemID -> Subsystem` (`subsystems`), `FrameID -> Subsystem` (`frameSubsystems`), `FrameID -> SubsystemID` (`frameSubsystemIDs`), `FrameID -> TargetID` | These are **plain maps owned exclusively by the event loop** — no mutex (single-writer). The spawn goroutine holds no `*Runtime` and reports completion via an internal spawn-complete event; the loop is the sole writer. `subsystems` holds every live Subsystem keyed by its opaque SubsystemID, dispatched via per-kind Factories registered in `runtime.New`. `frameSubsystems` routes `ReleaseFrame` to the owning subsystem. `frameSubsystemIDs` is used by `reapSubsystemIfLast`: when the last frame of a Session is released, `Factory.Remove` is called to stop the app-server (stream subsystem reap). Shutdown ranges `subsystems` and calls `Stop` on each. CLI uses one Subsystem per project; the stream subsystem uses one Subsystem per session managed by the client (`stream:session:<id>`). |
@@ -1317,10 +1296,10 @@ The daemon exposes typed IPC (`proto`) over a Unix socket. Two physical endpoint
 | Frame ownership of DriverState | Each `SessionFrame` holds its own `DriverState`, updated in-place by `Driver.Step` inside `Reduce` | Session outlives any frame; push-driver layers a fresh context; frame death truncates only its slice. |
 | Hook event target identification | Inject a frame-scoped env var at frame-spawn time | Env vars are race-free at kernel exec level. See [state monitoring](../component/component-20260624-client-state-monitoring.md#hook-event-routing-and-race-free-identification). |
 | Hook payload abstraction | `CmdEvent.Payload` as opaque `json.RawMessage` | Driver-specific fields need no state/runtime/proto changes. |
-| Agent hook integration | `server event <eventType>` → `proto.CmdEvent`/`CmdHookEvent` → `EvDriverEvent` → `reduceDriverHook` → `Driver.Step(DEvHook)` | Used by hook-driven agents (Claude, Gemini). Host-side events carry `SenderID`; sandboxed events resolve the frame via bearer token. Hooks for truncated frames are dropped. |
+| Agent hook integration | `server event <eventType>` → `proto.CmdEvent`/`CmdHookEvent` → `EvDriverEvent` → `reduceDriverHook` → `Driver.Step(DEvHook)` | Used by hook-driven agents (Claude, Gemini). Host-side events carry `SenderID`; token-bearing events resolve the frame server-side. Hooks for truncated frames are dropped. |
 | Structured stream integration | `codex app-server` → `proto.CmdSubsystemEvent` → `EvSubsystem` → `reduceSubsystem` → `Driver.Step(DEvSubsystem)` | Used by Codex. **Exactly one `codex app-server` runs per session managed by the client** (`stream:session:<id>`). All frames within the same Session share one app-server; different Sessions get separate processes. The app-server is launched via `agentlaunch.Dispatcher.Wrap` + `agentlaunch.Spawn` (argv-direct; no bespoke `docker exec` construction in the stream backend) and binds a per-session UDS (`codex-<sessionID>.sock`). Frames join via `BindFrame`, which registers the frame's binding (empty threadID for fresh cold-start, pre-bound for cold-start recovery) and rewrites `Plan.Command` — the daemon itself never calls `thread/start` on the app-server; the codex CLI owns thread creation and backend adopts the CLI's thread when its `thread/started` broadcast arrives (see [ADR-0081](../adr/adr-20260624-0081-codex-frame-init-serialize.md)). The daemon dials the UDS directly (host-side path resolved from the launch's bind mounts via `WrappedLaunch.HostPath`); each frame attaches over the same socket with `codex --remote unix://<sock>` (fresh) or `codex resume <persistedID> --remote unix://<sock>` (recovery). No TCP routing bridge. The stream layer emits structured tool/approval/plan/diff/message/thread-lifecycle events; `TargetID` carries the logical thread identity. When a session's last frame is released, the app-server is reaped. |
 | Container egress restriction | Delegate to host (`docker network` + iptables) via `extra_create_args` | Hostname allowlists cannot be expressed by `docker create` flags alone. |
-| Sandbox launcher abstraction | `runtime.AgentLauncher` wraps each `LaunchPlan`; `SandboxDispatcher` resolves direct vs devcontainer per project. The stream daemon holds a separate `runtime.Config.StreamDispatcher` backed by a non-TTY `DevcontainerLauncher` (`docker exec -i`) that shares the same `sandbox.Manager` as the interactive per-frame launcher (`-it`) | Keeps sandbox rewriting out of the reducer; one daemon mixes sandboxed and direct projects. Interactive frames vs the daemon stream consumer require different TTY settings but must share the same container lifecycle. |
+| Launcher abstraction | `runtime.AgentLauncher` resolves each `LaunchPlan` through `agentlaunch.DirectDispatcher`; the stream daemon holds its own `runtime.Config.StreamDispatcher` for the codex app-server stdio launch | Keeps launch resolution out of the reducer. |
 | Container↔host path translation | `lib/pathmap` rewrites IPC payload paths using the frame's mounts. Per-frame bearer token and mounts are held together in a single `framereg.Registry` (one RWMutex), written atomically (`RegisterWithMounts`) by the event loop and read by the container endpoint's per-connection goroutines. | `state/`, `runtime/` (above the launcher), and `proto/` stay unaware of container layout. The registry's RWMutex is the **one sanctioned lock** in the runtime root: container hook handlers read off-loop, so token/mounts cannot be plain loop-owned maps — and writing token+mounts under one lock closes the window where a hook could resolve a token but miss its mounts. |
 
 ## Deep dives
@@ -1350,7 +1329,6 @@ owners: []
 relations:
 - {type: referencedBy, target: component-20260624-client-overview}
 - {type: references, target: adr-20260624-0081-codex-frame-init-serialize}
-- {type: references, target: component-20260624-platform-sandbox}
 - {type: referencedBy, target: note-20260624-technical-overview}
 source_paths:
 - clients/ui/
@@ -1458,7 +1436,7 @@ Key points:
 
 ## Process Model
 
-The `server` binary has one long-lived form (the merged backend) and a small set of short-lived one-shot subcommands. All agent hook registration is owned by the runtime itself (`host/lib/agenthook`), invoked from the daemon boot path on the host and from the devcontainer postCreate inside containers — there are no `scripts/setup-*.sh` shims left in the tree:
+The `server` binary has one long-lived form (the merged backend) and a small set of short-lived one-shot subcommands. All agent hook registration is owned by the runtime itself (`host/lib/agenthook`), invoked from the daemon boot path — there are no `scripts/setup-*.sh` shims left in the tree:
 
 ```
 server -data-dir <dir>             → Backend daemon (Runtime event loop + IPC server)
@@ -1466,13 +1444,10 @@ server -data-dir <dir>             → Backend daemon (Runtime event loop + IPC 
                                      also: register host hooks for every supported
                                            agent at boot (Claude / Gemini today)
 server event <eventType>           → Hook event receiver (short-lived process invoked by an agent hook)
-server host-exec <bin> [args ...]  → Host-exec broker shim (run inside a sandboxed container)
-server mcp-exec <alias>            → MCP-proxy shim (run inside a sandboxed container)
 
-bridge claude-setup-hooks   → Claude hook registration inside the devcontainer
-bridge gemini-setup-hooks   → Gemini hook registration inside the devcontainer
-                                      (both called from the devcontainer postCreate by coordinator.go;
-                                       Codex has no hooks — it is integrated via the app-server protocol)
+bridge claude-setup-hooks   → Claude hook registration
+bridge gemini-setup-hooks   → Gemini hook registration
+                                      (Codex has no hooks — it is integrated via the app-server protocol)
 ```
 
 There is exactly **one** long-lived backend process — `server`. It owns both the daemon coordinator (event loop, IPC sockets, persistence) and a co-resident HTTP/WebSocket gateway goroutine that exposes the browser surface. The separate `web` binary serves the React/xterm.js bundle and reverse-proxies REST/WS to that gateway.
@@ -1515,7 +1490,7 @@ runDaemon()
 
 The `RespawnFrame` interface still exists on `FrameLifecycle` and `PtyBackend` implements it as a teardown + recreate via the termvt.Manager, but the cold-start bootstrap path does not use it — fresh launches go through `EffSpawnFrame`.
 
-For Codex, the daemon starts **one `codex app-server` per session managed by the client** (keyed by `stream:session:<sessionID>`). All frames within the same Session (root + peers) share one app-server; different Sessions get separate processes. The app-server is launched via `agentlaunch.Dispatcher.Wrap` + `agentlaunch.Spawn` (argv-direct, no host shell); the listen argv is built by `libcodex.AppServerListenArgs`, binding a per-session UDS `codex-<sessionID>.sock`. The path the app-server binds comes from `Factory.ResolveSockPath` (container-absolute under the run dir in container mode); the host-side path the daemon dials is derived from that path plus the launch's bind mounts (`resolveDialSock` → `WrappedLaunch.HostPath`). The stream daemon uses a dedicated non-TTY `DevcontainerLauncher` (`docker exec -i`) that shares the same `sandbox.Manager` as the per-frame interactive launcher. The daemon connects via **WebSocket-over-UDS** (HTTP Upgrade — the transport codex app-server speaks). Structured RPC events are converted to `DEvSubsystem` and dispatched to the owning frame. Each frame runs in the same sandbox as the app-server and attaches to that UDS directly with `codex --remote unix://<sock>` (fresh cold start — the codex CLI issues its own `thread/start`, backend adopts via `handleThreadStarted`) or `codex resume <id> --remote unix://<sock>` (cold-start recovery — the CLI resumes a persisted thread from its local rollout file); these remote-attach strings are built by `libcodex.RemoteAttachArgs`. There is no TCP routing bridge. Codex state is not driven by hooks. When a session's last frame is released, `Factory.Remove` stops the corresponding app-server process (reap on exit). Frame binding is deterministic despite the shared broadcast channel: `stream.Backend.initSem` serialises pending fresh frames so any incoming thread has a single unambiguous owner ([ADR-0081](../adr/adr-20260624-0081-codex-frame-init-serialize.md)).
+For Codex, the daemon starts **one `codex app-server` per session managed by the client** (keyed by `stream:session:<sessionID>`). All frames within the same Session (root + peers) share one app-server; different Sessions get separate processes. The app-server is launched via `agentlaunch.Dispatcher.Wrap` + `agentlaunch.Spawn` (argv-direct, no host shell); the listen argv is built by `libcodex.AppServerListenArgs`, binding a per-session UDS `codex-<sessionID>.sock`. The path the app-server binds comes from `Factory.ResolveSockPath`; the daemon dials the same path. The daemon connects via **WebSocket-over-UDS** (HTTP Upgrade — the transport codex app-server speaks). Structured RPC events are converted to `DEvSubsystem` and dispatched to the owning frame. Each frame attaches to that UDS directly with `codex --remote unix://<sock>` (fresh cold start — the codex CLI issues its own `thread/start`, backend adopts via `handleThreadStarted`) or `codex resume <id> --remote unix://<sock>` (cold-start recovery — the CLI resumes a persisted thread from its local rollout file); these remote-attach strings are built by `libcodex.RemoteAttachArgs`. There is no TCP routing bridge. Codex state is not driven by hooks. When a session's last frame is released, `Factory.Remove` stops the corresponding app-server process (reap on exit). Frame binding is deterministic despite the shared broadcast channel: `stream.Backend.initSem` serialises pending fresh frames so any incoming thread has a single unambiguous owner ([ADR-0081](../adr/adr-20260624-0081-codex-frame-init-serialize.md)).
 
 ### Codex process topology
 
@@ -1547,46 +1522,23 @@ flowchart TB
     TUI -.->|dial WS| UDS
 ```
 
-#### Devcontainer mode
-
-```mermaid
-flowchart TB
-    subgraph host["Host — daemon process"]
-        SB["stream.Backend<br/>Dispatcher.Wrap → docker exec -i"]
-        PB["PtyBackend<br/>Plan.Command wrapped as<br/>docker exec -it sh -c '...'"]
-        HUDS[("dataDir/run/CONTAINERKEY/<br/>codex-SID.sock<br/>(host path)")]
-    end
-    subgraph container["Devcontainer"]
-        CUDS[("/opt/agent-grid/run/<br/>codex-SID.sock<br/>(container path)")]
-        APP["codex app-server<br/>--listen unix://SOCK"]
-        TUI["codex --remote unix://SOCK<br/>(Ink TUI; docker-exec grandchild)"]
-    end
-
-    HUDS <-. bind mount, same inode .-> CUDS
-    SB -->|Spawn: docker exec -i| APP
-    APP -->|listen| CUDS
-    SB -.->|dial WS via HostPath| HUDS
-    PB -->|SpawnFrame: docker exec -it| TUI
-    TUI -.->|dial WS in-container| CUDS
-```
-
 Reading notes:
 
-- **The pty master always lives on the host** — it is created by `termvt.NewSession` (`platform/termvt/session.go:79`, `pty.StartWithSize`) inside the daemon process. In devcontainer mode the pty's immediate child is the `docker exec` CLI on the host; the actual `codex --remote` TUI runs in the container as its grandchild.
-- **The dial socket and the listen socket are the same file.** In devcontainer mode the listen path is container-absolute and the dial path is its host-side alias via bind mount; `resolveDialSock` → `WrappedLaunch.HostPath` (`stream/backend.go:182`) is the translator. In host mode the two paths are identical.
+- **The pty master always lives on the host** — it is created by `termvt.NewSession` (`platform/termvt/session.go:79`, `pty.StartWithSize`) inside the daemon process.
+- **The dial socket and the listen socket are the same file** — the app-server binds and the daemon dials the same host path.
 - **Client disconnect / reconnect does not touch either process.** `reduceConnClosed` only tears down `Subscribers` / `SurfaceSubs` and emits `EffSurfaceSubscribeStop`; it never emits `EffKillFrame` or stops the subsystem. Both the app-server and the per-frame TUI survive until the frame is explicitly killed (or, for the app-server, until `reapSubsystemIfLast` runs after the session's last frame is released).
 - **Thread lifecycle is owned by the codex CLI, not the daemon.** For fresh cold-start the CLI issues its own `thread/start` on its connection; `stream.Backend` receives the resulting `thread/started` via broadcast and adopts it into the frame currently reserving the `initSem` slot (serialisation guarantees exactly one adopt candidate — see [ADR-0081](../adr/adr-20260624-0081-codex-frame-init-serialize.md)). For cold-start recovery the daemon passes the persisted threadID to the CLI via `codex resume <id> --remote`; the CLI resumes from its local rollout file and the pre-registered mapping in `Backend.threads[id]` routes the resulting broadcast deterministically (no initSem consumed).
 - **This two-process topology is Codex-specific.** Claude / Gemini drivers do not set `Plan.Subsystem`, so `ensureSubsystemOnce` falls back to `LaunchSubsystemCLI` (`interpret_spawn.go:272-274`) and only the per-frame CLI process is spawned — no app-server counterpart.
 
 ### Shutdown semantics
 
-| Trigger | sessions.json | Sandboxes | Next boot |
+| Trigger | sessions.json | Frame resources | Next boot |
 |---|---|---|---|
-| Explicit `shutdown` command | Saved | Destroyed via `EffReleaseFrameSandboxes` | Cold start creates fresh containers |
-| SIGINT / SIGTERM (ctx cancel) | Saved | **Preserved** (no `EffReleaseFrameSandboxes`) — containers survive | Cold start adopts surviving containers where it can; `BeginColdStart` discards any container the matching cold-start path cannot reuse |
-| SIGKILL / panic (cleanup defers do not run) | Last persisted snapshot remains | Orphaned containers from missing projects are reaped by `PruneOrphans` at next startup | Cold start as above |
+| Explicit `shutdown` command | Saved | Released via `EffReleaseFrames` | Cold start respawns every recoverable frame |
+| SIGINT / SIGTERM (ctx cancel) | Saved | Left to process exit (no `EffReleaseFrames`) | Cold start as above |
+| SIGKILL / panic (cleanup defers do not run) | Last persisted snapshot remains | Orphaned process groups are reaped by `PruneProcessGroups` at next startup | Cold start as above |
 
-`sessions.json` is **always preserved** — it is the restoration source for cold start. See [Sandbox Backends — Cold-start fresh provisioning](../component/component-20260624-platform-sandbox.md#design-decisions) for the container-side handshake.
+`sessions.json` is **always preserved** — it is the restoration source for cold start.
 
 ### Frame Model
 
@@ -1596,8 +1548,7 @@ Each frame owns exactly one pty session allocated by `platform/termvt.Manager`. 
 
 - **Frame command exits**: termvt reports the session ended; `reduceTick` emits `EffReconcileWindows`, runtime compares the live backend frame table against state.Sessions and emits `EvFrameVanished` / `EvFrameCommandExited` for the missing frames. The reducer truncates the owning session at the dead frame's index — if it was the root frame, the whole session leaves the current in-memory view; otherwise the remaining lower frames stay and the new tail becomes the active frame. The runtime upserts surviving sessions and broadcasts `sessions-changed`, but it does not delete the removed session's durable record. Durable session and frame-messaging deletion occurs only for the UI's explicit `stop-session` command.
 - **Active frame death**: the runtime probes each live frame's backend session every tick; an error that wraps `ErrFrameMissing` is treated as dead and the runtime emits `EvFrameVanished{OwnerFrameID:<active>}`, and the reducer applies the same truncate rule above.
-- **Container death**: handled symmetrically — the next frame command exit reconciliation reaps the frame; sandbox cleanup runs through the normal `EffReleaseFrameSandboxes` path on explicit shutdown.
-- **Daemon crash (SIGKILL)**: cleanup defers do not run, so any containers from the previous boot survive; the next daemon boot cold-starts and either adopts them or discards them via the `BeginColdStart` handshake.
+- **Daemon crash (SIGKILL)**: cleanup defers do not run, so process groups from the previous boot survive; the next daemon boot reaps them via `PruneProcessGroups` and cold-starts.
 - **Startup consistency**: persisted session files are the source of truth at boot. Because every boot is a cold start, there is no warm-rebind step that can desynchronise with a live backend frame table — the bootstrap allocates a fresh pty session for every recoverable frame. An unrecoverable record may be omitted from the current in-memory view, but bootstrap retains it on disk because recovery classification is not an explicit user delete decision.
 - **IPC errors**: when an IPC command returns an error on the frontend side, the gateway logs it and does not change UI state. No timeout is configured (local Unix-socket communication). If the daemon deadlocks, the client risks blocking indefinitely; recovery means killing the daemon process.
 

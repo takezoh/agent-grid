@@ -52,16 +52,7 @@ func (d DirectDispatcher) Wrap(_ context.Context, frameID string, plan LaunchPla
 	}, nil
 }
 
-func (DirectDispatcher) AdoptFrame(_ context.Context, _, _ string) (func(context.Context) error, []Mount, error) {
-	return nil, nil, nil
-}
-
 func (DirectDispatcher) EnsureProject(_ context.Context, _ string) error { return nil }
-
-func (DirectDispatcher) IsContainer(_ string) bool { return false }
-
-func (DirectDispatcher) BeginColdStart() {}
-func (DirectDispatcher) EndColdStart()   {}
 
 // stripContainerOnlyEnv returns a copy of env with AG_SOCKET_TOKEN forced
 // empty unless the launch explicitly needs host-side frame-messaging access.

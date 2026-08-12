@@ -2,7 +2,6 @@ package stream
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	"github.com/takezoh/agent-grid/services/host/state"
@@ -105,7 +104,7 @@ func TestFactory_RemoveStopsAndDeletesBackend(t *testing.T) {
 
 func TestBackend_BindThreadRegistersMultipleFrameBindings(t *testing.T) {
 	b := New(nil, nil, "stream:session:sess1", "sess1", "/workspace/agent-roost",
-		"codex", nil, "", "", false, false,
+		"codex", nil, "", "",
 		"/opt/agent-grid/run/codex.sock",
 		0,
 	)
@@ -143,70 +142,15 @@ func TestBackend_BindThreadRegistersMultipleFrameBindings(t *testing.T) {
 	}
 }
 
-// TestFactory_EnsurePropagatesHostOverrideToAppServer pins the invariant that
-// a per-launch state.SandboxOverrideHost must reach the app-server dispatch
-// via plan.ForceHost, even when the project's default sandbox mode is
-// devcontainer. Without this, Factory.Ensure computes b.isContainer from
-// IsContainer(project) alone; spawn.go then hands the app-server plan to
-// SandboxDispatcher without ForceHost; the dispatcher routes to Devcontainer;
-// the app-server binds a container-absolute listenSock while the frame runs
-// on host — the two cannot share the UDS and the codex frame exits 1 within
-// seconds. Observed in production at 2026-07-15T03:22:11 UTC (session
-// 1d7d4775ee9a9679c638b3fe, frame 1a516a1f495d8cc47a137e8e).
-func TestFactory_EnsurePropagatesHostOverrideToAppServer(t *testing.T) {
-	disp := &capturePlanDispatcher{
-		forwardArgv: []string{filepath.Join(t.TempDir(), "missing-app-server")},
-	}
-	sockPath := filepath.Join(t.TempDir(), "codex.sock")
-	f := NewFactory(FactoryConfig{
-		Runtime:    &fakeRuntime{},
-		Dispatcher: disp,
-		// Project's default sandbox mode is devcontainer.
-		IsContainer: func(_ string) bool { return true },
-		// Capture useContainer via a stub — post-fix this must be false because
-		// plan.Sandbox=Host must AND against the project's default sandbox mode
-		// (which is true here).
-		ResolveSockPath: func(_ state.SessionID, _ string, useContainer bool) (string, error) {
-			if useContainer {
-				t.Errorf("resolveSockPath received useContainer=true; want false when plan.Sandbox=SandboxOverrideHost")
-			}
-			return sockPath, nil
-		},
-	})
-
-	plan := state.LaunchPlan{
-		Command: "codex",
-		Sandbox: state.SandboxOverrideHost, // user overrides sandboxed project to run on host
-	}
-	_, _, err := f.Ensure(context.Background(), "sess-host", "/proj/sandboxed", plan)
-	// Start is expected to fail — the fake dispatcher forwards a non-existent
-	// binary and agentlaunch.Spawn will error. The capture happens BEFORE
-	// Spawn, so a failed Start does not invalidate the assertion.
-	if err == nil {
-		t.Fatal("expected b.Start to fail on missing app-server binary")
-	}
-
-	if !disp.capturedPlan.ForceHost {
-		t.Errorf(
-			"app-server plan.ForceHost = false; want true.\n"+
-				"Root cause: Factory.Ensure sets b.isContainer from IsContainer(project) alone, "+
-				"ignoring plan.Sandbox=SandboxOverrideHost. spawn.go then builds the app-server "+
-				"plan without propagating the override, so SandboxDispatcher routes the app-server "+
-				"to the devcontainer while the frame runs on host — the two cannot share the UDS "+
-				"and the codex frame exits 1 within seconds.\n"+
-				"captured plan: %+v", disp.capturedPlan)
-	}
-}
-
 func TestFactory_FindFrameByThread_ScopesLookupToSession(t *testing.T) {
 	f := NewFactory(FactoryConfig{})
 
-	a := New(nil, nil, "stream:session:sess-a", "sess-a", "/workspace/a", "codex", nil, "", "", false, false, "/tmp/a.sock", 0)
+	a := New(nil, nil, "stream:session:sess-a", "sess-a", "/workspace/a", "codex", nil, "", "", "/tmp/a.sock", 0)
 	a.frames["frame-a"] = &frameBinding{frameID: "frame-a", threadID: "shared-thread"}
 	a.threads["shared-thread"] = "frame-a"
 	f.backends["stream:session:sess-a"] = a
 
-	b := New(nil, nil, "stream:session:sess-b", "sess-b", "/workspace/b", "codex", nil, "", "", false, false, "/tmp/b.sock", 0)
+	b := New(nil, nil, "stream:session:sess-b", "sess-b", "/workspace/b", "codex", nil, "", "", "/tmp/b.sock", 0)
 	b.frames["frame-b"] = &frameBinding{frameID: "frame-b", threadID: "shared-thread"}
 	b.threads["shared-thread"] = "frame-b"
 	f.backends["stream:session:sess-b"] = b

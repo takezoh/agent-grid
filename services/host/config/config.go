@@ -21,7 +21,6 @@ type Config struct {
 	Driver   CommonDriverConfig            `toml:"driver"`
 	Drivers  map[string]map[string]any     `toml:"drivers"`
 	Features FeaturesConfig                `toml:"features"`
-	Sandbox  platformconfig.SandboxConfig  `toml:"sandbox"`
 	Codex    CodexConfig                   `toml:"codex"`
 }
 
@@ -84,9 +83,7 @@ func LoadFrom(path string) (*Config, error) {
 	if err := rejectRemovedCommandProfileFields(metadata); err != nil {
 		return nil, err
 	}
-	if err := cfg.Sandbox.Validate(); err != nil {
-		return nil, err
-	}
+	warnRemovedSandboxTable(metadata, path)
 	if err := cfg.Session.ValidateCommandProfiles(); err != nil {
 		return nil, fmt.Errorf("session command profiles: %w", err)
 	}
@@ -125,9 +122,6 @@ func DefaultConfig() *Config {
 			ScrollbackLines: 10000,
 		},
 		Projects: platformconfig.ProjectsConfig{},
-		Sandbox: platformconfig.SandboxConfig{
-			Mode: "direct",
-		},
 	}
 }
 
@@ -153,17 +147,4 @@ func (c *Config) ResolveDataDir() string {
 		return platformconfig.ExpandPath(c.DataDir)
 	}
 	return ConfigDirPath()
-}
-
-// ResolveDevcontainerPrefix returns the docker container/label prefix used by
-// this daemon. Resolution order: env AG_DEVCONTAINER_PREFIX → config
-// sandbox.devcontainer.name_prefix → "" (the devcontainer package falls back
-// to its DefaultNamePrefix). Use this when constructing the devcontainer
-// Manager so a peer daemon (e.g. scripts/run-dev.sh) can isolate its docker
-// namespace from a primary daemon without editing the TOML.
-func (c *Config) ResolveDevcontainerPrefix() string {
-	if v := os.Getenv("AG_DEVCONTAINER_PREFIX"); v != "" {
-		return v
-	}
-	return c.Sandbox.Devcontainer.NamePrefix
 }

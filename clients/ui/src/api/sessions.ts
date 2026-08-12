@@ -89,11 +89,6 @@ export interface CreateSessionPayload {
   cols?: number;
   rows?: number;
   worktree?: boolean;
-  // ADR-0042: palette new-session payload wire mirror. "" / undefined / "auto"
-  // all mean "follow project config"; "host" forces direct/host launch.
-  // We expose only the "host" override on the type because palette UI never
-  // sends explicit "auto" — omitting the field is the same thing on the wire.
-  sandbox?: "host";
 }
 
 export interface CreateRepositorySessionPayload {
@@ -112,7 +107,6 @@ export interface CreateRepositorySessionPayload {
 export interface SessionConfigProject {
   path: string;
   isGit: boolean;
-  isSandboxed: boolean;
   serverId?: string;
   serverLabel?: string;
   commandProfiles?: LaunchProfile[];
@@ -337,18 +331,13 @@ function normalizeProjects(raw: unknown): SessionConfigProject[] {
   return raw.map((p, i): SessionConfigProject => {
     if (p && typeof p === "object") {
       const o = p as Record<string, unknown>;
-      if (
-        typeof o.path !== "string" ||
-        typeof o.isGit !== "boolean" ||
-        typeof o.isSandboxed !== "boolean"
-      ) {
+      if (typeof o.path !== "string" || typeof o.isGit !== "boolean") {
         throw new Error(`invalid exact-version session-config: projects[${i}]`);
       }
       const commandProfiles = normalizeLaunchProfiles(o.command_profiles);
       return {
         path: o.path,
         isGit: o.isGit,
-        isSandboxed: o.isSandboxed,
         ...(commandProfiles.length > 0 ? { commandProfiles } : {}),
       };
     }

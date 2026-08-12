@@ -23,9 +23,7 @@ import (
 	"github.com/takezoh/agent-grid/services/host/state"
 	"github.com/takezoh/agent-grid/services/platform/agent/codexclient"
 	"github.com/takezoh/agent-grid/services/platform/agent/codexschema"
-	"github.com/takezoh/agent-grid/services/platform/agentlaunch"
 	libcodex "github.com/takezoh/agent-grid/services/platform/lib/codex"
-	"github.com/takezoh/agent-grid/services/platform/pathmap"
 )
 
 // Stream subsystem launch-flow tests: the codex app-server is faked so no real
@@ -188,7 +186,7 @@ type boundHarness struct {
 
 func newBoundBackend(t *testing.T, listenSock string) *boundHarness {
 	t.Helper()
-	b := New(&fakeRuntime{}, nil, "sid", "sess1", "/p", "codex", nil, "", "", false, false,
+	b := New(&fakeRuntime{}, nil, "sid", "sess1", "/p", "codex", nil, "", "",
 		listenSock, time.Second)
 	ta, tb := streamPipe()
 	b.conn = codexclient.NewConn(ta, time.Second)
@@ -278,32 +276,6 @@ func TestBackendBindFrame_FreshColdStart_PreservesCodexConfigArgs(t *testing.T) 
 	}
 	if slices.Contains(res.Plan.Argv, "--effort") {
 		t.Fatalf("Argv = %#v, must not use unsupported --effort flag", res.Plan.Argv)
-	}
-}
-
-func TestBackendBindFrame_ContainerTrustsResolvedWorkingDirectoryBeforeAttach(t *testing.T) {
-	const listen = "/opt/agent-grid/run/codex-trust.sock"
-	h := newBoundBackend(t, listen)
-	h.backend.sandboxed = true
-	worktree := "/repo/.agent-grid/worktrees/feature"
-
-	res, err := h.backend.BindFrame(context.Background(), subsystem.BindRequest{
-		FrameID: "f-trust",
-		Plan:    state.LaunchPlan{StartDir: worktree},
-	})
-	if err != nil {
-		t.Fatalf("BindFrame: %v", err)
-	}
-	wantArgv := libcodex.RemoteAttachArgs(listen, "", worktree, nil, "", true)
-	if !reflect.DeepEqual(res.Plan.Argv, wantArgv) {
-		t.Fatalf("Argv = %#v, want %#v", res.Plan.Argv, wantArgv)
-	}
-	wantPre := [][]string{{agentlaunch.ContainerBinaryPath, "codex-trust-project"}}
-	if !reflect.DeepEqual(res.Plan.PreCommands, wantPre) {
-		t.Fatalf("PreCommands = %#v, want %#v", res.Plan.PreCommands, wantPre)
-	}
-	if res.Plan.Command != "" {
-		t.Errorf("legacy Command must be empty in argv path: %q", res.Plan.Command)
 	}
 }
 
@@ -452,35 +424,6 @@ func TestBackendBindFrame_RecoveryUsesPerFrameModelNotAnotherThreadsModel(t *tes
 	}
 }
 
-func TestBackendBindFrame_RecoveryTranslatesHostRolloutPathForContainer(t *testing.T) {
-	const listen = "/opt/agent-grid/run/codex-sess3.sock"
-	h := newBoundBackend(t, listen)
-	h.backend.mounts = pathmap.Mounts{{Host: "/host/work", Container: "/work"}}
-	h.backend.sandboxed = true
-
-	res, err := h.backend.BindFrame(context.Background(), subsystem.BindRequest{
-		FrameID: "f1",
-		Plan: state.LaunchPlan{StartDir: "/repo", Stream: state.StreamLaunchOptions{
-			ResumeTarget: state.ResumeTarget{
-				ThreadID:    "thread-xyz",
-				RolloutPath: "/host/work/.codex/rollout.jsonl",
-			},
-		}},
-	})
-	if err != nil {
-		t.Fatalf("BindFrame: %v", err)
-	}
-	// The container-relative rollout path must appear in the returned
-	// ResumeTarget so the CLI (which runs in-container) can find the file.
-	if res.Plan.Stream.ResumeTarget.RolloutPath != "/work/.codex/rollout.jsonl" {
-		t.Errorf("translated RolloutPath = %q, want /work/.codex/rollout.jsonl",
-			res.Plan.Stream.ResumeTarget.RolloutPath)
-	}
-	if res.Plan.Stream.ResumeTarget.ThreadID != "thread-xyz" {
-		t.Errorf("ResumeTarget.ThreadID = %q, want thread-xyz", res.Plan.Stream.ResumeTarget.ThreadID)
-	}
-}
-
 func TestBackendBindFrame_RolloutOnly_TreatedAsFresh(t *testing.T) {
 	// A ResumeTarget with only RolloutPath (no ThreadID) cannot drive
 	// `codex resume <id> --remote` — the CLI requires an id. The backend
@@ -515,7 +458,7 @@ func newHelperBackend(t *testing.T, mode string) *Backend {
 	t.Helper()
 	sock := filepath.Join(t.TempDir(), "codex-x.sock")
 	return New(&fakeRuntime{}, nil, "sid", "sess1", "/p",
-		os.Args[0], []string{"--mode", mode}, "", "", false, false,
+		os.Args[0], []string{"--mode", mode}, "", "",
 		sock, 3*time.Second)
 }
 

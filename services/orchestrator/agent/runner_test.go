@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -335,11 +334,7 @@ func (f *fakeDispatcher) Wrap(_ context.Context, frameID string, plan agentlaunc
 	return w, nil
 }
 
-func (f *fakeDispatcher) AdoptFrame(_ context.Context, _, _ string) (func(context.Context) error, []agentlaunch.Mount, error) {
-	return nil, nil, nil
-}
 func (f *fakeDispatcher) EnsureProject(_ context.Context, _ string) error { return nil }
-func (f *fakeDispatcher) IsContainer(_ string) bool                       { return false }
 
 func (f *fakeDispatcher) wrapCalls() []fakeWrapCall {
 	f.mu.Lock()
@@ -471,98 +466,8 @@ func TestSpawn_wrappedFieldsPropagateToProc(t *testing.T) {
 	assert.NotEqual(t, wsPath, gotDir, "overrideDir should differ from host wsPath")
 }
 
-func TestSpawn_cleanupCalledOnceAfterTurnCompleted(t *testing.T) {
-	fs := &fakeServer{}
-
-	var mu sync.Mutex
-	cleanupCount := 0
-	cleanup := func(_ context.Context) error {
-		mu.Lock()
-		cleanupCount++
-		mu.Unlock()
-		return nil
-	}
-
-	d := &fakeDispatcher{
-		wrapped: agentlaunch.WrappedLaunch{Cleanup: cleanup},
-	}
-	wsRoot := t.TempDir()
-	cfg := wfconfig.Config{
-		Workspace: wfconfig.WorkspaceConfig{Root: wsRoot},
-		Codex:     wfconfig.CodexConfig{Command: "unused"},
-	}
-	r := &Runner{
-		Workspace:      workspace.New(cfg),
-		Cfg:            cfg,
-		PromptTemplate: "",
-		Dispatcher:     d,
-		spawn:          makeFakeProc(fs),
-	}
-	iss := tracker.Issue{Identifier: "PROJ-CL1"}
-
-	events := collectEvents(t, r, iss)
-	require.GreaterOrEqual(t, len(events), 2)
-	assert.Equal(t, EventTurnCompleted, events[1].Kind)
-
-	// Wait a bit for monitor goroutine to run cleanup after emitting the event.
-	time.Sleep(100 * time.Millisecond)
-
-	mu.Lock()
-	count := cleanupCount
-	mu.Unlock()
-	assert.Equal(t, 1, count, "cleanup should be called exactly once after turn completes")
-}
-
-func TestSpawn_cleanupCalledOnceOnKill(t *testing.T) {
-	fs := &fakeServer{hangTurn: true}
-
-	var mu sync.Mutex
-	cleanupCount := 0
-	cleanup := func(_ context.Context) error {
-		mu.Lock()
-		cleanupCount++
-		mu.Unlock()
-		return nil
-	}
-
-	d := &fakeDispatcher{
-		wrapped: agentlaunch.WrappedLaunch{Cleanup: cleanup},
-	}
-	wsRoot := t.TempDir()
-	cfg := wfconfig.Config{
-		Workspace: wfconfig.WorkspaceConfig{Root: wsRoot},
-		Codex:     wfconfig.CodexConfig{Command: "unused"},
-	}
-	r := &Runner{
-		Workspace:      workspace.New(cfg),
-		Cfg:            cfg,
-		PromptTemplate: "",
-		Dispatcher:     d,
-		spawn:          makeFakeProc(fs),
-	}
-	iss := tracker.Issue{Identifier: "PROJ-CL2"}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	sess, err := r.spawnWith(ctx, iss, 1, func(Event) {})
-	require.NoError(t, err)
-
-	// Kill the worker; turn will never complete, so monitor will not run cleanup.
-	err = sess.Worker.Kill(fmt.Sprintf("test kill %s", iss.Identifier))
-	require.NoError(t, err)
-
-	// Give monitor goroutine a moment to also attempt cleanup (should be no-op via Once).
-	time.Sleep(100 * time.Millisecond)
-
-	mu.Lock()
-	count := cleanupCount
-	mu.Unlock()
-	assert.Equal(t, 1, count, "cleanup should be called exactly once on Kill")
-}
-
-// TestSpawn_startTurnUsesWrappedStartDir verifies that when DevcontainerLauncher
-// translates StartDir to a container path, StartTurn receives the container path.
+// TestSpawn_startTurnUsesWrappedStartDir verifies that when the dispatcher
+// rewrites StartDir, StartTurn receives the rewritten path.
 func TestSpawn_startTurnUsesWrappedStartDir(t *testing.T) {
 	containerDir := "/container/ws"
 	fs := &fakeServer{}

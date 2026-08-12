@@ -14,7 +14,7 @@ import (
 
 // apiCreateReq is the POST /api/sessions body. Required: version 2, project,
 // profile id and profile revision. Optional: typed parameters, terminal
-// cols/rows hint, worktree, and sandbox selection.
+// cols/rows hint, and worktree.
 type apiCreateReq struct {
 	Version         int            `json:"version,omitempty"`
 	Project         string         `json:"project"`
@@ -24,17 +24,6 @@ type apiCreateReq struct {
 	Cols            int            `json:"cols,omitempty"`
 	Rows            int            `json:"rows,omitempty"`
 	Worktree        bool           `json:"worktree,omitempty"`
-	Sandbox         string         `json:"sandbox,omitempty"`
-}
-
-func parseSandbox(v string) (state.SandboxOverride, bool) {
-	switch v {
-	case "", "auto":
-		return state.SandboxOverrideAuto, true
-	case "host":
-		return state.SandboxOverrideHost, true
-	}
-	return 0, false
 }
 
 func handleCreateSession(
@@ -47,7 +36,7 @@ func handleCreateSession(
 				"daemon unavailable")
 			return
 		}
-		req, sandbox, ok := decodeCreateRequest(w, r)
+		req, ok := decodeCreateRequest(w, r)
 		if !ok {
 			return
 		}
@@ -55,43 +44,36 @@ func handleCreateSession(
 		if !ok {
 			return
 		}
-		createSession(w, r, d, req, sandbox, command)
+		createSession(w, r, d, req, command)
 	}
 }
 
 func decodeCreateRequest(
 	w http.ResponseWriter,
 	r *http.Request,
-) (apiCreateReq, state.SandboxOverride, bool) {
+) (apiCreateReq, bool) {
 	var req apiCreateReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		gatewayError(w, r, http.StatusBadRequest, "bad_request",
 			"bad request body", "err", err)
-		return req, 0, false
+		return req, false
 	}
 	if !isAbsoluteProjectPath(req.Project) {
 		gatewayError(w, r, http.StatusBadRequest, "project_not_absolute",
 			"project must be an absolute path (e.g. /home/me/myrepo); got "+strconv.Quote(req.Project),
 			"project", req.Project)
-		return req, 0, false
-	}
-	sandbox, ok := parseSandbox(req.Sandbox)
-	if !ok {
-		gatewayError(w, r, http.StatusBadRequest, "invalid_sandbox",
-			"sandbox must be one of \"\"/\"auto\"/\"host\"; got "+strconv.Quote(req.Sandbox),
-			"sandbox", req.Sandbox)
-		return req, 0, false
+		return req, false
 	}
 	if err := state.ValidateSizeHint(req.Cols, req.Rows); err != nil {
 		gatewayAPIError(w, r, http.StatusBadRequest, "invalid_cols_rows", err.Error())
-		return req, 0, false
+		return req, false
 	}
 	if req.Version != 2 || req.ProfileID == "" || req.ProfileRevision == "" {
 		gatewayAPIError(w, r, http.StatusBadRequest, "invalid_create_version",
 			"version 2 requires profile_id and profile_revision")
-		return req, 0, false
+		return req, false
 	}
-	return req, sandbox, true
+	return req, true
 }
 
 func materializeCreateCommand(
@@ -132,13 +114,11 @@ func createSession(
 	r *http.Request,
 	d *DaemonClient,
 	req apiCreateReq,
-	sandbox state.SandboxOverride,
 	command string,
 ) {
 	params := state.CreateSessionParams{
 		Project: req.Project,
 		Command: command,
-		Sandbox: sandbox,
 		Options: state.LaunchOptions{
 			Cols:     uint16(req.Cols),
 			Rows:     uint16(req.Rows),

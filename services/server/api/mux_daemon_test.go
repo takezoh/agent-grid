@@ -25,7 +25,6 @@ import (
 	"github.com/takezoh/agent-grid/services/host/config"
 	"github.com/takezoh/agent-grid/services/host/proto"
 	"github.com/takezoh/agent-grid/services/host/state"
-	platformconfig "github.com/takezoh/agent-grid/services/platform/config"
 )
 
 // Test muxes use a process-wide hermetic baseline authority. Individual tests
@@ -580,10 +579,9 @@ func assertNoDaemonRPC(t *testing.T, daemon *fakeDaemon) {
 	}
 }
 
-// TestMux_CreateForwardsWorktreeAndSandbox verifies that worktree=true and
-// sandbox="host" in the REST body reach the daemon as
-// CreateSessionParams.Options.Worktree.Enabled and Sandbox=SandboxOverrideHost.
-func TestMux_CreateForwardsWorktreeAndSandbox(t *testing.T) {
+// TestMux_CreateForwardsWorktree verifies that worktree=true in the REST body
+// reaches the daemon as CreateSessionParams.Options.Worktree.Enabled.
+func TestMux_CreateForwardsWorktree(t *testing.T) {
 	t.Parallel()
 	d, daemon := newDaemonPair(t)
 	mux := NewMux(d, "tok")
@@ -625,14 +623,11 @@ func TestMux_CreateForwardsWorktreeAndSandbox(t *testing.T) {
 	if !params.Options.Worktree.Enabled {
 		t.Error("Options.Worktree.Enabled = false, want true")
 	}
-	if params.Sandbox != state.SandboxOverrideHost {
-		t.Errorf("Sandbox = %v, want SandboxOverrideHost", params.Sandbox)
-	}
 }
 
-// TestMux_CreateDefaultsWorktreeAndSandbox verifies that omitting the new
-// fields keeps the legacy wire shape: worktree disabled, sandbox=Auto.
-func TestMux_CreateDefaultsWorktreeAndSandbox(t *testing.T) {
+// TestMux_CreateDefaultsWorktree verifies that omitting the field keeps the
+// legacy wire shape: worktree disabled.
+func TestMux_CreateDefaultsWorktree(t *testing.T) {
 	t.Parallel()
 	d, daemon := newDaemonPair(t)
 	mux := NewMux(d, "tok")
@@ -672,29 +667,6 @@ func TestMux_CreateDefaultsWorktreeAndSandbox(t *testing.T) {
 	params := <-done
 	if params.Options.Worktree.Enabled {
 		t.Error("Options.Worktree.Enabled = true, want false (default)")
-	}
-	if params.Sandbox != state.SandboxOverrideAuto {
-		t.Errorf("Sandbox = %v, want SandboxOverrideAuto", params.Sandbox)
-	}
-}
-
-// TestMux_CreateRejectsUnknownSandbox verifies that a sandbox value outside
-// the {"", "auto", "host"} vocabulary is rejected at the gateway with 400
-// rather than silently dropped or forwarded.
-func TestMux_CreateRejectsUnknownSandbox(t *testing.T) {
-	t.Parallel()
-	d, _ := newDaemonPair(t)
-	mux := NewMux(d, "tok")
-
-	r := protocolRequest(http.MethodPost, "/api/sessions",
-		strings.NewReader(defaultCreateBody(t, "/p", map[string]any{"sandbox": "docker"})))
-	r.Header.Set("Authorization", "Bearer tok")
-	r.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, r)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400 (body %q)", w.Code, w.Body.String())
 	}
 }
 
@@ -1192,11 +1164,9 @@ executable = "project-agent"
 }
 
 // TestMux_SessionConfigProjectMetadataReflectsDiskState verifies the per-project
-// metadata (path / isGit / isSandboxed) on GET /api/session-config. Two project
-// dirs are laid down in a t.TempDir: one with a .git child (isGit=true), one
-// without (isGit=false). The sandbox config is set to "devcontainer" so the
-// resolver reports IsSandboxed=true for both; flipping to "direct" verifies
-// the false branch. (FR-027 / ADR-0041.)
+// metadata (path / isGit) on GET /api/session-config. Two project dirs are laid
+// down in a t.TempDir: one with a .git child (isGit=true), one without
+// (isGit=false). (FR-027 / ADR-0041.)
 //
 // Not t.Parallel(): handleSessionConfig swaps a package-level loader via
 // withSessionConfigLoader; concurrent overrides would race.
@@ -1219,10 +1189,9 @@ func TestMux_SessionConfigProjectMetadataReflectsDiskState(t *testing.T) {
 		t.Fatalf("mkdir repoPlain: %v", err)
 	}
 
-	t.Run("isSandboxed=true under sandbox.mode=devcontainer", func(t *testing.T) {
+	t.Run("isGit reflects the .git child", func(t *testing.T) {
 		restore := withSessionConfigLoader(func() (*config.Config, error) {
 			cfg := config.DefaultConfig()
-			cfg.Sandbox = platformconfig.SandboxConfig{Mode: "devcontainer"}
 			cfg.Projects.ProjectPaths = []string{repoGit, repoPlain}
 			cfg.Session.PushCommands = []string{"/clear"}
 			return cfg, nil
@@ -1254,9 +1223,6 @@ func TestMux_SessionConfigProjectMetadataReflectsDiskState(t *testing.T) {
 		if !gitMeta.IsGit {
 			t.Errorf("repoGit.IsGit = false, want true (.git was laid down)")
 		}
-		if !gitMeta.IsSandboxed {
-			t.Errorf("repoGit.IsSandboxed = false, want true (sandbox.mode=devcontainer)")
-		}
 		plainMeta, ok := byPath[repoPlain]
 		if !ok {
 			t.Fatalf("Projects missing repoPlain %q; got %+v", repoPlain, got.Projects)
@@ -1264,18 +1230,14 @@ func TestMux_SessionConfigProjectMetadataReflectsDiskState(t *testing.T) {
 		if plainMeta.IsGit {
 			t.Errorf("repoPlain.IsGit = true, want false (no .git)")
 		}
-		if !plainMeta.IsSandboxed {
-			t.Errorf("repoPlain.IsSandboxed = false, want true (sandbox.mode=devcontainer)")
-		}
 		if len(got.PushCommands) != 1 || got.PushCommands[0] != "/clear" {
 			t.Errorf("PushCommands = %v, want [/clear]", got.PushCommands)
 		}
 	})
 
-	t.Run("isSandboxed=false under sandbox.mode=direct", func(t *testing.T) {
+	t.Run("single project entry surfaces defaults", func(t *testing.T) {
 		restore := withSessionConfigLoader(func() (*config.Config, error) {
 			cfg := config.DefaultConfig()
-			cfg.Sandbox = platformconfig.SandboxConfig{Mode: "direct"}
 			cfg.Projects.ProjectPaths = []string{repoGit}
 			return cfg, nil
 		})
@@ -1299,9 +1261,6 @@ func TestMux_SessionConfigProjectMetadataReflectsDiskState(t *testing.T) {
 		}
 		if got.Projects[0].Path != repoGit {
 			t.Errorf("Projects[0].Path = %q, want %q", got.Projects[0].Path, repoGit)
-		}
-		if got.Projects[0].IsSandboxed {
-			t.Errorf("Projects[0].IsSandboxed = true, want false (sandbox.mode=direct)")
 		}
 		// PushCommands defaults to ["shell"] in DefaultConfig; assert it
 		// surfaces (non-nil JSON array even when not overridden).

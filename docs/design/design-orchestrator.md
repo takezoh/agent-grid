@@ -92,7 +92,6 @@ relations:
 - {type: referencedBy, target: component-20260624-client-overview}
 - {type: references, target: component-20260624-orchestrator-symphony-conformance}
 - {type: references, target: component-20260624-platform-agent-protocol}
-- {type: references, target: component-20260624-platform-sandbox}
 - {type: references, target: component-20260624-platform-spawn-and-launch}
 - {type: references, target: note-20260624-agent-workflow-authoring}
 - {type: references, target: note-20260624-technical-guardrails}
@@ -127,7 +126,7 @@ summary: The orchestrator is a headless, single-authority background service tha
 
 The orchestrator is a **headless**, **single-authority** background service that implements the [Symphony SPEC](https://github.com/openai/symphony/blob/main/SPEC.md). It polls a Linear tracker, dispatches coding agents to per-issue workspaces, reconciles running/stalled sessions, and exposes a read-only observability HTTP server (§13.7 — mandatory in our implementation).
 
-It lives entirely inside `orchestrator/`, does **not** import `client/`, and shares `platform/` (logger, metrics, tracker/linear, agent/codexclient, agentlaunch, lib/codex, sandbox) with the client. The boundary is enforced by the `depguard` rule `host-no-orchestrator` and its converse.
+It lives entirely inside `orchestrator/`, does **not** import `client/`, and shares `platform/` (logger, metrics, tracker/linear, agent/codexclient, agentlaunch, lib/codex) with the client. The boundary is enforced by the `depguard` rule `host-no-orchestrator` and its converse.
 
 User-facing operation (running it, the `WORKFLOW.md` config, agent selection) is in the [orchestrator user guide](../note/note-20260624-user-orchestrator.md). Authoring the driving prompt is in [WORKFLOW.md authoring](../note/note-20260624-agent-workflow-authoring.md).
 
@@ -250,7 +249,7 @@ Pure transition functions live in `scheduler/transitions.go` (`claim`, `markRunn
 
 ## Agent protocol
 
-The `agent.command` (Codex `app-server` or `claude-app-server`) is driven over the Codex app-server stdio protocol. The runner tokenizes the command string via `agentlaunch.SplitArgs`, wraps via `Dispatcher.Wrap`, and spawns via `agentlaunch.Spawn` (argv stdio; no host-side shell). Both emit the same event sequence — `thread/started → turn/started → item/* → thread/tokenUsage/updated → turn/completed` — so the scheduler is agent-agnostic. The `claude-app-server` shim wraps a Claude agent as a drop-in app-server; approval/sandbox policy hints are logged but not enforced (isolation is provided by the devcontainer, see [sandbox.md](../component/component-20260624-platform-sandbox.md)).
+The `agent.command` (Codex `app-server` or `claude-app-server`) is driven over the Codex app-server stdio protocol. The runner tokenizes the command string via `agentlaunch.SplitArgs`, wraps via `Dispatcher.Wrap`, and spawns via `agentlaunch.Spawn` (argv stdio; no host-side shell). Both emit the same event sequence — `thread/started → turn/started → item/* → thread/tokenUsage/updated → turn/completed` — so the scheduler is agent-agnostic. The `claude-app-server` shim wraps a Claude agent as a drop-in app-server; approval/sandbox policy hints are logged but not enforced.
 
 The protocol layer itself — `codexclient` framing, the `codexschema` v1/v2 type split, the full turn sequence diagram, and how the `claude-app-server` shim translates Claude CLI stream-json into Codex notifications — is documented in [agent-protocol.md](../component/component-20260624-platform-agent-protocol.md). The launch primitives (`SplitArgs`/`Dispatcher`/`Spawn`/`procgroup`) are in [spawn-and-launch.md](../component/component-20260624-platform-spawn-and-launch.md).
 
@@ -473,9 +472,9 @@ The complete list is in `plans/.archive/symphony-orchestrator/05-conformance.md`
 | §10 | Codex app-server only | stdio shim via `codex.command` supports multiple agents (`claude-app-server`) |
 | §10.5 `linear_graphql` | OPTIONAL extension | implemented in `orchestrator/lineargql/` via codex native `item/tool/call`; advertised through `thread/start` `dynamicTools` (`orchestrator/agent/dynamictools.go`) when the Linear client is configured (historical tracker: issue 024-p8b-linear-graphql-tool, see git history) |
 | §13.7 | HTTP server is OPTIONAL | **implemented as mandatory** — orchestrator has no built-in interactive UI |
-| §3.3 | sandbox is impl-defined | devcontainer mode recommended as default |
+| §3.3 | sandbox is impl-defined | agents run directly on the host |
 | §9.3 | workspace population is impl-defined | `after_create` hook strongly recommended to run `git worktree add` |
-| §15.5 | harness hardening is documentation-only | devcontainer + credproxy + mcpproxy are default |
+| §15.5 | harness hardening is documentation-only | agents run directly on the host |
 | §18.2 | persistence / tracker write / pluggable tracker | not implemented (maintaining SPEC §14.3 in-memory design) |
 | §11.2 | single project slugId (`eq`) | `tracker.project_slugs` is an array; filter uses `slugId: { in: [...] }` to span multiple projects |
 | §5.3.1 / §11.2 | tracker config is the only per-run config | per-project config read from each Linear project's `content` (front matter `branch` + additional prompt body), exposed as `{{ project.* }}` and `AG_PROJECT_BRANCH` |
@@ -487,7 +486,7 @@ The complete list is in `plans/.archive/symphony-orchestrator/05-conformance.md`
 ### approval / sandbox policy (§10.5)
 
 - When `codex.command: codex app-server`: Codex-side auto-approve policy is specified in WORKFLOW.md.
-- When `codex.command: claude-app-server`: Claude has no approval concept, so the shim **executes immediately**. Received `approvalPolicy`/`sandboxPolicy` values are logged only via `slog.Warn` (deviation notification to operator). Actual security boundary is enforced by the container.
+- When `codex.command: claude-app-server`: Claude has no approval concept, so the shim **executes immediately**. Received `approvalPolicy`/`sandboxPolicy` values are logged only via `slog.Warn` (deviation notification to operator).
 
 ### user-input-required (§10.5)
 
@@ -495,6 +494,6 @@ Turns that require user input are treated as **failures** (autonomous operation 
 
 ### harness hardening (§15.5)
 
-Applied by default: devcontainer isolation, credproxy, mcpproxy whitelist, hostexec allow-list, secret non-logging, hook script output truncation.
+Applied by default: secret non-logging, hook script output truncation.
 
 ````

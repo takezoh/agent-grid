@@ -13,8 +13,8 @@
 //     handed to ToolDef.submit / disabledReason), NOT in `wire/server.ts`.
 //     The wire layer ships `SessionInfo` and `HelloFrame`/`ViewUpdateFrame`;
 //     the snapshot is assembled by `selectDaemonSnapshot` in store/daemon.
-//   - "Project" on the snapshot is `SessionConfigProject` (path / isGit /
-//     isSandboxed), defined in `api/sessions.ts` — there is no separate
+//   - "Project" on the snapshot is `SessionConfigProject` (path / isGit),
+//     defined in `api/sessions.ts` — there is no separate
 //     `ProjectInfo`. We re-export that as `ProjectInfo` below for tests
 //     that want the conventional name without learning the real source.
 import type { SessionConfigProject } from "../../api/sessions";
@@ -32,7 +32,7 @@ export type { DaemonOccupant, DaemonSnapshot, SessionInfo };
 export interface MkSnapshotInput {
   /**
    * Partial project entries. Each is merged onto a default
-   * `{ path: "/repo${i+1}", isGit: false, isSandboxed: false }` so callers
+   * `{ path: "/repo${i+1}", isGit: false }` so callers
    * only spell out the fields they're asserting on. Default `undefined`
    * yields the FR-A4 "no projects" case (`projects: []`).
    */
@@ -58,7 +58,6 @@ function mkProject(p: Partial<SessionConfigProject>, i: number): SessionConfigPr
   return {
     path: p.path ?? `/repo${i + 1}`,
     isGit: p.isGit ?? false,
-    isSandboxed: p.isSandboxed ?? false,
     ...(p.serverId ? { serverId: p.serverId } : {}),
     ...(p.serverLabel ? { serverLabel: p.serverLabel } : {}),
     ...(p.commandProfiles ? { commandProfiles: p.commandProfiles } : {}),

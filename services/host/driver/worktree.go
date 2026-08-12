@@ -55,19 +55,6 @@ func resolveWorktreeRequest(command string, options state.LaunchOptions, flags .
 	return req, strings.TrimSpace(stripped)
 }
 
-func appendFlag(command, flag string, enabled bool) string {
-	command = strings.TrimSpace(command)
-	if !enabled || command == "" {
-		return command
-	}
-	if tokens, err := splitCommandTokens(command); err == nil {
-		out := rawTokenParts(tokens)
-		out = append(out, renderCommandArgs(flag))
-		return joinCommandText(out)
-	}
-	return strings.TrimSpace(command + " " + flag)
-}
-
 func appendFlagValue(command, flag, value string) string {
 	command = strings.TrimSpace(command)
 	value = strings.TrimSpace(value)

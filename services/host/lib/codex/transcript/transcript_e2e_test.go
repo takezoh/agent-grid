@@ -64,7 +64,7 @@ func (r *e2eRecorder) OnServerRequest(_ codexclient.RequestID, _ string, _ json.
 func startRealCodexAppServer(t *testing.T, bin, home, sock string, extra []string) func() {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
-	args := codexcli.AppServerListenArgs("codex", sock, extra, false)
+	args := codexcli.AppServerListenArgs("codex", sock, extra)
 	cmd := procgroup.Command(procgroup.Spec{Ctx: ctx, Bin: bin, Args: args[1:]})
 	cmd.Env = append(os.Environ(), "HOME="+home)
 	stderr := &syncBuffer{}

@@ -21,7 +21,6 @@ relations:
 - {type: references, target: note-20260624-user-getting-started}
 - {type: references, target: note-20260624-user-orchestrator}
 - {type: references, target: note-20260624-user-overview}
-- {type: references, target: note-20260624-user-sandbox}
 - {type: references, target: note-20260624-user-systemd}
 - {type: references, target: note-20260624-user-web-server}
 - {type: references, target: note-20260715-user-codex-remote-control}
@@ -50,7 +49,7 @@ See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the canonical definition of the
 
 | Audience \ Layer | platform | client (server) | orchestrator | Cross-cutting |
 |---|---|---|---|---|
-| **User** | [sandbox setup](note-20260624-user-sandbox.md) | [web stack](note-20260624-user-web-server.md) · [systemd service](note-20260624-user-systemd.md) · [Windows WSL service](note-20260726-user-windows-wsl-service.md) | [orchestrator](note-20260624-user-orchestrator.md) | [getting started](note-20260624-user-getting-started.md) · [Codex Remote Control](note-20260715-user-codex-remote-control.md) |
+| **User** | — | [web stack](note-20260624-user-web-server.md) · [systemd service](note-20260624-user-systemd.md) · [Windows WSL service](note-20260726-user-windows-wsl-service.md) | [orchestrator](note-20260624-user-orchestrator.md) | [getting started](note-20260624-user-getting-started.md) · [Codex Remote Control](note-20260715-user-codex-remote-control.md) |
 | **Agent** | — | — | [WORKFLOW.md authoring](note-20260624-agent-workflow-authoring.md) | [contributing](note-20260624-agent-contributing.md), [testing](note-20260624-agent-testing.md) |
 | **Technical** | [platform/](../design/design-platform.md) | [client/](../design/design-host.md) | [orchestrator/](../design/design-orchestrator.md) | [ARCHITECTURE.md](../../ARCHITECTURE.md) · [GitHub OAuth App operations](note-20260729-github-oauth-app-operations.md) |
 
@@ -66,7 +65,6 @@ You want to launch agents, watch their status, and (optionally) run an unattende
 - [run the WSL host as a Windows Service](note-20260726-user-windows-wsl-service.md) — register, update, inspect, and remove the unattended Windows supervisor
 - [Codex Remote Control](note-20260715-user-codex-remote-control.md) — host-scoped daemon setup, mobile pairing lifecycle, and host/devcontainer session behavior
 - [orchestrator](note-20260624-user-orchestrator.md) — running an unattended pipeline from a `WORKFLOW.md`, agent selection, observability HTTP
-- [sandbox setup](note-20260624-user-sandbox.md) — per-project devcontainer isolation and credential proxy configuration
 
 ### [Agent](note-20260624-agent-overview.md) — doing work in the repo
 

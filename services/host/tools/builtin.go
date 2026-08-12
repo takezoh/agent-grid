@@ -70,11 +70,7 @@ func registerNewSession(r *Registry) {
 			opts := state.LaunchOptions{
 				Worktree: state.WorktreeOption{Enabled: args["worktree"] == "on"},
 			}
-			sandbox := state.SandboxOverrideAuto
-			if args["sandbox"] == "direct" {
-				sandbox = state.SandboxOverrideHost
-			}
-			_, err := ctx.Client.CreateSession(args["project"], args["command"], sandbox, opts)
+			_, err := ctx.Client.CreateSession(args["project"], args["command"], opts)
 			return nil, err
 		},
 	})

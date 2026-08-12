@@ -602,10 +602,7 @@ describe("ParamSelectPhase", () => {
   it("shows the default Execution Server above Command and allows Change", async () => {
     setDaemonSnapshot(
       mkSnapshot({
-        projects: [
-          { path: "/repo/a", isGit: true },
-          { path: "/repo/b", isSandboxed: true },
-        ],
+        projects: [{ path: "/repo/a", isGit: true }, { path: "/repo/b" }],
         serverOutcomes: [
           {
             serverId: "srv-a",
@@ -959,9 +956,9 @@ describe("ParamSelectPhase", () => {
   });
 
   // -------------------------------------------------------------------------
-  // FR-013/014/015 command-field worktree/host toggles (visibility)
+  // FR-013/015 command-field worktree toggle (visibility)
   // ADR-0053: Tab hijack removed — Tab now performs natural focus traversal.
-  // Inline chip display (worktree: ON/OFF / sandbox=host: ON/OFF hint texts)
+  // Inline chip display (worktree: ON/OFF hint text)
   // removed from ParamTextInput. Toggle affordances moved to ChipSwitch
   // (wired in ParamSelectPhase via param-select-phase-chip-redesign task).
   // -------------------------------------------------------------------------
@@ -1119,7 +1116,7 @@ describe("ParamSelectPhase", () => {
   it("submitting=true disables every input (FR-020)", () => {
     setDaemonSnapshot(
       mkSnapshot({
-        projects: [{ path: "/repo/a", isGit: true, isSandboxed: true }],
+        projects: [{ path: "/repo/a", isGit: true }],
         profileIds: ["claude"],
       }),
     );
@@ -1138,11 +1135,11 @@ describe("ParamSelectPhase", () => {
   // FR-016 / UAC-008 — ChipSwitch visibility driven by selectedProject flags
   // -------------------------------------------------------------------------
 
-  // UAC-008 / FR-016: git+sandboxed project shows both chips in the actions row
-  it("renders worktree + Host chips when selected project is git and sandboxed (UAC-008 / FR-016)", () => {
+  // UAC-008 / FR-016: git project shows the worktree chip in the actions row
+  it("renders the worktree chip when selected project is git (UAC-008 / FR-016)", () => {
     setDaemonSnapshot(
       mkSnapshot({
-        projects: [{ path: "/repo/a", isGit: true, isSandboxed: true }],
+        projects: [{ path: "/repo/a", isGit: true }],
         profileIds: ["claude"],
       }),
     );
@@ -1153,7 +1150,6 @@ describe("ParamSelectPhase", () => {
     const actions = screen.getByTestId("palette-actions");
     expect(actions).not.toBeNull();
     expect(actions?.querySelector("[data-toggle='worktree']")).not.toBeNull();
-    expect(actions?.querySelector("[data-toggle='host']")).not.toBeNull();
     const commandList = document.getElementById("palette-param-command");
     const submit = screen.getByTestId("palette-submit");
     expect(
@@ -1161,16 +1157,16 @@ describe("ParamSelectPhase", () => {
         (commandList.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
     ).toBe(true);
     expect(
-      ((actions.querySelector("[data-toggle='host']")?.compareDocumentPosition(submit) ?? 0) &
+      ((actions.querySelector("[data-toggle='worktree']")?.compareDocumentPosition(submit) ?? 0) &
         Node.DOCUMENT_POSITION_FOLLOWING) !==
         0,
     ).toBe(true);
   });
 
-  it("does not render worktree/host controls on the project step", () => {
+  it("does not render the worktree control on the project step", () => {
     setDaemonSnapshot(
       mkSnapshot({
-        projects: [{ path: "/repo/a", isGit: true, isSandboxed: true }],
+        projects: [{ path: "/repo/a", isGit: true }],
         profileIds: ["claude"],
       }),
     );
@@ -1179,7 +1175,6 @@ describe("ParamSelectPhase", () => {
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
     expect(document.querySelector("[data-toggle='worktree']")).toBeNull();
-    expect(document.querySelector("[data-toggle='host']")).toBeNull();
   });
 
   it("shows the server-qualified project before the fixed command filter and candidate list", () => {
@@ -1214,11 +1209,11 @@ describe("ParamSelectPhase", () => {
     );
   });
 
-  // UAC-008 / FR-016: no chips when project has no git or sandboxed capability
-  it("renders no chip when selected project is not git nor sandboxed (UAC-008 / FR-016)", () => {
+  // UAC-008 / FR-016: no chip when the project has no git capability
+  it("renders no chip when selected project is not git (UAC-008 / FR-016)", () => {
     setDaemonSnapshot(
       mkSnapshot({
-        projects: [{ path: "/repo/plain", isGit: false, isSandboxed: false }],
+        projects: [{ path: "/repo/plain", isGit: false }],
         profileIds: ["claude"],
       }),
     );
@@ -1227,34 +1222,17 @@ describe("ParamSelectPhase", () => {
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
     expect(document.querySelector("[data-toggle='worktree']")).toBeNull();
-    expect(document.querySelector("[data-toggle='host']")).toBeNull();
-  });
-
-  // FR-016: git-only project shows the worktree chip only (host requires sandboxed)
-  it("renders only the worktree chip when project isGit=true and isSandboxed=false (FR-016)", () => {
-    setDaemonSnapshot(
-      mkSnapshot({
-        projects: [{ path: "/repo/git", isGit: true, isSandboxed: false }],
-        profileIds: ["claude"],
-      }),
-    );
-    seedPalette("new-session", { project: "/repo/git", command: "claude" }, 1);
-
-    render(<ParamSelectPhase ctx={makeCtx()} />);
-
-    expect(document.querySelector("[data-toggle='worktree']")).not.toBeNull();
-    expect(document.querySelector("[data-toggle='host']")).toBeNull();
   });
 
   // -------------------------------------------------------------------------
   // FR-017 / UAC-008 — pointer toggle path
   // -------------------------------------------------------------------------
 
-  // UAC-008 / FR-017: pointerdown on Host chip toggles paramValues.host
-  it("pointerdown on Host chip toggles paramValues.host (UAC-008 / FR-017)", () => {
+  // UAC-008 / FR-017: pointerdown on the worktree chip toggles paramValues.worktree
+  it("pointerdown on worktree chip toggles paramValues.worktree (UAC-008 / FR-017)", () => {
     setDaemonSnapshot(
       mkSnapshot({
-        projects: [{ path: "/repo/a", isGit: false, isSandboxed: true }],
+        projects: [{ path: "/repo/a", isGit: true }],
         profileIds: ["claude"],
       }),
     );
@@ -1262,25 +1240,25 @@ describe("ParamSelectPhase", () => {
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
-    const chip = document.querySelector("[data-toggle='host']") as HTMLElement;
+    const chip = document.querySelector("[data-toggle='worktree']") as HTMLElement;
     expect(chip).not.toBeNull();
 
     fireEvent.pointerDown(chip);
-    expect(usePaletteStore.getState().paramValues.host).toBe(true);
+    expect(usePaletteStore.getState().paramValues.worktree).toBe(true);
 
     fireEvent.pointerDown(chip);
-    expect(usePaletteStore.getState().paramValues.host).toBe(false);
+    expect(usePaletteStore.getState().paramValues.worktree).toBe(false);
   });
 
   // -------------------------------------------------------------------------
   // FR-018 / UAC-009 — Alt+W global hotkey via useChipHotkey mount
   // -------------------------------------------------------------------------
 
-  // UAC-009 / FR-018: Alt+H toggles paramValues.host via useChipHotkey
-  it("Alt+H with event.code=KeyH toggles paramValues.host via useChipHotkey (UAC-009 / FR-018)", async () => {
+  // UAC-009 / FR-018: Alt+W toggles paramValues.worktree via useChipHotkey
+  it("Alt+W with event.code=KeyW toggles paramValues.worktree via useChipHotkey (UAC-009 / FR-018)", async () => {
     setDaemonSnapshot(
       mkSnapshot({
-        projects: [{ path: "/repo/a", isGit: false, isSandboxed: true }],
+        projects: [{ path: "/repo/a", isGit: true }],
         profileIds: ["claude"],
       }),
     );
@@ -1290,10 +1268,10 @@ describe("ParamSelectPhase", () => {
 
     await act(async () => {
       document.dispatchEvent(
-        new KeyboardEvent("keydown", { altKey: true, code: "KeyH", bubbles: true }),
+        new KeyboardEvent("keydown", { altKey: true, code: "KeyW", bubbles: true }),
       );
     });
-    expect(usePaletteStore.getState().paramValues.host).toBe(true);
+    expect(usePaletteStore.getState().paramValues.worktree).toBe(true);
   });
 
   // -------------------------------------------------------------------------
@@ -1304,7 +1282,7 @@ describe("ParamSelectPhase", () => {
   it("chip with focus + Space toggles (UAC-010 / FR-019)", () => {
     setDaemonSnapshot(
       mkSnapshot({
-        projects: [{ path: "/repo/a", isGit: false, isSandboxed: true }],
+        projects: [{ path: "/repo/a", isGit: true }],
         profileIds: ["claude"],
       }),
     );
@@ -1312,11 +1290,11 @@ describe("ParamSelectPhase", () => {
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
-    const chip = document.querySelector("[data-toggle='host']") as HTMLElement;
+    const chip = document.querySelector("[data-toggle='worktree']") as HTMLElement;
     expect(chip).not.toBeNull();
 
     fireEvent.keyDown(chip, { key: " ", code: "Space" });
-    expect(usePaletteStore.getState().paramValues.host).toBe(true);
+    expect(usePaletteStore.getState().paramValues.worktree).toBe(true);
   });
 
   // UAC-010 / FR-020: chip with focus + Enter toggles and does not submit form
@@ -1325,7 +1303,7 @@ describe("ParamSelectPhase", () => {
     const ctx = makeCtx({ http: makeFakeHttp({ createSession }) });
     setDaemonSnapshot(
       mkSnapshot({
-        projects: [{ path: "/repo/a", isGit: false, isSandboxed: true }],
+        projects: [{ path: "/repo/a", isGit: true }],
         profileIds: ["claude"],
       }),
     );
@@ -1333,14 +1311,14 @@ describe("ParamSelectPhase", () => {
 
     render(<ParamSelectPhase ctx={ctx} />);
 
-    const chip = document.querySelector("[data-toggle='host']") as HTMLElement;
+    const chip = document.querySelector("[data-toggle='worktree']") as HTMLElement;
     expect(chip).not.toBeNull();
 
     await act(async () => {
       fireEvent.keyDown(chip, { key: "Enter" });
       await Promise.resolve();
     });
-    expect(usePaletteStore.getState().paramValues.host).toBe(true);
+    expect(usePaletteStore.getState().paramValues.worktree).toBe(true);
     // form was NOT submitted (Enter on chip must not advance or submit)
     expect(createSession).not.toHaveBeenCalled();
   });
@@ -1354,17 +1332,17 @@ describe("ParamSelectPhase", () => {
     setDaemonSnapshot(
       mkSnapshot({
         projects: [
-          { path: "/repo/sandbox", isGit: false, isSandboxed: true },
-          { path: "/repo/plain", isGit: false, isSandboxed: false },
+          { path: "/repo/git", isGit: true },
+          { path: "/repo/plain", isGit: false },
         ],
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/sandbox", command: "claude" }, 1);
+    seedPalette("new-session", { project: "/repo/git", command: "claude" }, 1);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
-    const chip = document.querySelector("[data-toggle='host']") as HTMLElement;
+    const chip = document.querySelector("[data-toggle='worktree']") as HTMLElement;
     expect(chip).not.toBeNull();
     chip.focus();
     expect(document.activeElement).toBe(chip);
@@ -1376,23 +1354,23 @@ describe("ParamSelectPhase", () => {
     expect(document.activeElement).toBe(commandInput());
   });
 
-  // UAC-010 / FR-022: selectedProject becomes null → both chips disappear → focus returns to command input
+  // UAC-010 / FR-022: selectedProject becomes null → the chip disappears → focus returns to command input
   it("selectedProject becomes null while focused on a chip returns focus to command input (UAC-010 / FR-022)", async () => {
     setDaemonSnapshot(
       mkSnapshot({
-        projects: [{ path: "/repo/sandbox", isGit: false, isSandboxed: true }],
+        projects: [{ path: "/repo/git", isGit: true }],
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/sandbox", command: "claude" }, 1);
+    seedPalette("new-session", { project: "/repo/git", command: "claude" }, 1);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
-    const chip = document.querySelector("[data-toggle='host']") as HTMLElement;
+    const chip = document.querySelector("[data-toggle='worktree']") as HTMLElement;
     expect(chip).not.toBeNull();
     chip.focus();
 
-    // Clear project → selectedProject === null → chips disappear.
+    // Clear project → selectedProject === null → the chip disappears.
     await act(async () => {
       usePaletteStore.getState().setParam("project", null);
     });
@@ -1410,17 +1388,17 @@ describe("ParamSelectPhase", () => {
   it("Tab key from project input does not toggle chip (FR-021 / UAC-010)", () => {
     setDaemonSnapshot(
       mkSnapshot({
-        projects: [{ path: "/repo/sandbox", isGit: false, isSandboxed: true }],
+        projects: [{ path: "/repo/git", isGit: true }],
         profileIds: ["claude"],
       }),
     );
-    seedPalette("new-session", { project: "/repo/sandbox" }, 0);
+    seedPalette("new-session", { project: "/repo/git" }, 0);
 
     render(<ParamSelectPhase ctx={makeCtx()} />);
 
     const input = projectFilterInput();
     fireEvent.keyDown(input, { key: "Tab" });
-    expect(usePaletteStore.getState().paramValues.host).toBeUndefined();
+    expect(usePaletteStore.getState().paramValues.worktree).toBeUndefined();
   });
 
   // -------------------------------------------------------------------------

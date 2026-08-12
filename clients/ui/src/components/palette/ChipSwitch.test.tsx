@@ -48,12 +48,6 @@ describe("ChipSwitch", () => {
     expect(button.textContent).toContain("[W]");
   });
 
-  // UAC-009 / FR-016 — hintKey='H' shows '[H]' icon hint
-  it("shows [H] hint when hintKey=H (FR-016 / UAC-009)", () => {
-    const { button } = renderChip({ hintKey: "H", label: "Host (sandbox)" });
-    expect(button.textContent).toContain("[H]");
-  });
-
   // UAC-008 / FR-017 — pointerdown calls onToggle and calls preventDefault
   it("pointerdown fires onToggle and calls preventDefault (FR-017 / UAC-008)", () => {
     const { button, onToggle } = renderChip();
@@ -123,7 +117,7 @@ describe("ChipSwitch", () => {
 
   // testId is forwarded as data-toggle attribute
   it("data-toggle attribute is set from testId prop", () => {
-    const { button } = renderChip({ testId: "host" });
-    expect(button.getAttribute("data-toggle")).toBe("host");
+    const { button } = renderChip({ testId: "worktree" });
+    expect(button.getAttribute("data-toggle")).toBe("worktree");
   });
 });

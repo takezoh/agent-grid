@@ -74,31 +74,28 @@ func ValidateSessionTarget(t SessionTargetWire) error {
 type PreparationStageWire string
 
 const (
-	PrepWireConfirmed              PreparationStageWire = "confirmed"
-	PrepWireCloneInProgress        PreparationStageWire = "clone-in-progress"
-	PrepWireCloneReady             PreparationStageWire = "clone-ready"
-	PrepWireDevcontainerInProgress PreparationStageWire = "devcontainer-in-progress"
-	PrepWireFailed                 PreparationStageWire = "failed"
-	PrepWireCancelled              PreparationStageWire = "cancelled"
-	PrepWireInterrupted            PreparationStageWire = "interrupted"
-	PrepWireInternalCorruption     PreparationStageWire = "internal_corruption"
-	PrepWireAvailable              PreparationStageWire = "available"
-	PrepWireAbandoned              PreparationStageWire = "abandoned"
+	PrepWireConfirmed          PreparationStageWire = "confirmed"
+	PrepWireCloneInProgress    PreparationStageWire = "clone-in-progress"
+	PrepWireCloneReady         PreparationStageWire = "clone-ready"
+	PrepWireFailed             PreparationStageWire = "failed"
+	PrepWireCancelled          PreparationStageWire = "cancelled"
+	PrepWireInterrupted        PreparationStageWire = "interrupted"
+	PrepWireInternalCorruption PreparationStageWire = "internal_corruption"
+	PrepWireAvailable          PreparationStageWire = "available"
+	PrepWireAbandoned          PreparationStageWire = "abandoned"
 )
 
 type RepositoryPreparationWire struct {
-	PreparationID          string               `json:"preparation_id"`
-	IntentID               string               `json:"intent_id"`
-	ServerID               string               `json:"server_id"`
-	Repository             GitHubRepositoryWire `json:"repository"`
-	Stage                  PreparationStageWire `json:"stage"`
-	FailureCode            string               `json:"failure_code,omitempty"`
-	RetryOrigin            string               `json:"retry_origin,omitempty"`
-	EnvironmentDisposition string               `json:"environment_disposition,omitempty"`
-	Revision               uint64               `json:"revision"`
-	SessionID              string               `json:"session_id,omitempty"`
-	ClonePath              string               `json:"clone_path,omitempty"`
-	EnvironmentID          string               `json:"environment_id,omitempty"`
+	PreparationID string               `json:"preparation_id"`
+	IntentID      string               `json:"intent_id"`
+	ServerID      string               `json:"server_id"`
+	Repository    GitHubRepositoryWire `json:"repository"`
+	Stage         PreparationStageWire `json:"stage"`
+	FailureCode   string               `json:"failure_code,omitempty"`
+	RetryOrigin   string               `json:"retry_origin,omitempty"`
+	Revision      uint64               `json:"revision"`
+	SessionID     string               `json:"session_id,omitempty"`
+	ClonePath     string               `json:"clone_path,omitempty"`
 }
 
 func EncodeRepositoryPreparation(p RepositoryPreparationWire) ([]byte, error) {
@@ -128,7 +125,7 @@ func ValidateRepositoryPreparation(p RepositoryPreparationWire) error {
 	}
 	switch p.Stage {
 	case PrepWireConfirmed, PrepWireCloneInProgress, PrepWireCloneReady,
-		PrepWireDevcontainerInProgress, PrepWireFailed, PrepWireCancelled,
+		PrepWireFailed, PrepWireCancelled,
 		PrepWireInterrupted, PrepWireInternalCorruption, PrepWireAvailable, PrepWireAbandoned:
 	default:
 		return fmt.Errorf("proto: unknown preparation stage %q", p.Stage)

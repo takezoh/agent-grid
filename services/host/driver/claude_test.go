@@ -1057,7 +1057,7 @@ func TestClaudePrepareLaunchResume(t *testing.T) {
 	if err := os.WriteFile(path, []byte("{}\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile error: %v", err)
 	}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1068,27 +1068,6 @@ func TestClaudePrepareLaunchResume(t *testing.T) {
 	}
 }
 
-// TestClaudePrepareLaunchSandboxedResume pins the container-resume contract: on
-// a sandboxed cold start the transcript lives inside the container (not on the
-// host), so resume must be emitted from the persisted session ID alone, without
-// any host-side transcript file. This is the path that regressed when early
-// container hooks (which seed ClaudeSessionID) were dropped.
-func TestClaudePrepareLaunchSandboxedResume(t *testing.T) {
-	home := t.TempDir() // deliberately has no .claude/projects transcript on the host
-	d := NewClaudeDriver(home, testEventLogDir, ClaudeOptions{}, "less")
-	cs := ClaudeState{
-		CommonState:     CommonState{StartDir: "/repo"},
-		ClaudeSessionID: "uuid-X",
-	}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{}, true)
-	if err != nil {
-		t.Fatalf("PrepareLaunch error: %v", err)
-	}
-	if !strings.Contains(plan.Command, "--resume uuid-X") {
-		t.Errorf("sandboxed cold start must resume from session id without a host transcript; got %q", plan.Command)
-	}
-}
-
 // TestClaudePrepareLaunchSandboxedNoSessionNoResume documents the user-visible
 // failure mode: when hooks were never delivered (e.g. dropped during the
 // container registration window), ClaudeSessionID is empty and cold start must
@@ -1096,7 +1075,7 @@ func TestClaudePrepareLaunchSandboxedResume(t *testing.T) {
 func TestClaudePrepareLaunchSandboxedNoSessionNoResume(t *testing.T) {
 	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
 	cs := ClaudeState{CommonState: CommonState{StartDir: "/repo"}}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{}, true)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1108,7 +1087,7 @@ func TestClaudePrepareLaunchSandboxedNoSessionNoResume(t *testing.T) {
 func TestClaudePrepareLaunchNoSession(t *testing.T) {
 	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
 	cs := ClaudeState{}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude --foo", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude --foo", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1133,7 +1112,7 @@ func TestClaudePrepareLaunchWorktreeStripsFlag(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cs := ClaudeState{ClaudeSessionID: "uuid-W"}
-			plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", tt.command, tt.options, false)
+			plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", tt.command, tt.options)
 			if err != nil {
 				t.Fatalf("PrepareLaunch error: %v", err)
 			}
@@ -1153,7 +1132,7 @@ func TestClaudePrepareLaunchMissingTranscriptSkipsResume(t *testing.T) {
 		CommonState:     CommonState{StartDir: "/repo"},
 		ClaudeSessionID: "uuid-Y",
 	}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1163,27 +1142,10 @@ func TestClaudePrepareLaunchMissingTranscriptSkipsResume(t *testing.T) {
 	}
 }
 
-func TestClaudePrepareLaunchSandboxedMissingTranscriptStillResumes(t *testing.T) {
-	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
-	cs := ClaudeState{
-		// transcript_path is a container-side path that doesn't exist on host
-		CommonState:     CommonState{StartDir: "/repo", TranscriptPath: "/home/ubuntu/.claude/projects/-repo/uuid-Z.jsonl"},
-		ClaudeSessionID: "uuid-Z",
-	}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{}, true)
-	if err != nil {
-		t.Fatalf("PrepareLaunch error: %v", err)
-	}
-	want := "claude --allow-dangerously-skip-permissions --resume uuid-Z"
-	if got := plan.Command; got != want {
-		t.Errorf("PrepareLaunch.Command = %q, want %q", got, want)
-	}
-}
-
 func TestClaudePrepareLaunchAlreadyHasResume(t *testing.T) {
 	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
 	cs := ClaudeState{ClaudeSessionID: "uuid-Y"}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude --resume preset", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude --resume preset", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1200,7 +1162,7 @@ func TestClaudePrepareLaunchColdStartRestoresModelEffort(t *testing.T) {
 		Model:           "sonnet",
 		Effort:          "high",
 	}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1216,7 +1178,7 @@ func TestClaudePrepareLaunchColdStartReplacesEqualsFlagsWithPersistedValues(t *t
 		Model:           "opus",
 		Effort:          "low",
 	}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude --model=sonnet --effort=high", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude --model=sonnet --effort=high", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1237,39 +1199,12 @@ func TestClaudePrepareLaunchColdStartKeepsAuthoritativeClears(t *testing.T) {
 		ModelAuthoritative:  true,
 		EffortAuthoritative: true,
 	}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude --model sonnet --effort high", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude --model sonnet --effort high", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
 	if strings.Contains(plan.Command, "--model") || strings.Contains(plan.Command, "--effort") {
 		t.Fatalf("PrepareLaunch.Command = %q, want cleared metadata to stay cleared", plan.Command)
-	}
-}
-
-func TestClaudePrepareLaunchKeepsWorktreeAndSandboxNormalizationWhenReplacingMetadata(t *testing.T) {
-	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
-	cs := ClaudeState{
-		Model:  "opus",
-		Effort: "low",
-	}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --worktree feature --model=sonnet --effort=high --enable-auto-mode", state.LaunchOptions{}, true)
-	if err != nil {
-		t.Fatalf("PrepareLaunch error: %v", err)
-	}
-	if strings.Contains(plan.Command, "--worktree") {
-		t.Fatalf("PrepareLaunch.Command = %q, want worktree flag stripped", plan.Command)
-	}
-	if strings.Contains(plan.Command, "--enable-auto-mode") {
-		t.Fatalf("PrepareLaunch.Command = %q, want auto-mode stripped in sandbox", plan.Command)
-	}
-	if !strings.Contains(plan.Command, "--model opus") || !strings.Contains(plan.Command, "--effort low") {
-		t.Fatalf("PrepareLaunch.Command = %q, want persisted metadata restored", plan.Command)
-	}
-	if !strings.Contains(plan.Command, "--allow-dangerously-skip-permissions") {
-		t.Fatalf("PrepareLaunch.Command = %q, want sandbox bypass flag appended", plan.Command)
-	}
-	if !plan.Options.Worktree.Enabled {
-		t.Fatal("expected worktree enabled")
 	}
 }
 
@@ -1279,7 +1214,7 @@ func TestClaudePrepareLaunchPreservesQuotedArgsWhenReplacingMetadata(t *testing.
 		Model:  "opus",
 		Effort: "low",
 	}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", `claude -c 'foo = "bar baz"' --model=sonnet --effort=high`, state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", `claude -c 'foo = "bar baz"' --model=sonnet --effort=high`, state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1326,7 +1261,7 @@ func TestClaudePrepareLaunchManagedWorktreeSkipsFlag(t *testing.T) {
 	cs.StartDir = "/repo/.agent-grid/worktrees/feature"
 	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude", state.LaunchOptions{
 		Worktree: state.WorktreeOption{Enabled: true},
-	}, false)
+	})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1338,25 +1273,9 @@ func TestClaudePrepareLaunchManagedWorktreeSkipsFlag(t *testing.T) {
 	}
 }
 
-func TestClaudeWorktreeLaunchAddsSandboxFlag(t *testing.T) {
-	d, cs, _ := newClaude(t)
-	cs.StartDir = "/repo/.agent-grid/worktrees/feature"
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude", state.LaunchOptions{}, true)
-	if err != nil {
-		t.Fatalf("PrepareLaunch error: %v", err)
-	}
-	want := "claude --allow-dangerously-skip-permissions"
-	if plan.Command != want {
-		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
-	}
-	if plan.StartDir != "/repo/.agent-grid/worktrees/feature" {
-		t.Errorf("StartDir = %q, want worktree dir", plan.StartDir)
-	}
-}
-
 func TestClaudePrepareLaunchWorktreeFromCommand(t *testing.T) {
 	d, cs, _ := newClaude(t)
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --worktree", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --worktree", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1368,20 +1287,9 @@ func TestClaudePrepareLaunchWorktreeFromCommand(t *testing.T) {
 	}
 }
 
-func TestClaudePrepareLaunchAddsSandboxFlag(t *testing.T) {
-	d, cs, _ := newClaude(t)
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude", state.LaunchOptions{}, true)
-	if err != nil {
-		t.Fatalf("PrepareLaunch error: %v", err)
-	}
-	if plan.Command != "claude --allow-dangerously-skip-permissions" {
-		t.Errorf("PrepareLaunch.Command = %q, want sandbox flag appended", plan.Command)
-	}
-}
-
 func TestClaudePrepareLaunchSkipsDuplicateSandboxFlag(t *testing.T) {
 	d, cs, _ := newClaude(t)
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --allow-dangerously-skip-permissions", state.LaunchOptions{}, true)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --allow-dangerously-skip-permissions", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1392,7 +1300,7 @@ func TestClaudePrepareLaunchSkipsDuplicateSandboxFlag(t *testing.T) {
 
 func TestClaudePrepareLaunchNoSandboxFlagWhenDirect(t *testing.T) {
 	d, cs, _ := newClaude(t)
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1401,101 +1309,13 @@ func TestClaudePrepareLaunchNoSandboxFlagWhenDirect(t *testing.T) {
 	}
 }
 
-func TestClaudePrepareLaunchStripsAutoModeWhenSandboxed(t *testing.T) {
-	d, cs, _ := newClaude(t)
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --enable-auto-mode", state.LaunchOptions{}, true)
-	if err != nil {
-		t.Fatalf("PrepareLaunch error: %v", err)
-	}
-	want := "claude --allow-dangerously-skip-permissions"
-	if plan.Command != want {
-		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
-	}
-}
-
-func TestClaudePrepareLaunchStripsAutoModeWithExistingBypassFlag(t *testing.T) {
-	d, cs, _ := newClaude(t)
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --enable-auto-mode --allow-dangerously-skip-permissions", state.LaunchOptions{}, true)
-	if err != nil {
-		t.Fatalf("PrepareLaunch error: %v", err)
-	}
-	want := "claude --allow-dangerously-skip-permissions"
-	if plan.Command != want {
-		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
-	}
-}
-
-func TestClaudePrepareLaunchStripsAllAutoModeOccurrences(t *testing.T) {
-	d, cs, _ := newClaude(t)
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --enable-auto-mode --foo --enable-auto-mode", state.LaunchOptions{}, true)
-	if err != nil {
-		t.Fatalf("PrepareLaunch error: %v", err)
-	}
-	want := "claude --foo --allow-dangerously-skip-permissions"
-	if plan.Command != want {
-		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
-	}
-}
-
 func TestClaudePrepareLaunchKeepsAutoModeWhenNotSandboxed(t *testing.T) {
 	d, cs, _ := newClaude(t)
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --enable-auto-mode", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --enable-auto-mode", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
 	want := "claude --enable-auto-mode"
-	if plan.Command != want {
-		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
-	}
-}
-
-func TestClaudePrepareLaunchKeepsAutoModeEqualFormWhenSandboxed(t *testing.T) {
-	// "--enable-auto-mode=value" form is NOT stripped (only exact token match).
-	d, cs, _ := newClaude(t)
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "claude --enable-auto-mode=true", state.LaunchOptions{}, true)
-	if err != nil {
-		t.Fatalf("PrepareLaunch error: %v", err)
-	}
-	want := "claude --enable-auto-mode=true --allow-dangerously-skip-permissions"
-	if plan.Command != want {
-		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
-	}
-}
-
-func TestClaudePrepareLaunchSandboxFlagWithResume(t *testing.T) {
-	// Sandboxed cold start resumes regardless of host-side transcript existence
-	// because the transcript lives inside the container.
-	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
-	cs := ClaudeState{
-		CommonState:     CommonState{StartDir: "/repo"},
-		ClaudeSessionID: "uuid-Z",
-	}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{}, true)
-	if err != nil {
-		t.Fatalf("PrepareLaunch error: %v", err)
-	}
-	want := "claude --allow-dangerously-skip-permissions --resume uuid-Z"
-	if plan.Command != want {
-		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
-	}
-}
-
-func TestClaudePrepareLaunchSandboxedResumeWithContainerTranscriptPath(t *testing.T) {
-	// Sandboxed cold start: cs.TranscriptPath is a container-internal path and
-	// no host-side file exists. Resume must still be appended.
-	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
-	cs := ClaudeState{
-		CommonState: CommonState{
-			StartDir:       "/repo",
-			TranscriptPath: "/home/containeruser/.claude/projects/-repo/uuid-C.jsonl",
-		},
-		ClaudeSessionID: "uuid-C",
-	}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{}, true)
-	if err != nil {
-		t.Fatalf("PrepareLaunch error: %v", err)
-	}
-	want := "claude --allow-dangerously-skip-permissions --resume uuid-C"
 	if plan.Command != want {
 		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
 	}
@@ -1666,24 +1486,6 @@ func TestResolveTranscriptPathFallback(t *testing.T) {
 	}
 }
 
-func TestClaudePrepareLaunchSandboxedNoPathStillResumes(t *testing.T) {
-	// sandboxed cold-start skips host-side transcript_path stat: the JSONL lives
-	// inside the container and only needs the session ID for --resume.
-	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
-	cs := ClaudeState{
-		CommonState:     CommonState{StartDir: ""},
-		ClaudeSessionID: "uuid-S",
-	}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/host/myapp", "claude", state.LaunchOptions{}, true)
-	if err != nil {
-		t.Fatalf("PrepareLaunch error: %v", err)
-	}
-	want := "claude --allow-dangerously-skip-permissions --resume uuid-S"
-	if plan.Command != want {
-		t.Errorf("PrepareLaunch.Command = %q, want %q", plan.Command, want)
-	}
-}
-
 func TestClaudePrepareLaunchNonSandboxedEmptyPathSkipsResume(t *testing.T) {
 	// non-sandboxed: no dirs at all → resolveTranscriptPath returns "" → no --resume.
 	d := NewClaudeDriver(testHome, testEventLogDir, ClaudeOptions{}, "less")
@@ -1691,7 +1493,7 @@ func TestClaudePrepareLaunchNonSandboxedEmptyPathSkipsResume(t *testing.T) {
 		CommonState:     CommonState{StartDir: ""},
 		ClaudeSessionID: "uuid-T",
 	}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -2072,7 +1874,7 @@ func TestClaudePrepareLaunchReForkOnColdStart(t *testing.T) {
 		ForkParentID: "parent-id-abc",
 		// ClaudeSessionID empty: fork process never confirmed its id before restart
 	}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{}, true)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "claude", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}

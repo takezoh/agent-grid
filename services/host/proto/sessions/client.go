@@ -29,12 +29,11 @@ func (c *Client) Subscribe() error {
 }
 
 // CreateSession asks the daemon to spawn a new session.
-// Uses a long timeout because devcontainer cold starts can take several minutes.
-func (c *Client) CreateSession(project, command string, sandbox state.SandboxOverride, options state.LaunchOptions) (sessionID string, err error) {
+// Uses a long timeout because a cold start can take several minutes.
+func (c *Client) CreateSession(project, command string, options state.LaunchOptions) (sessionID string, err error) {
 	r, err := sendJSONEventTimeout[proto.RespCreateSession](c.Client, state.EventCreateSession, state.CreateSessionParams{
 		Project: canonicalProjectPath(project),
 		Command: command,
-		Sandbox: sandbox,
 		Options: options,
 	}, createSessionTimeout)
 	if err != nil {

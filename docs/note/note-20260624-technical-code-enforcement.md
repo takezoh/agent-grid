@@ -62,7 +62,7 @@ flowchart TD
         DRIVER["driver/"]
     end
     subgraph platform["platform/"]
-        PLAT["lib / sandbox / …"]
+        PLAT["lib / agentlaunch / …"]
         CODEXC["agent/codexclient/"]
     end
 
@@ -84,11 +84,10 @@ flowchart TD
 | `host-no-orchestrator` | `client/**` | `orchestrator/` |
 | `state-pure-core` | `host/state/**` | `driver/`, `platform/lib`, `runtime/`, `proto/` |
 | `worker-no-driver-lib` | `host/runtime/worker/**` | `driver/`, `platform/lib` |
-| `sandbox-tool-agnostic` | `platform/sandbox/**` | `driver/`, `platform/lib`, `runtime/` |
 | `proto-isolation` | `host/proto/**` | `driver/`, `platform/lib`, `runtime/` |
 | `runtime-no-driver` | `host/runtime/*.go` (root only) | `driver/` |
 | `codexclient-isolation` | `platform/agent/codexclient/**` | `client/`, `orchestrator/` |
-| `real-binary-e2e-only` | all Go files except allowlisted packages and explicit path exclusions | literal `exec.Command("claude"|"codex"|"docker")` / `exec.CommandContext(...)` outside `platform/lib/**`, fake packages, `*_e2e_test.go`, and excluded devcontainer paths; `AG_E2E_*` reads outside `*_e2e_test.go` except path-excluded helpers |
+| `real-binary-e2e-only` | all Go files except allowlisted packages and explicit path exclusions | literal `exec.Command("claude"|"codex"|"docker")` / `exec.CommandContext(...)` outside `platform/lib/**`, fake packages, and `*_e2e_test.go`; `AG_E2E_*` reads outside `*_e2e_test.go` except path-excluded helpers |
 
 Key intents:
 
@@ -96,7 +95,7 @@ Key intents:
 - **`state/` purity**: the state machine has no I/O and no side effects — a pure functional core. It cannot import driver/runtime at all.
 - **`runtime-no-driver`**: only the runtime **root** is forbidden from importing driver. Tool-specific backends move to `runtime/subsystem/<kind>/`. Exception: `host/driver/vt` is explicitly allowed in `exclusions.rules`.
 - **`codexclient` reusability**: a shared protocol transport, so it knows nothing of agent-grid internals.
-- **real-binary isolation**: the last row is enforced by ruleguard, not depguard, because it constrains process execution rather than imports. In the current implementation, real `claude` / `codex` / `docker` exec is allowlisted for `platform/lib/**`, the fake packages, `*_e2e_test.go`, plus explicit `.golangci.yml` exclusions such as `platform/sandbox/devcontainer/**`; `AG_E2E_*` env reads are stricter and stay in `*_e2e_test.go` except for path-excluded helpers like `platform/lib/claude/fakeclaude/e2e_support.go`.
+- **real-binary isolation**: the last row is enforced by ruleguard, not depguard, because it constrains process execution rather than imports. In the current implementation, real `claude` / `codex` / `docker` exec is allowlisted for `platform/lib/**`, the fake packages, and `*_e2e_test.go`; `AG_E2E_*` env reads are stricter and stay in `*_e2e_test.go` except for path-excluded helpers like `platform/lib/claude/fakeclaude/e2e_support.go`.
 
 ## 2. Pure-core purity (forbidigo + ruleguard)
 
@@ -173,25 +172,19 @@ Where defined: [ADR — EventSink seam and contract pins for the pty-tap and sur
 
 Where defined: [ADR — EventSink seam and contract pins for the pty-tap and surface-relay paths](../adr/adr-20260705-eventsink-seam-tap-relay-contracts.md) and spec FR-004 / AC-006. How it is enforced: the relay constructor accepts test-only channel capacity so the T2 contract can deterministically saturate one subscriber, assert severance, and verify order preservation for the rest under `-race`. Exception: none — relaxing severance or ordering to "best effort" would reintroduce hidden cross-session interference.
 
-## 10. Docker fake fidelity (test-pinned)
-
-The devcontainer docker integration must not rely on unvalidated canned output. This prevents the only remaining external CLI dependency from drifting into a fake-only world where argv or output-shape regressions surface only in production.
-
-Where defined: [ADR — fakedocker: PATH-injected docker CLI fake with real-docker backstop](../adr/adr-20260705-fakedocker-path-injection.md), [ADR — Claude CLI and Codex stdio fakes are validated by opt-in real-CLI e2e](../adr/adr-20260704-cli-fake-validated-by-real-cli-e2e.md), and spec FR-008. How it is enforced: T1 lifecycle tests run against PATH-injected `fakedocker`; T3 `FakeVsRealDocker` compares the same scenario against `AG_E2E_DOCKER_BIN`; ruleguard confines real docker exec to the allowlist from §1. Exception: only the T3 execution posture is opt-in/nightly; the fake-vs-real contract itself is not optional once the dependency exists.
-
-## 11. Cross-language wire fixture gate (test-pinned)
+## 10. Cross-language wire fixture gate (test-pinned)
 
 The Go encoder and TypeScript codec must consume the same committed wire fixtures. This prevents drift between `server/api` JSON output and the browser decoder when fields are added, cleared, or reshaped.
 
 Where defined: [ADR — Cross-language wire fixtures: Go-generated, TS-consumed, CI-gated](../adr/adr-20260705-wire-fixtures-pipeline.md) and spec FR-006 / AC-002. How it is enforced: Go generates canonical `hello` / `view-update` / `output` / `control` fixtures into `clients/ui/src/wire/testdata/`; vitest consumes those exact JSON files; CI regenerates and fails on `git diff --exit-code`. Exception: none — hand-synchronized fixtures are explicitly rejected by the ADR.
 
-## 12. Driver conformance and metadata source priority (test-pinned)
+## 11. Driver conformance and metadata source priority (test-pinned)
 
 Every registered driver must satisfy the same minimum contract, including authoritative metadata precedence. This prevents driver-specific tests from silently omitting invariants such as totality, persist/restore round-trips, or "fallback must not overwrite authoritative metadata".
 
 Where defined: [ADR — Driver conformance suite enforced via registry iteration](../adr/adr-20260705-driver-conformance-registry-suite.md), [ADR — Metadata source priority for Claude and Codex session state](../adr/adr-20260705-metadata-source-priority.md), and spec FR-005 / AC-001. How it is enforced: `drivertest.Conformance` is applied by registry iteration to every `state.Register`ed driver and checks Step purity, DriverEvent totality, View/Status totality, and Persist/Restore round-trip. Metadata authority is pinned separately by explicit `drivertest.MetadataSourcePriority` scenarios in the driver conformance tests for drivers that carry `model` / `effort` state. Exception: none — opting a driver out would mean it is not a conforming `state.Driver`.
 
-## 13. Session identity and wire-frame ownership (test-pinned)
+## 12. Session identity and wire-frame ownership (test-pinned)
 
 The SPA addresses sessions by a compound fleet key and each gateway addresses them by its own bare id. Translating between the two belongs to one owner per boundary; a module that starts handling either form itself becomes a new crossing, and a crossing the gateway drops silently produces no symptom to notice.
 

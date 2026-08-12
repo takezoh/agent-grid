@@ -35,7 +35,7 @@ import (
 func startRealCodex(t *testing.T, bin string) (*codexclient.Conn, func()) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
-	args := codexcli.AppServerStdioArgs(nil, false)
+	args := codexcli.AppServerStdioArgs(nil)
 	cmd := procgroup.Command(procgroup.Spec{Ctx: ctx, Bin: bin, Args: args[1:]})
 	cmd.Env = os.Environ()
 
@@ -167,7 +167,7 @@ func waitForRecorderIdle(t *testing.T, rec *realEventRecorder, timeout, quiet ti
 func startRealCodexListener(t *testing.T, bin, home, sock string, extra []string) func() {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
-	args := codexcli.AppServerListenArgs("codex", sock, extra, false)
+	args := codexcli.AppServerListenArgs("codex", sock, extra)
 	cmd := procgroup.Command(procgroup.Spec{Ctx: ctx, Bin: bin, Args: args[1:]})
 	cmd.Env = append(os.Environ(), "HOME="+home)
 	stderr := &syncBuf{}

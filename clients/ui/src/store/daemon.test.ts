@@ -378,8 +378,8 @@ describe("daemonStore", () => {
       projectRoots: ["/home/me/code"],
       projectPaths: ["/home/me/repo-a"],
       projects: [
-        { path: "/home/me/repo-a", isGit: true, isSandboxed: false },
-        { path: "/home/me/repo-b", isGit: false, isSandboxed: true },
+        { path: "/home/me/repo-a", isGit: true },
+        { path: "/home/me/repo-b", isGit: false },
       ],
       commands: ["claude", "shell"],
       pushCommands: ["/clear", "/compact"],
@@ -391,7 +391,6 @@ describe("daemonStore", () => {
     expect(s.sessionConfig?.projects[0]).toEqual({
       path: "/home/me/repo-a",
       isGit: true,
-      isSandboxed: false,
     });
     expect(s.sessionConfig?.pushCommands).toEqual(["/clear", "/compact"]);
 
@@ -404,19 +403,19 @@ describe("daemonStore", () => {
     useDaemonStore.getState().setSessionConfig({
       projectRoots: [],
       projectPaths: [],
-      projects: [{ path: "/old", isGit: false, isSandboxed: false }],
+      projects: [{ path: "/old", isGit: false }],
       commands: [],
       pushCommands: ["/old"],
     });
     useDaemonStore.getState().setSessionConfig({
       projectRoots: [],
       projectPaths: [],
-      projects: [{ path: "/new", isGit: true, isSandboxed: true }],
+      projects: [{ path: "/new", isGit: true }],
       commands: [],
       pushCommands: ["/new"],
     });
     const s = useDaemonStore.getState();
-    expect(s.sessionConfig?.projects).toEqual([{ path: "/new", isGit: true, isSandboxed: true }]);
+    expect(s.sessionConfig?.projects).toEqual([{ path: "/new", isGit: true }]);
     expect(s.sessionConfig?.pushCommands).toEqual(["/new"]);
   });
 
@@ -484,7 +483,7 @@ describe("daemonStore", () => {
     useDaemonStore.getState().setSessionConfig({
       projectRoots: [],
       projectPaths: [],
-      projects: [{ path: "/a", isGit: false, isSandboxed: false }],
+      projects: [{ path: "/a", isGit: false }],
       commands: [],
       pushCommands: ["/p"],
     });

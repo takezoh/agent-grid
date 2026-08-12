@@ -87,7 +87,7 @@ func (fuzzDriver) Restore(bag map[string]string, now time.Time) DriverState {
 
 func (fuzzDriver) View(s DriverState) View { return View{} }
 
-func (fuzzDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, sandboxed bool) (LaunchPlan, error) {
+func (fuzzDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions) (LaunchPlan, error) {
 	return LaunchPlan{
 		Command:   baseCommand,
 		StartDir:  project,
@@ -457,11 +457,11 @@ func assertReduceFuzzEffects(t *testing.T, effs []Effect) {
 			EffUnregisterFrame,
 			EffSetSessionEnv,
 			EffUnsetSessionEnv,
-			EffReleaseFrameSandboxes,
+			EffReleaseFrames,
 			EffCommitShutdownSessions,
 			EffCompleteShutdown,
 			EffTerminateRuntime,
-			EffReleaseFrameSandbox,
+			EffReleaseFrame,
 			EffSendResponse,
 			EffSendResponseSync,
 			EffSendError,

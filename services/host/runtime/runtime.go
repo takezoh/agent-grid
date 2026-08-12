@@ -95,17 +95,11 @@ type Config struct {
 	// Maps to the codex.read_timeout_ms config key.
 	StreamReadTimeout time.Duration
 
-	// RepositorySessionsRoot is the canonical root for session clones and the
-	// sole repository-environment mount scope. Empty disables preparation I/O.
+	// RepositorySessionsRoot is the canonical root for session clones.
+	// Empty disables preparation I/O.
 	RepositorySessionsRoot string
 	// PreparationStore persists creation intents and preparation aggregates.
 	PreparationStore PreparationStore
-	// RepositoryEnvironmentStore persists repository-scoped environment records.
-	RepositoryEnvironmentStore RepositoryEnvironmentStore
-	// RepositoryDevcontainer ensures/reuses repository environments.
-	RepositoryDevcontainer RepositoryDevcontainer
-	// RepositoryConfigGeneration pins environment reuse identity.
-	RepositoryConfigGeneration string
 	// CloneAuthority supplies one-use credentials for preparation clones.
 	CloneAuthority CloneAuthority
 	// FilesystemProcess is the inject seam for durable clone publication.
@@ -158,26 +152,15 @@ type Runtime struct {
 	// project directory, with mtime-based caching of .agent-grid/settings.toml.
 	workspaceResolver *config.WorkspaceResolver
 
-	// sandboxCleanups holds WrappedLaunch.Cleanup callbacks keyed by FrameID.
-	// A plain loop-owned map: spawn goroutines no longer write it directly —
-	// handleSpawnComplete stores the cleanup on the event loop.
-	sandboxCleanups map[state.FrameID]func() error
 	// pendingSpawns tracks frames whose async spawn has been dispatched but has
 	// not yet reported completion back into the event loop.
 	pendingSpawns map[state.FrameID]struct{}
 
-	// frameReg maps container bearer tokens and bind-mount tables to frame IDs.
-	// The event loop is the sole writer (via registerContainerFrame /
-	// invokeFrameCleanup); container endpoint handlers read concurrently. Its
-	// internal RWMutex is the only lock in the runtime root call path.
+	// frameReg maps frame bearer tokens to frame IDs. The event loop is the
+	// sole writer (via registerFrameToken / releaseFrameRegistration); frame
+	// messaging handlers read concurrently. Its internal RWMutex is the only
+	// lock in the runtime root call path.
 	frameReg *framereg.Registry
-	// containerEndpoints holds one *containerEndpoint per project path.
-	// Plain loop-owned map: started lazily on the event loop.
-	containerEndpoints map[string]*containerEndpoint
-
-	// warmFrames persists warm-only per-frame state (container tokens) to
-	// <dataDir>/warm/ so they survive daemon warm restarts.
-	warmFrames *warmFrameStore
 
 	// subsystems holds every live Subsystem instance keyed by its opaque
 	// SubsystemID. Subsystems are environment-aware (host vs container);
@@ -232,8 +215,6 @@ type Runtime struct {
 
 	// prepCtrl owns durable preparation workers, capacity, and clone publication.
 	prepCtrl *PreparationController
-	// envMgr owns repository-scoped environment ensure/reuse.
-	envMgr *RepositoryEnvironmentManager
 
 	// lastRepoPrepSweep + repoPrepSweepInterval throttle durable orphan sweeps
 	// on the tick path (default RepositoryPrepSweepInterval).
@@ -320,10 +301,8 @@ func New(cfg Config) *Runtime {
 		done:                  make(chan struct{}),
 		terminateCh:           make(chan struct{}, 1),
 		workspaceResolver:     config.NewWorkspaceResolver(),
-		sandboxCleanups:       map[state.FrameID]func() error{},
 		pendingSpawns:         map[state.FrameID]struct{}{},
 		frameReg:              framereg.New(),
-		containerEndpoints:    map[string]*containerEndpoint{},
 		subsystems:            map[state.SubsystemID]rsubsystem.Subsystem{},
 		frameSubsystems:       map[state.FrameID]rsubsystem.Subsystem{},
 		frameSubsystemIDs:     map[state.FrameID]state.SubsystemID{},
@@ -337,11 +316,6 @@ func New(cfg Config) *Runtime {
 		r.workers = worker.NewPool(context.Background(), cfg.Workers)
 	}
 	if cfg.DataDir != "" {
-		if wf, err := newWarmFrameStore(cfg.DataDir); err != nil {
-			slog.Warn("runtime: warm frame store init failed", "err", err)
-		} else {
-			r.warmFrames = wf
-		}
 		r.pgidTracker = &procgroup.Tracker{
 			Dir:   filepath.Join(cfg.DataDir, "run", "pgids"),
 			Nonce: procgroup.NewBootNonce(),
@@ -361,7 +335,7 @@ func (r *Runtime) initRepositoryComposition() {
 	if root == "" && r.cfg.DataDir != "" {
 		root = filepath.Join(r.cfg.DataDir, "repository-sessions")
 	}
-	if root == "" && r.cfg.PreparationStore == nil && r.cfg.RepositoryDevcontainer == nil {
+	if root == "" && r.cfg.PreparationStore == nil {
 		return
 	}
 	fs := r.cfg.FilesystemProcess
@@ -381,18 +355,6 @@ func (r *Runtime) initRepositoryComposition() {
 	})
 	ctrl.Authority = r.cfg.CloneAuthority
 	r.prepCtrl = ctrl
-	envStore := r.cfg.RepositoryEnvironmentStore
-	if envStore == nil && root != "" {
-		// Durable store so FindReady survives daemon restart (same root as preparations).
-		envStore = NewFileRepositoryEnvironmentStore(root, fs)
-	}
-	if envStore == nil {
-		envStore = NewMemoryRepositoryEnvironmentStore()
-	}
-	r.envMgr = &RepositoryEnvironmentManager{
-		Store: envStore, Devcontainer: r.cfg.RepositoryDevcontainer,
-		ConfigGen: r.cfg.RepositoryConfigGeneration, SessionsRoot: root,
-	}
 }
 
 // registerSubsystemFactories is the one place that knows which factories
@@ -404,7 +366,6 @@ func (r *Runtime) registerSubsystemFactories() {
 			Runtime:          r,
 			Dispatcher:       r.cfg.StreamDispatcher,
 			ResolveSockPath:  r.resolveStreamListenPath,
-			IsContainer:      func(project string) bool { return launcher(r.cfg).IsContainer(project) },
 			ReadTimeout:      r.cfg.StreamReadTimeout,
 			HelperBinaryPath: r.HelperBinaryPath,
 			Tracker:          r.pgidTracker,
@@ -630,7 +591,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 	// panic still skips defers — that gap is owned by the next
 	// cold-start's PruneOrphans.
 	defer r.finalPersistFlush()
-	// Sandbox resources are released via state.EffReleaseFrameSandboxes on
+	// Sandbox resources are released via state.EffReleaseFrames on
 	// explicit shutdown. On daemon crash (SIGKILL) or panic, the defer stack
 	// does not run; next startup's PruneOrphans recovers orphaned containers.
 

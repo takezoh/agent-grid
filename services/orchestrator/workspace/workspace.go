@@ -38,7 +38,7 @@ func New(cfg wfconfig.Config) *Manager {
 }
 
 // Root returns the cleaned workspace root. The orchestrator keys the per-project
-// devcontainer on this path so all per-issue workspaces share one container.
+// so all per-issue workspaces share one root.
 func (m *Manager) Root() string {
 	return m.root
 }

@@ -75,7 +75,6 @@ export interface PaletteActions {
   setParam(key: string, value: unknown): void;
   setParams(values: Record<string, unknown>): void;
   toggleWorktree(): void;
-  toggleHost(): void;
   setComposing(composing: boolean): void;
   submit(ctx: ToolCtx): Promise<void>;
   refocusInput(): void;
@@ -316,19 +315,6 @@ export const usePaletteStore = create<
       const prev = s.paramValues.worktree;
       const next = prev !== true;
       return { paramValues: { ...s.paramValues, worktree: next } };
-    });
-  },
-
-  toggleHost() {
-    // ADR-0042: the in-UI "host" toggle is a boolean; readSandboxFromHostToggle
-    // (in lib/tools) projects it onto the wire's `sandbox: "host"` field.
-    // We store it as boolean here (true ↔ false), letting the wire mapping
-    // stay in the ToolDef.submit layer so the store has zero wire-format
-    // knowledge.
-    set((s) => {
-      const prev = s.paramValues.host;
-      const next = prev !== true;
-      return { paramValues: { ...s.paramValues, host: next } };
     });
   },
 

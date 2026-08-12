@@ -14,7 +14,7 @@ import { deriveActiveContext, projBase, sid8 } from "./palette_active_context";
 // ---------------------------------------------------------------------------
 
 function makeProject(path: string): SessionConfigProject {
-  return { path, isGit: false, isSandboxed: false };
+  return { path, isGit: false };
 }
 
 function makeSession(id: string, project: string): SessionInfo {

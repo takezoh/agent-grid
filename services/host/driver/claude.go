@@ -171,11 +171,11 @@ func (d ClaudeDriver) NewState(now time.Time) state.DriverState {
 
 // resolveLaunchCommand applies worktree flag resolution, model/effort
 // precedence (session state wins over the incoming command's flags, and
-// vice versa on first observation), and sandbox flags to baseCommand. It
+// vice versa on first observation) to baseCommand. It
 // returns the possibly-updated ClaudeState (Model/Effort/*Set fields) and
 // the finished command string alongside the worktree request extracted
 // from it.
-func resolveLaunchCommand(cs ClaudeState, baseCommand string, options state.LaunchOptions, sandboxed bool) (ClaudeState, string, worktreeRequest) {
+func resolveLaunchCommand(cs ClaudeState, baseCommand string, options state.LaunchOptions) (ClaudeState, string, worktreeRequest) {
 	req, command := resolveWorktreeRequest(baseCommand, options, "--worktree")
 	command = strings.TrimSpace(command)
 	if argv, err := agentlaunch.SplitArgs(command); err == nil {
@@ -204,7 +204,6 @@ func resolveLaunchCommand(cs ClaudeState, baseCommand string, options state.Laun
 			}
 		}
 	}
-	command = claudecli.SandboxFlags(command, sandboxed)
 	return cs, command, req
 }
 
@@ -212,7 +211,7 @@ func resolveLaunchCommand(cs ClaudeState, baseCommand string, options state.Laun
 // is known so cold-boot recovery picks up the prior conversation.
 // Mirrors lib/claude/cli.ResumeCommand exactly so we don't take a
 // dependency on lib/claude/cli from the pure-state layer.
-func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, baseCommand string, options state.LaunchOptions, sandboxed bool) (state.LaunchPlan, error) {
+func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, baseCommand string, options state.LaunchOptions) (state.LaunchPlan, error) {
 	cs, ok := s.(ClaudeState)
 	if !ok {
 		cs = ClaudeState{}
@@ -227,7 +226,7 @@ func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 	if cs.StartDir != "" {
 		startDir = cs.StartDir
 	}
-	cs, command, req := resolveLaunchCommand(cs, baseCommand, options, sandboxed)
+	cs, command, req := resolveLaunchCommand(cs, baseCommand, options)
 	if mode != state.LaunchModeColdStart || cs.ClaudeSessionID == "" {
 		if mode == state.LaunchModeColdStart {
 			if cs.ForkParentID != "" && isAlphanumHyphen(cs.ForkParentID) {
@@ -261,24 +260,19 @@ func (d ClaudeDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 		slog.Warn("claude: coldstart without resume", "project", project, "session", cs.ClaudeSessionID, "reason", "invalid_session_id")
 		return state.LaunchPlan{Command: command, StartDir: startDir, Options: options, ManagedMCPTools: claudeManagedMCPTools, Stdin: options.InitialInput}, nil
 	}
-	// sandboxed: transcript_path lives inside the container and is not visible on
-	// the host, so skip both the path check and the existence stat. claude --resume
-	// only needs the session ID.
-	if !sandboxed {
-		path := d.resolveTranscriptPath(cs)
-		if path == "" {
-			slog.Debug("claude: coldstart without resume", "project", project, "session", cs.ClaudeSessionID, "reason", "no_transcript_path")
+	path := d.resolveTranscriptPath(cs)
+	if path == "" {
+		slog.Debug("claude: coldstart without resume", "project", project, "session", cs.ClaudeSessionID, "reason", "no_transcript_path")
+		return state.LaunchPlan{Command: command, StartDir: startDir, Options: options, ManagedMCPTools: claudeManagedMCPTools, Stdin: options.InitialInput}, nil
+	}
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			slog.Warn("claude: coldstart without resume", "project", project, "session", cs.ClaudeSessionID, "reason", "transcript_not_found", "path", path)
 			return state.LaunchPlan{Command: command, StartDir: startDir, Options: options, ManagedMCPTools: claudeManagedMCPTools, Stdin: options.InitialInput}, nil
 		}
-		if _, err := os.Stat(path); err != nil {
-			if os.IsNotExist(err) {
-				slog.Warn("claude: coldstart without resume", "project", project, "session", cs.ClaudeSessionID, "reason", "transcript_not_found", "path", path)
-				return state.LaunchPlan{Command: command, StartDir: startDir, Options: options, ManagedMCPTools: claudeManagedMCPTools, Stdin: options.InitialInput}, nil
-			}
-			return state.LaunchPlan{}, err
-		}
+		return state.LaunchPlan{}, err
 	}
-	slog.Info("claude: coldstart with resume", "project", project, "session", cs.ClaudeSessionID, "sandboxed", sandboxed)
+	slog.Info("claude: coldstart with resume", "project", project, "session", cs.ClaudeSessionID)
 	return state.LaunchPlan{
 		Command:         command + " --resume " + cs.ClaudeSessionID,
 		StartDir:        startDir,

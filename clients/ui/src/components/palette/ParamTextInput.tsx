@@ -1,10 +1,10 @@
 // ParamTextInput — the text-input variant rendered by ParamSelectPhase
 // for kind: 'text' ParamDefs.
 //
-// ADR-0053: Tab / Shift+Tab hijack for worktree / sandbox=host toggles
-// has been removed. Tab now performs natural focus traversal. Toggle
-// affordances are rendered by ChipSwitch (pointer/Space/Enter) with
-// useChipHotkey (Alt+W/H) — wired in ParamSelectPhase, not here.
+// ADR-0053: Tab / Shift+Tab hijack for the worktree toggle has been
+// removed. Tab now performs natural focus traversal. The toggle
+// affordance is rendered by ChipSwitch (pointer/Space/Enter) with
+// useChipHotkey (Alt+W) — wired in ParamSelectPhase, not here.
 //
 // Split out of ParamSelectPhase.tsx alongside ParamListbox to keep the
 // orchestrator file under the 500-line ceiling.

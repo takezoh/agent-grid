@@ -476,7 +476,7 @@ func TestGenericStepNonRootSkipsTick(t *testing.T) {
 func TestGenericPrepareLaunchInheritedPlainStartDir(t *testing.T) {
 	d, s, _ := newGenericState(t, 0)
 	s.StartDir = "/repo"
-	plan, err := d.PrepareLaunch(s, state.LaunchModeCreate, "/repo", "bash", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(s, state.LaunchModeCreate, "/repo", "bash", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -494,7 +494,7 @@ func TestGenericPrepareLaunchInheritedPlainStartDir(t *testing.T) {
 func TestGenericPrepareLaunchManagedWorktreePathNoForcedEnable(t *testing.T) {
 	d, s, _ := newGenericState(t, 0)
 	s.StartDir = "/repo/.agent-grid/worktrees/test-name"
-	plan, err := d.PrepareLaunch(s, state.LaunchModeColdStart, "/repo", "bash", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(s, state.LaunchModeColdStart, "/repo", "bash", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}

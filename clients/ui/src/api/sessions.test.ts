@@ -30,7 +30,6 @@ describe("server-qualified SessionsApi", () => {
                 {
                   path: "/a",
                   isGit: false,
-                  isSandboxed: false,
                   command_profiles: [],
                 },
               ],
@@ -54,7 +53,6 @@ describe("server-qualified SessionsApi", () => {
       {
         path: "/a",
         isGit: false,
-        isSandboxed: false,
         serverId: "srv-a",
         serverLabel: "A",
       },
@@ -175,7 +173,6 @@ describe("server-qualified SessionsApi", () => {
                 {
                   path: "/typed",
                   isGit: true,
-                  isSandboxed: true,
                   command_profiles: [
                     {
                       id: "profile",
@@ -231,7 +228,6 @@ describe("server-qualified SessionsApi", () => {
     expect(config.projects[0]).toMatchObject({
       path: "/typed",
       isGit: true,
-      isSandboxed: true,
       commandProfiles: [
         {
           id: "profile",

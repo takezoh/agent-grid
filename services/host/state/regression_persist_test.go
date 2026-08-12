@@ -32,7 +32,7 @@ func (frameExitStub) Name() string                       { return "exitstub" }
 func (frameExitStub) DisplayName() string                { return "exitstub" }
 func (frameExitStub) Status(s DriverState) Status        { return s.(frameExitState).status }
 func (frameExitStub) NewState(now time.Time) DriverState { return frameExitState{} }
-func (frameExitStub) PrepareLaunch(s DriverState, _ LaunchMode, project, baseCommand string, _ LaunchOptions, _ bool) (LaunchPlan, error) {
+func (frameExitStub) PrepareLaunch(s DriverState, _ LaunchMode, project, baseCommand string, _ LaunchOptions) (LaunchPlan, error) {
 	return LaunchPlan{Command: baseCommand, StartDir: project}, nil
 }
 func (frameExitStub) Persist(s DriverState) map[string]string { return nil }
@@ -165,7 +165,7 @@ func TestReduceFrameCommandExited_HookStoppedStillReleasesSandbox(t *testing.T) 
 	s.Sessions[id] = sess
 
 	_, effs := Reduce(s, EvFrameCommandExited{FrameID: FrameID(id), ExitCode: 1})
-	if _, ok := findEff[EffReleaseFrameSandbox](effs); !ok {
+	if _, ok := findEff[EffReleaseFrame](effs); !ok {
 		t.Fatalf("hook-stopped frame exit must release its sandbox; effects=%v", effectTypes(effs))
 	}
 }

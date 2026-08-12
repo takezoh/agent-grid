@@ -371,7 +371,7 @@ describe("usePaletteStore", () => {
   });
 
   // -------------------------------------------------------------------------
-  // setParam / toggleWorktree / toggleHost
+  // setParam / toggleWorktree
   // -------------------------------------------------------------------------
 
   it("setParam writes the value into paramValues", () => {
@@ -384,13 +384,6 @@ describe("usePaletteStore", () => {
     expect(usePaletteStore.getState().paramValues.worktree).toBe(true);
     usePaletteStore.getState().toggleWorktree();
     expect(usePaletteStore.getState().paramValues.worktree).toBe(false);
-  });
-
-  it("toggleHost flips the boolean (undefined → true → false)", () => {
-    usePaletteStore.getState().toggleHost();
-    expect(usePaletteStore.getState().paramValues.host).toBe(true);
-    usePaletteStore.getState().toggleHost();
-    expect(usePaletteStore.getState().paramValues.host).toBe(false);
   });
 
   // -------------------------------------------------------------------------

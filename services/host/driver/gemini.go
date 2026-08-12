@@ -80,7 +80,7 @@ func (d GeminiDriver) NewState(now time.Time) state.DriverState {
 	}
 }
 
-func (d GeminiDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, baseCommand string, options state.LaunchOptions, sandboxed bool) (state.LaunchPlan, error) {
+func (d GeminiDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, baseCommand string, options state.LaunchOptions) (state.LaunchPlan, error) {
 	gs, ok := s.(GeminiState)
 	if !ok {
 		gs = GeminiState{}
@@ -91,9 +91,6 @@ func (d GeminiDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, 
 	}
 	req, command := resolveWorktreeRequest(baseCommand, options, "--worktree", "--workspace")
 	command = strings.TrimSpace(command)
-	if sandboxed && !hasFlagToken(command, "--yolo") {
-		command = appendFlag(command, "--yolo", true)
-	}
 	if mode != state.LaunchModeColdStart || gs.GeminiSessionID == "" || !isAlphanumHyphen(gs.GeminiSessionID) {
 		return state.LaunchPlan{
 			Command:  command,

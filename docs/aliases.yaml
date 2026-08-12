@@ -62,9 +62,7 @@ aliases:
   component-20260624-orchestrator-overview: design-orchestrator
   component-20260624-orchestrator-symphony-conformance: design-orchestrator
   component-20260624-platform-agent-protocol: design-platform
-  component-20260624-platform-brokers: design-platform
   component-20260624-platform-overview: design-platform
-  component-20260624-platform-sandbox: design-platform
   component-20260624-platform-spawn-and-launch: design-platform
   component-20260624-platform-termvt-multiplexer-testing: design-platform
   component-20260704-platform-claude-fakeclaude: design-platform

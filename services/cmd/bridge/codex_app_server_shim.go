@@ -40,12 +40,11 @@ var (
 )
 
 type shimConfig struct {
-	listenSock      string
-	upstreamSock    string
-	serverBin       string
-	sessionID       string
-	serverArgs      []string
-	sandboxExternal bool
+	listenSock   string
+	upstreamSock string
+	serverBin    string
+	sessionID    string
+	serverArgs   []string
 }
 
 func runCodexAppServerShim(args []string) error {
@@ -62,7 +61,7 @@ func runCodexAppServerShim(args []string) error {
 	defer cancel()
 
 	removeShimSockets(cfg.upstreamSock)
-	cmd := exec.CommandContext(ctx, cfg.serverBin, libcodex.AppServerListenArgs(cfg.serverBin, cfg.upstreamSock, cfg.serverArgs, cfg.sandboxExternal)[1:]...)
+	cmd := exec.CommandContext(ctx, cfg.serverBin, libcodex.AppServerListenArgs(cfg.serverBin, cfg.upstreamSock, cfg.serverArgs)[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = os.Environ()
@@ -151,7 +150,6 @@ func parseCodexShimArgs(args []string) (shimConfig, error) {
 		cfg.serverArgs = append(cfg.serverArgs, v)
 		return nil
 	})
-	fs.BoolVar(&cfg.sandboxExternal, "sandbox-external", false, "append sandbox_mode danger-full-access to upstream app-server")
 	if err := fs.Parse(args); err != nil {
 		return cfg, err
 	}

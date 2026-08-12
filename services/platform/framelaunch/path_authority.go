@@ -21,7 +21,7 @@ type ComputeFinalPathDecision struct {
 // dedupPath deduplicates a colon-separated PATH string. The first occurrence
 // of each segment wins; empty segments are dropped. Byte-exact segment
 // comparison — a trailing slash makes two segments distinct (matching bash's
-// PATH resolver and platform/sandbox/devcontainer/spec.go:deduplicateColonList).
+// PATH resolver).
 //
 // Empty input yields empty output; single-segment input yields the same
 // segment; a leading, trailing, or interior colon (indicating an empty

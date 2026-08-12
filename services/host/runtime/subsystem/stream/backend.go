@@ -19,7 +19,6 @@ import (
 	"github.com/takezoh/agent-grid/services/platform/agent/codexclient"
 	"github.com/takezoh/agent-grid/services/platform/agentlaunch"
 	libcodex "github.com/takezoh/agent-grid/services/platform/lib/codex"
-	"github.com/takezoh/agent-grid/services/platform/pathmap"
 	"github.com/takezoh/agent-grid/services/platform/procgroup"
 )
 
@@ -78,23 +77,17 @@ type Backend struct {
 	serverBin           string
 	configArgs          []string
 	helperBin           string
-	isContainer         bool
-	sandboxed           bool
-	autoApprove         bool
 	readTimeout         time.Duration
 	ctx                 context.Context    // subsystem-scoped; child of the daemon ctx
 	cancel              context.CancelFunc // cancels ctx → reaps read loop + process group
 	done                chan struct{}      // closed when waitProcess returns (process reaped)
 	tracker             *procgroup.Tracker // records pgids for crash-path reaping; may be nil
 	spawnRes            agentlaunch.SpawnResult
-	spawnCleanup        func(context.Context) error
-	spawnCleaned        sync.Once
 	conn                *codexclient.Conn
 	resumeObserver      func(codexclient.ResumeOptions) (codexclient.ThreadSession, error)
 	unsubscribeObserver func(string) (codexclient.ThreadUnsubscribeStatus, error)
 	listenSock          string // UDS path the app-server binds (container-absolute under a devcontainer)
-	dialSock            string // host-side UDS path the daemon dials; resolved from listenSock + bind mounts in spawnServer
-	mounts              pathmap.Mounts
+	dialSock            string // UDS path the daemon dials; equals listenSock
 	mu                  sync.Mutex
 	terminalObserved    bool
 	terminalExpected    bool
@@ -157,7 +150,6 @@ func New(
 	project, serverBin string,
 	configArgs []string,
 	_, _ string,
-	sandboxed, autoApprove bool,
 	listenSock string,
 	readTimeout time.Duration,
 ) *Backend {
@@ -169,8 +161,6 @@ func New(
 		project:     project,
 		serverBin:   serverBin,
 		configArgs:  configArgs,
-		sandboxed:   sandboxed,
-		autoApprove: autoApprove,
 		readTimeout: readTimeout,
 		listenSock:  listenSock,
 		frames:      map[state.FrameID]*frameBinding{},
@@ -209,7 +199,6 @@ func (b *Backend) Start(ctx context.Context) error {
 		// goroutine has flushed everything into serverErr, so the captured
 		// output reflects what the app-server printed before it died.
 		_ = res.Wait()
-		b.cleanupSpawn(context.Background())
 		slog.Error("stream backend: app-server dial failed",
 			"subsystem", b.subsystemID, "sock", b.dialSock,
 			"stderr", strings.TrimSpace(serverErr.String()))
@@ -232,7 +221,6 @@ func (b *Backend) Start(ctx context.Context) error {
 		// dial-failure path; otherwise the process is orphaned (waitProcess
 		// is not started on this path and the pgid was never tracked).
 		_ = res.Wait()
-		b.cleanupSpawn(context.Background())
 		return err
 	}
 	b.trackProcessGroups()
@@ -286,7 +274,7 @@ func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (sub
 	}()
 
 	// Normalize the resume target (validate + translate rollout path).
-	resumeTarget, err := normalizeResumeTarget(req.Plan.Stream.ResumeTarget, b.mounts)
+	resumeTarget, err := normalizeResumeTarget(req.Plan.Stream.ResumeTarget)
 	if err != nil {
 		return subsystem.BindResult{}, err
 	}
@@ -322,7 +310,7 @@ func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (sub
 	// syscall.Execs MainCommand. Avoid shell composition of trust && exec
 	// (adr-20260711-0082 / 0083). Host DirectLauncher also uses frame-exec
 	// when Argv is set.
-	bypassPermissions := b.sandboxed || req.Plan.Stream.DangerouslyBypassPermissions
+	bypassPermissions := req.Plan.Stream.DangerouslyBypassPermissions
 	attachArgv := libcodex.RemoteAttachArgs(
 		b.listenSock,
 		persistedThreadID,
@@ -333,11 +321,6 @@ func (b *Backend) BindFrame(ctx context.Context, req subsystem.BindRequest) (sub
 	)
 	result.Plan.Argv = attachArgv
 	result.Plan.Command = "" // legacy shell path unused for codex stream attach
-	if b.sandboxed {
-		result.Plan.PreCommands = append(result.Plan.PreCommands, []string{
-			agentlaunch.ContainerBinaryPath, "codex-trust-project",
-		})
-	}
 	result.Plan.Stdin = nil
 	result.Plan.Stream.ResumeTarget = resumeTarget.rpc
 	// ColdStartSessionID stays as caller provided (may be empty). It will be
@@ -529,26 +512,6 @@ func (b *Backend) Stop(ctx context.Context, cause subsystem.StopCause) {
 	case <-time.After(stopGrace):
 		slog.Warn("stream backend: Stop timed out waiting for reap", "subsystem", b.subsystemID)
 	}
-	b.cleanupSpawn(ctx)
-}
-
-func (b *Backend) setSpawnCleanup(fn func(context.Context) error) {
-	if fn == nil {
-		return
-	}
-	b.spawnCleanup = fn
-}
-
-func (b *Backend) cleanupSpawn(ctx context.Context) {
-	if b.spawnCleanup == nil {
-		return
-	}
-	b.spawnCleaned.Do(func() {
-		if err := b.spawnCleanup(ctx); err != nil {
-			slog.Warn("stream backend: app-server sandbox cleanup failed",
-				"subsystem", b.subsystemID, "err", err)
-		}
-	})
 }
 
 // OnNotification implements codexclient.Handler.

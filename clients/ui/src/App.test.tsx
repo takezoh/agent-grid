@@ -563,7 +563,6 @@ describe("App", () => {
                 {
                   path: "/repo/a",
                   isGit: true,
-                  isSandboxed: false,
                   command_profiles: [],
                 },
               ],
@@ -607,7 +606,6 @@ describe("App", () => {
       {
         path: "/repo/a",
         isGit: true,
-        isSandboxed: false,
         serverId: "test-server",
         serverLabel: "Test",
       },

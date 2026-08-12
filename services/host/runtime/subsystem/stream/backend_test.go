@@ -3,9 +3,6 @@ package stream
 import (
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -19,59 +16,6 @@ type fakeRuntime struct {
 }
 
 func (f *fakeRuntime) Enqueue(e state.Event) { f.events = append(f.events, e) }
-
-type cleanupDispatcher struct {
-	argv         []string
-	cleanupCalls atomic.Int32
-	cleanupErr   error
-}
-
-func (d *cleanupDispatcher) Wrap(_ context.Context, _ string, plan agentlaunch.LaunchPlan) (agentlaunch.WrappedLaunch, error) {
-	argv := d.argv
-	if len(argv) == 0 {
-		argv = plan.Argv
-	}
-	return agentlaunch.WrappedLaunch{
-		Argv:     argv,
-		StartDir: plan.StartDir,
-		Cleanup: func(context.Context) error {
-			d.cleanupCalls.Add(1)
-			return d.cleanupErr
-		},
-	}, nil
-}
-
-func (d *cleanupDispatcher) AdoptFrame(context.Context, string, string) (func(context.Context) error, []agentlaunch.Mount, error) {
-	return nil, nil, nil
-}
-
-func (d *cleanupDispatcher) EnsureProject(context.Context, string) error { return nil }
-
-func (d *cleanupDispatcher) IsContainer(string) bool { return true }
-
-type capturePlanDispatcher struct {
-	capturedArgv []string
-	capturedPlan agentlaunch.LaunchPlan
-	forwardArgv  []string
-}
-
-func (d *capturePlanDispatcher) Wrap(_ context.Context, _ string, plan agentlaunch.LaunchPlan) (agentlaunch.WrappedLaunch, error) {
-	d.capturedArgv = append([]string(nil), plan.Argv...)
-	d.capturedPlan = plan
-	argv := d.forwardArgv
-	if len(argv) == 0 {
-		argv = plan.Argv
-	}
-	return agentlaunch.WrappedLaunch{Argv: argv, StartDir: plan.StartDir}, nil
-}
-
-func (d *capturePlanDispatcher) AdoptFrame(context.Context, string, string) (func(context.Context) error, []agentlaunch.Mount, error) {
-	return nil, nil, nil
-}
-
-func (d *capturePlanDispatcher) EnsureProject(context.Context, string) error { return nil }
-
-func (d *capturePlanDispatcher) IsContainer(string) bool { return true }
 
 func TestStopBeforeStartIsNoop(t *testing.T) {
 	b, _ := newTestBackend()
@@ -159,84 +103,9 @@ func TestStopCancelsAndWaitsForReap(t *testing.T) {
 	}
 }
 
-func TestStopRunsAppServerCleanupOnce(t *testing.T) {
-	b, _ := newTestBackend()
-	dispatcher := &cleanupDispatcher{}
-	b.dispatcher = dispatcher
-	b.ctx, b.cancel = context.WithCancel(context.Background())
-	b.done = make(chan struct{})
-	wrapped, err := dispatcher.Wrap(context.Background(), "", agentlaunch.LaunchPlan{})
-	if err != nil {
-		t.Fatalf("Wrap: %v", err)
-	}
-	b.setSpawnCleanup(wrapped.Cleanup)
-	go func() {
-		<-b.ctx.Done()
-		close(b.done)
-	}()
-
-	b.Stop(context.Background(), subsystem.StopCauseRuntimeShutdown)
-	b.Stop(context.Background(), subsystem.StopCauseRuntimeShutdown)
-
-	if got := dispatcher.cleanupCalls.Load(); got != 1 {
-		t.Fatalf("cleanup calls = %d, want 1", got)
-	}
-}
-
-func TestStopLogsAndSuppressesCleanupError(t *testing.T) {
-	b, _ := newTestBackend()
-	dispatcher := &cleanupDispatcher{cleanupErr: errors.New("cleanup failed")}
-	b.ctx, b.cancel = context.WithCancel(context.Background())
-	b.done = make(chan struct{})
-	wrapped, err := dispatcher.Wrap(context.Background(), "", agentlaunch.LaunchPlan{})
-	if err != nil {
-		t.Fatalf("Wrap: %v", err)
-	}
-	b.setSpawnCleanup(wrapped.Cleanup)
-	close(b.done)
-
-	b.Stop(context.Background(), subsystem.StopCauseRuntimeShutdown)
-
-	if got := dispatcher.cleanupCalls.Load(); got != 1 {
-		t.Fatalf("cleanup calls = %d, want 1", got)
-	}
-}
-
-func TestSpawnServerRunsCleanupWhenProcessStartFails(t *testing.T) {
-	b, _ := newTestBackend()
-	dispatcher := &cleanupDispatcher{argv: []string{filepath.Join(t.TempDir(), "missing-app-server")}}
-	b.dispatcher = dispatcher
-	b.ctx, b.cancel = context.WithCancel(context.Background())
-	defer b.cancel()
-
-	_, _, err := b.spawnServer(context.Background())
-	if err == nil {
-		t.Fatal("spawnServer must fail for a missing app-server binary")
-	}
-	if got := dispatcher.cleanupCalls.Load(); got != 1 {
-		t.Fatalf("cleanup calls = %d, want 1", got)
-	}
-}
-
-func TestShimArgs_UsesContainerBridgePathInDevcontainer(t *testing.T) {
+func TestShimArgs_UsesHostHelperPath(t *testing.T) {
 	b, _ := newTestBackend()
 	b.helperBin = "/host/bin/bridge"
-	b.isContainer = true
-	b.listenSock = "/opt/agent-grid/run/codex.sock"
-	b.serverBin = "codex"
-	args := b.shimArgs()
-	if len(args) == 0 {
-		t.Fatal("shimArgs returned empty argv")
-	}
-	if got := args[0]; got != agentlaunch.ContainerBinaryPath {
-		t.Fatalf("shim argv[0] = %q, want %q", got, agentlaunch.ContainerBinaryPath)
-	}
-}
-
-func TestShimArgs_UsesHostHelperPathOutsideContainer(t *testing.T) {
-	b, _ := newTestBackend()
-	b.helperBin = "/host/bin/bridge"
-	b.isContainer = false
 	b.listenSock = "/tmp/codex.sock"
 	b.serverBin = "codex"
 	args := b.shimArgs()
@@ -248,67 +117,8 @@ func TestShimArgs_UsesHostHelperPathOutsideContainer(t *testing.T) {
 	}
 }
 
-func TestSpawnServer_UsesShimInContainerWithoutHostHelper(t *testing.T) {
-	b, _ := newTestBackend()
-	b.isContainer = true
-	b.helperBin = ""
-	b.listenSock = "/opt/agent-grid/run/codex.sock"
-	b.serverBin = "codex"
-	b.ctx, b.cancel = context.WithCancel(context.Background())
-	defer b.cancel()
-
-	dispatcher := &capturePlanDispatcher{
-		forwardArgv: []string{filepath.Join(t.TempDir(), "missing-app-server")},
-	}
-	b.dispatcher = dispatcher
-
-	_, _, err := b.spawnServer(context.Background())
-	if err == nil {
-		t.Fatal("spawnServer must fail for a missing shim binary in test dispatcher")
-	}
-	if len(dispatcher.capturedArgv) == 0 {
-		t.Fatal("dispatcher did not capture argv")
-	}
-	if got := dispatcher.capturedArgv[0]; got != agentlaunch.ContainerBinaryPath {
-		t.Fatalf("captured argv[0] = %q, want %q", got, agentlaunch.ContainerBinaryPath)
-	}
-}
-
-func TestStartRunsCleanupWhenInitializeFails(t *testing.T) {
-	dispatcher := &cleanupDispatcher{}
-	sock := filepath.Join(t.TempDir(), "codex-x.sock")
-	b := New(&fakeRuntime{}, dispatcher, "sid", "sess1", "/p",
-		os.Args[0], []string{"--mode", "initfail"}, "", "", false, false,
-		sock, 3*time.Second)
-
-	err := b.Start(context.Background())
-	if err == nil {
-		t.Fatal("Start must fail when initialize fails")
-	}
-	if got := dispatcher.cleanupCalls.Load(); got != 1 {
-		t.Fatalf("cleanup calls = %d, want 1", got)
-	}
-}
-
-func TestStartThenStopRunsRegisteredCleanup(t *testing.T) {
-	dispatcher := &cleanupDispatcher{}
-	sock := filepath.Join(t.TempDir(), "codex-x.sock")
-	b := New(&fakeRuntime{}, dispatcher, "sid", "sess1", "/p",
-		os.Args[0], []string{"--mode", "ok"}, "", "", false, false,
-		sock, 3*time.Second)
-
-	if err := b.Start(context.Background()); err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	b.Stop(context.Background(), subsystem.StopCauseRuntimeShutdown)
-
-	if got := dispatcher.cleanupCalls.Load(); got != 1 {
-		t.Fatalf("cleanup calls = %d, want 1", got)
-	}
-}
-
 func TestBackendKind(t *testing.T) {
-	b := New(&fakeRuntime{}, nil, "sid", "sess1", "/p", "codex", nil, "", "", false, false, "/sock", 0)
+	b := New(&fakeRuntime{}, nil, "sid", "sess1", "/p", "codex", nil, "", "", "/sock", 0)
 	if b.Kind() != state.LaunchSubsystemStream {
 		t.Errorf("Kind = %v", b.Kind())
 	}
@@ -342,34 +152,6 @@ func TestReleaseFrameAndLookup(t *testing.T) {
 
 	// idempotent
 	b.ReleaseFrame("nonexistent")
-}
-
-func TestResolveDialSock(t *testing.T) {
-	t.Run("host mode (no mounts) dials the listen path", func(t *testing.T) {
-		const listen = "/host/run/codex/codex-x.sock"
-		if got := resolveDialSock(listen, agentlaunch.WrappedLaunch{}); got != listen {
-			t.Errorf("resolveDialSock() = %q, want %q", got, listen)
-		}
-	})
-
-	t.Run("container mode maps the listen path to its bind-mount host path", func(t *testing.T) {
-		got := resolveDialSock("/opt/agent-grid/run/codex-x.sock", agentlaunch.WrappedLaunch{
-			Mounts: []agentlaunch.Mount{{Host: "/home/u/.agent-grid/run/4342aed7adbf", Container: "/opt/agent-grid/run"}},
-		})
-		if want := "/home/u/.agent-grid/run/4342aed7adbf/codex-x.sock"; got != want {
-			t.Errorf("resolveDialSock() = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("unmapped listen path falls back unchanged", func(t *testing.T) {
-		const listen = "/elsewhere/codex-x.sock"
-		got := resolveDialSock(listen, agentlaunch.WrappedLaunch{
-			Mounts: []agentlaunch.Mount{{Host: "/h/run", Container: "/opt/agent-grid/run"}},
-		})
-		if got != listen {
-			t.Errorf("resolveDialSock() = %q, want %q", got, listen)
-		}
-	})
 }
 
 func TestFactoryRange(t *testing.T) {

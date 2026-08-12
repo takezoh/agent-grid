@@ -2,7 +2,6 @@ package runtime_test
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,8 +10,6 @@ import (
 	"github.com/takezoh/agent-grid/services/host/runtime"
 	"github.com/takezoh/agent-grid/services/host/state"
 	"github.com/takezoh/agent-grid/services/platform/lib/gitclone"
-	"github.com/takezoh/agent-grid/services/platform/sandbox"
-	sandboxdc "github.com/takezoh/agent-grid/services/platform/sandbox/devcontainer"
 )
 
 type fixedAuthority struct{ cred gitclone.Credential }
@@ -40,21 +37,15 @@ func startRuntime(t *testing.T, cfg runtime.Config) *runtime.Runtime {
 	return r
 }
 
-func prepConfig(t *testing.T, backend runtime.FrameBackend, cloner gitclone.Cloner, dc runtime.RepositoryDevcontainer) runtime.Config {
+func prepConfig(t *testing.T, backend runtime.FrameBackend, cloner gitclone.Cloner) runtime.Config {
 	t.Helper()
 	if cloner == nil {
 		cloner = &gitclone.FakeGitClone{}
 	}
-	if dc == nil {
-		dc = runtime.NewFakeRepositoryDevcontainer()
-	}
 	return runtime.Config{
 		Backend: backend, RepositorySessionsRoot: t.TempDir(), Cloner: cloner,
-		CloneAuthority:             fixedAuthority{cred: gitclone.Credential{Username: "x", Token: "tok"}},
-		RepositoryDevcontainer:     dc,
-		RepositoryConfigGeneration: "gen-1",
-		PreparationStore:           runtime.NewMemoryPreparationStore(),
-		RepositoryEnvironmentStore: runtime.NewMemoryRepositoryEnvironmentStore(),
+		CloneAuthority:   fixedAuthority{cred: gitclone.Credential{Username: "x", Token: "tok"}},
+		PreparationStore: runtime.NewMemoryPreparationStore(),
 	}
 }
 
@@ -87,11 +78,10 @@ func TestPreparationCapacityAdmissionBeforeMutation(t *testing.T) {
 	}
 }
 
-func TestPreparationIdempotencyDistinctIntentsAndEnvReuse(t *testing.T) {
+func TestPreparationIdempotencyDistinctIntents(t *testing.T) {
 	cloner := &gitclone.FakeGitClone{}
-	dc := runtime.NewFakeRepositoryDevcontainer()
 	backend := &recordingBackend{}
-	r := startRuntime(t, prepConfig(t, backend, cloner, dc))
+	r := startRuntime(t, prepConfig(t, backend, cloner))
 	repo := testRepo()
 	r.Enqueue(state.EvRepository{
 		ConnID: 1, ReqID: "c1", Kind: "create", IntentID: "intent-a", PreparationID: "prep-a",
@@ -116,9 +106,6 @@ func TestPreparationIdempotencyDistinctIntentsAndEnvReuse(t *testing.T) {
 		t.Fatal("session a not available")
 	}
 	p1, p2 := snap.RepositoryPreparations["prep-a"], snap.RepositoryPreparations["prep-b"]
-	if p1.EnvironmentID == "" || p1.EnvironmentID != p2.EnvironmentID {
-		t.Fatalf("env reuse p1=%q p2=%q", p1.EnvironmentID, p2.EnvironmentID)
-	}
 	if p1.ClonePath == p2.ClonePath {
 		t.Fatal("clones must be independent")
 	}
@@ -127,36 +114,6 @@ func TestPreparationIdempotencyDistinctIntentsAndEnvReuse(t *testing.T) {
 	}
 	if len(backend.spawned) != 2 || backend.spawned[0].command != "codex --model selected" || backend.spawned[1].command != "codex --model selected" {
 		t.Fatalf("repository command profile was not propagated to launch: %#v", backend.spawned)
-	}
-}
-
-func TestRepositoryDevcontainerScopeContract(t *testing.T) {
-	dc := runtime.NewFakeRepositoryDevcontainer()
-	mgr := &runtime.RepositoryEnvironmentManager{
-		Store: runtime.NewMemoryRepositoryEnvironmentStore(), Devcontainer: dc,
-		ConfigGen: "gen-a", SessionsRoot: "/sessions",
-	}
-	repo := testRepo()
-	r1, err := mgr.Ensure(context.Background(), "srv", repo, "/sessions/clones/a")
-	if err != nil || r1.Code != runtime.EnvCodeOK || r1.Reused {
-		t.Fatalf("first: %+v err=%v", r1, err)
-	}
-	if r1.MountScope != "/sessions" || r1.FrameCWD != "/sessions/clones/a" {
-		t.Fatalf("scope: %+v", r1)
-	}
-	r2, err := mgr.Ensure(context.Background(), "srv", repo, "/sessions/clones/b")
-	if err != nil || r2.Code != runtime.EnvCodeOK || !r2.Reused || r2.EnvironmentID != r1.EnvironmentID {
-		t.Fatalf("reuse: %+v err=%v", r2, err)
-	}
-	other := state.GitHubRepositoryIdentity{ID: "99", Owner: "acme", Name: "other"}
-	r3, err := mgr.Ensure(context.Background(), "srv", other, "/sessions/clones/c")
-	if err != nil || r3.EnvironmentID == r1.EnvironmentID || r3.Reused {
-		t.Fatalf("cross-repo: %+v", r3)
-	}
-	mgr.ConfigGen = "gen-b"
-	r4, err := mgr.Ensure(context.Background(), "srv", repo, "/sessions/clones/d")
-	if err != nil || r4.EnvironmentID == r1.EnvironmentID || r4.Reused {
-		t.Fatalf("gen: %+v", r4)
 	}
 }
 
@@ -171,7 +128,7 @@ func TestCancelAndLaunchFailureDoNotPublishSession(t *testing.T) {
 		<-release
 		return gitclone.CloneResult{Code: gitclone.CodeOK}
 	}}
-	r := startRuntime(t, prepConfig(t, newOKBackend(), cloner, nil))
+	r := startRuntime(t, prepConfig(t, newOKBackend(), cloner))
 	r.Enqueue(state.EvRepository{
 		ConnID: 1, ReqID: "c", Kind: "create", IntentID: "i", PreparationID: "p",
 		ServerID: "srv", Repository: testRepo(), Fingerprint: "f", Command: "codex",
@@ -193,7 +150,7 @@ func TestCancelAndLaunchFailureDoNotPublishSession(t *testing.T) {
 		t.Fatal("cancelled prep must not publish session")
 	}
 
-	r2 := startRuntime(t, prepConfig(t, failBackend{}, nil, nil))
+	r2 := startRuntime(t, prepConfig(t, failBackend{}, nil))
 	r2.Enqueue(state.EvRepository{
 		ConnID: 1, ReqID: "c", Kind: "create", IntentID: "i2", PreparationID: "p2",
 		ServerID: "srv", Repository: testRepo(), Fingerprint: "f2", Command: "codex",
@@ -204,7 +161,7 @@ func TestCancelAndLaunchFailureDoNotPublishSession(t *testing.T) {
 	}
 }
 
-func TestRestartReconciliationAndFakeVsRealEnv(t *testing.T) {
+func TestRestartReconciliation(t *testing.T) {
 	store := runtime.NewMemoryPreparationStore()
 	_ = store.Save(runtime.PreparationRecord{
 		Preparation: state.RepositoryPreparation{
@@ -220,16 +177,6 @@ func TestRestartReconciliationAndFakeVsRealEnv(t *testing.T) {
 	}
 	if e, ok := evs[0].(state.EvRepository); !ok || e.Kind != "interrupted" {
 		t.Fatalf("ev=%v", evs[0])
-	}
-	// Always-on unit contract: fake FailCode is a typed unavailable outcome (no error).
-	// Real/absent authority path lives in repository_devcontainer_e2e_test.go FakeVsReal.
-	fake := runtime.NewFakeRepositoryDevcontainer()
-	fake.FailCode = runtime.EnvCodeUnavailable
-	res, err := fake.Ensure(context.Background(), runtime.RepositoryEnvironmentRequest{
-		ServerID: "s", Repository: testRepo(), ConfigGen: "g", SessionsRoot: "/s", ClonePath: "/s/c",
-	})
-	if err != nil || res.Code != runtime.EnvCodeUnavailable {
-		t.Fatalf("fake unavailable: %+v err=%v", res, err)
 	}
 }
 
@@ -339,80 +286,6 @@ func TestSweepNeverAvailableOrphansByAge(t *testing.T) {
 	}
 }
 
-func TestFileRepositoryEnvironmentStoreFindReadyRestart(t *testing.T) {
-	root := t.TempDir()
-	fs := gitclone.OSFilesystem{}
-	s1 := runtime.NewFileRepositoryEnvironmentStore(root, fs)
-	rec := runtime.RepositoryEnvironmentRecord{
-		ID: "env-1", ServerID: "srv", RepositoryID: "42", ContainerID: "ctr",
-		ConfigGen: "gen-1", SessionsRoot: root, Ready: true, Disposition: state.EnvDispositionReady,
-	}
-	if err := s1.Save(rec); err != nil {
-		t.Fatal(err)
-	}
-	// New store instance models daemon restart with same durable root.
-	s2 := runtime.NewFileRepositoryEnvironmentStore(root, fs)
-	got, ok, err := s2.FindReady("srv", "42", "gen-1")
-	if err != nil || !ok || got.ID != "env-1" || got.ContainerID != "ctr" {
-		t.Fatalf("FindReady after restart: ok=%v err=%v got=%+v", ok, err, got)
-	}
-	if _, ok, err := s2.FindReady("srv", "42", "gen-other"); err != nil || ok {
-		t.Fatal("wrong generation must miss")
-	}
-	// Manager reuses via FindReady after restart-shaped store.
-	mgr := &runtime.RepositoryEnvironmentManager{
-		Store: s2, Devcontainer: runtime.NewFakeRepositoryDevcontainer(),
-		ConfigGen: "gen-1", SessionsRoot: root,
-	}
-	res, err := mgr.Ensure(context.Background(), "srv", testRepo(), filepath.Join(root, "clones", "a"))
-	if err != nil || res.Code != runtime.EnvCodeOK || !res.Reused || res.EnvironmentID != "env-1" {
-		t.Fatalf("reuse: %+v err=%v", res, err)
-	}
-}
-
-func TestEnsureSingleFlightPerEnvironmentKey(t *testing.T) {
-	dc := runtime.NewFakeRepositoryDevcontainer()
-	// Slow first Ensure so concurrent callers pile up.
-	started := make(chan struct{})
-	release := make(chan struct{})
-	var first bool
-	dcHook := &slowDevcontainer{inner: dc, started: started, release: release, first: &first}
-	mgr := &runtime.RepositoryEnvironmentManager{
-		Store: runtime.NewMemoryRepositoryEnvironmentStore(), Devcontainer: dcHook,
-		ConfigGen: "g", SessionsRoot: "/sessions",
-	}
-	repo := testRepo()
-	type result struct {
-		res runtime.RepositoryEnvironmentResult
-		err error
-	}
-	out := make(chan result, 2)
-	for i := 0; i < 2; i++ {
-		go func() {
-			r, e := mgr.Ensure(context.Background(), "srv", repo, "/sessions/c")
-			out <- result{r, e}
-		}()
-	}
-	select {
-	case <-started:
-	case <-time.After(2 * time.Second):
-		t.Fatal("ensure not started")
-	}
-	close(release)
-	r1 := <-out
-	r2 := <-out
-	if r1.err != nil || r2.err != nil {
-		t.Fatalf("errs %v %v", r1.err, r2.err)
-	}
-	if r1.res.EnvironmentID == "" || r1.res.EnvironmentID != r2.res.EnvironmentID {
-		t.Fatalf("ids %q %q", r1.res.EnvironmentID, r2.res.EnvironmentID)
-	}
-	// Only one underlying create; second is reuse (either from store under lock or same flight).
-	if len(dc.Calls) != 1 {
-		t.Fatalf("devcontainer calls=%d want 1 (single-flight)", len(dc.Calls))
-	}
-}
-
 func TestRuntimeReconcileAndTickSweepProductionPath(t *testing.T) {
 	root := t.TempDir()
 	store := runtime.NewMemoryPreparationStore()
@@ -446,7 +319,6 @@ func TestRuntimeReconcileAndTickSweepProductionPath(t *testing.T) {
 	r := runtime.New(runtime.Config{
 		RepositorySessionsRoot: root,
 		PreparationStore:       store,
-		RepositoryDevcontainer: runtime.UnavailableRepositoryDevcontainer{},
 		Backend:                newOKBackend(),
 	})
 	// Production boot path: reconcile after construction (mirrors bootSession).
@@ -480,174 +352,6 @@ func TestRuntimeReconcileAndTickSweepProductionPath(t *testing.T) {
 	}
 }
 
-func TestPlatformRepositoryDevcontainerIsolationAndFailures(t *testing.T) {
-	sessions := t.TempDir()
-	clone := filepath.Join(sessions, "clones", "c1")
-	if err := os.MkdirAll(filepath.Join(clone, ".devcontainer"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(clone, ".devcontainer", "devcontainer.json"), []byte(`{"image":"t:latest"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	var mountSources []string
-	var identities []string
-	dc := &runtime.PlatformRepositoryDevcontainer{
-		EnsureFn: func(_ context.Context, projectPath string, opts sandbox.StartOptions) (string, error) {
-			mountSources = append(mountSources, projectPath)
-			identities = append(identities, opts.Isolation.ContainerKey(projectPath))
-			if opts.Isolation.IsShared() {
-				t.Fatal("shared isolation forbidden")
-			}
-			// Mount source is sessions root; identity is not the clone path.
-			if projectPath == clone {
-				t.Fatal("must not use clone path as mount source")
-			}
-			if opts.Isolation.ContainerKey(projectPath) == clone {
-				t.Fatal("must not key container by clone path")
-			}
-			return "ctr-platform-1", nil
-		},
-	}
-	req := runtime.RepositoryEnvironmentRequest{
-		ServerID: "srv", Repository: testRepo(), ConfigGen: "gen-1",
-		SessionsRoot: sessions, ClonePath: clone,
-	}
-	res, err := dc.Ensure(context.Background(), req)
-	if err != nil || res.Code != runtime.EnvCodeOK || res.ContainerID != "ctr-platform-1" {
-		t.Fatalf("ensure: %+v err=%v", res, err)
-	}
-	if res.MountScope != sessions || res.FrameCWD != clone {
-		t.Fatalf("scope: %+v", res)
-	}
-	wantIdentity := runtime.RepositoryEnvironmentProjectPath(sessions, "srv", testRepo().ID, "gen-1")
-	if len(mountSources) != 1 || mountSources[0] != sessions {
-		t.Fatalf("mount source=%v want sessions root %s", mountSources, sessions)
-	}
-	if len(identities) != 1 || identities[0] != wantIdentity {
-		t.Fatalf("identity=%v want %s", identities, wantIdentity)
-	}
-	// Second ensure with different clone reuses same mount source + identity.
-	req.ClonePath = filepath.Join(sessions, "clones", "c2")
-	_, _ = dc.Ensure(context.Background(), req)
-	if len(mountSources) != 2 || mountSources[1] != sessions || identities[1] != wantIdentity {
-		t.Fatalf("reuse: mounts=%v ids=%v", mountSources, identities)
-	}
-
-	// Typed failure propagation from manager boundary.
-	failing := &runtime.PlatformRepositoryDevcontainer{
-		EnsureFn: func(context.Context, string, sandbox.StartOptions) (string, error) {
-			return "", fmt.Errorf("docker create exploded")
-		},
-	}
-	fr, err := failing.Ensure(context.Background(), req)
-	if err == nil || fr.Code != runtime.EnvCodeFailed {
-		t.Fatalf("want failed: %+v err=%v", fr, err)
-	}
-	// Nil EnsureFn → typed unavailable (composition-root direct mode).
-	unavail := &runtime.PlatformRepositoryDevcontainer{}
-	ur, err := unavail.Ensure(context.Background(), req)
-	if err != nil || ur.Code != runtime.EnvCodeUnavailable {
-		t.Fatalf("unavailable: %+v err=%v", ur, err)
-	}
-	ur2, err := runtime.UnavailableRepositoryDevcontainer{}.Ensure(context.Background(), req)
-	if err != nil || ur2.Code != runtime.EnvCodeUnavailable {
-		t.Fatalf("typed unavailable adapter: %+v err=%v", ur2, err)
-	}
-}
-
-// TestPlatformRepositoryDevcontainerBindMountAndFrameCWD proves the manager is
-// given the sessions root as bind-mount source (not empty repository-env) and
-// that frame cwd translates under that mount — not metadata-only.
-func TestPlatformRepositoryDevcontainerBindMountAndFrameCWD(t *testing.T) {
-	sessions := t.TempDir()
-	clone := filepath.Join(sessions, "clones", "prep-bind")
-	dcDir := filepath.Join(clone, ".devcontainer")
-	if err := os.MkdirAll(dcDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	const wsFolder = "/workspaces/sessions"
-	specJSON := fmt.Sprintf(`{"image":"t:latest","workspaceFolder":%q}`, wsFolder)
-	if err := os.WriteFile(filepath.Join(dcDir, "devcontainer.json"), []byte(specJSON), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	var gotPath string
-	var gotOpts sandbox.StartOptions
-	dc := &runtime.PlatformRepositoryDevcontainer{
-		EnsureFn: func(_ context.Context, projectPath string, opts sandbox.StartOptions) (string, error) {
-			gotPath = projectPath
-			gotOpts = opts
-			return "ctr-bind-1", nil
-		},
-	}
-	req := runtime.RepositoryEnvironmentRequest{
-		ServerID: "srv", Repository: testRepo(), ConfigGen: "gen-bind",
-		SessionsRoot: sessions, ClonePath: clone,
-	}
-	res, err := dc.Ensure(context.Background(), req)
-	if err != nil || res.Code != runtime.EnvCodeOK {
-		t.Fatalf("ensure: %+v err=%v", res, err)
-	}
-	if gotPath != sessions {
-		t.Fatalf("Ensure projectPath (mount source) = %q, want sessions root %q", gotPath, sessions)
-	}
-	wantIdentity := runtime.RepositoryEnvironmentProjectPath(sessions, "srv", testRepo().ID, "gen-bind")
-	if gotOpts.Isolation.ContainerIdentity != wantIdentity {
-		t.Fatalf("ContainerIdentity = %q, want %q", gotOpts.Isolation.ContainerIdentity, wantIdentity)
-	}
-	if gotOpts.Isolation.ContainerKey(gotPath) != wantIdentity {
-		t.Fatalf("ContainerKey = %q, want identity %q", gotOpts.Isolation.ContainerKey(gotPath), wantIdentity)
-	}
-	if gotOpts.Isolation.DevcontainerDir != dcDir {
-		t.Fatalf("DevcontainerDir = %q, want clone-local %q", gotOpts.Isolation.DevcontainerDir, dcDir)
-	}
-	// Actual bind-mount source from resolved spec (not only returned MountScope).
-	spec, err := sandboxdc.LoadSpec(gotPath, gotOpts.Isolation.DevcontainerDir)
-	if err != nil {
-		t.Fatalf("LoadSpec: %v", err)
-	}
-	spec.ContainerIdentity = gotOpts.Isolation.ContainerIdentity
-	binds := spec.BindMounts()
-	foundSessions := false
-	for _, b := range binds {
-		if b.Source == sessions {
-			foundSessions = true
-			break
-		}
-	}
-	if !foundSessions {
-		t.Fatalf("BindMounts = %+v, want sessions root %q as source", binds, sessions)
-	}
-	// Empty repository-env identity dir must not be the workspace mount source.
-	envDir := wantIdentity
-	for _, b := range binds {
-		if b.Source == envDir {
-			t.Fatalf("must not bind-mount empty repository-env identity dir %q", envDir)
-		}
-	}
-	// Frame cwd translation under mounted sessions root.
-	translated := runtime.TranslateRepositoryFrameCWD(sessions, clone, wsFolder)
-	wantCWD := wsFolder + "/clones/prep-bind"
-	if translated != wantCWD {
-		t.Fatalf("translated frame cwd = %q, want %q", translated, wantCWD)
-	}
-	if res.FrameCWD != clone || res.MountScope != sessions {
-		t.Fatalf("result metadata: %+v", res)
-	}
-	// Create args must stamp identity label, not sessions-root collision key.
-	args := spec.BuildCreateArgs(spec.Image)
-	foundLabel := false
-	for i := 0; i < len(args)-1; i++ {
-		if args[i] == "--label" && args[i+1] == "reactor-project="+wantIdentity {
-			foundLabel = true
-			break
-		}
-	}
-	if !foundLabel {
-		t.Fatalf("create args missing identity project label; args=%v", args)
-	}
-}
-
 func TestAbandonPendingLaunchReleasesNeverAvailableCapacity(t *testing.T) {
 	root := t.TempDir()
 	fs := gitclone.OSFilesystem{}
@@ -676,22 +380,6 @@ func TestAbandonPendingLaunchReleasesNeverAvailableCapacity(t *testing.T) {
 	if ctrl.Cap.NeverAvailBytes != 0 {
 		t.Fatalf("double abandon leaked capacity: %d", ctrl.Cap.NeverAvailBytes)
 	}
-}
-
-type slowDevcontainer struct {
-	inner   *runtime.FakeRepositoryDevcontainer
-	started chan struct{}
-	release chan struct{}
-	first   *bool
-}
-
-func (s *slowDevcontainer) Ensure(ctx context.Context, req runtime.RepositoryEnvironmentRequest) (runtime.RepositoryEnvironmentResult, error) {
-	if !*s.first {
-		*s.first = true
-		close(s.started)
-		<-s.release
-	}
-	return s.inner.Ensure(ctx, req)
 }
 
 type recordedSpawn struct {

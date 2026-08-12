@@ -20,7 +20,7 @@ export type FakeBackendOptions = {
   sessionConfig?: {
     project_roots: string[];
     project_paths: string[];
-    projects: Array<{ path: string; isGit: boolean; isSandboxed: boolean }>;
+    projects: Array<{ path: string; isGit: boolean }>;
     commands: string[];
     push_commands: string[];
   };

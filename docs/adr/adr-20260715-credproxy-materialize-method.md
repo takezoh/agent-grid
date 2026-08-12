@@ -4,7 +4,7 @@ kind: adr
 title: 'ADR — credproxy: add `Materialize(ctx, projectPath) error` to container.Provider
   as the SSOT command for credential state writes; ContainerSpec remains a pure wiring
   query'
-status: accepted
+status: superseded
 created: '2026-07-15'
 tags:
 - adr
@@ -28,6 +28,10 @@ summary: container.Provider に Materialize(ctx, projectPath) error を additive
   書き込み SSOT を分離する。ContainerSpec は pure wiring query のまま signature 不変。CQRS 分割で write
   と wiring を interface level で分ける。gcloudcli の 3 write site は Materialize に集約。
 ---
+
+> **Superseded 2026-08-12** — the sandbox feature (devcontainer backend, credential/host-exec/MCP
+> brokers, container path translation) was removed; agents always launch directly on the host.
+> This record is kept for history and no longer describes current behaviour.
 
 ## Context
 

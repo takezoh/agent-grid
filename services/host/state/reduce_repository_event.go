@@ -19,18 +19,16 @@ type RepositoryPreparationParams struct {
 }
 
 type RepositoryPreparationReply struct {
-	PreparationID          string                   `json:"preparation_id"`
-	IntentID               string                   `json:"intent_id"`
-	ServerID               string                   `json:"server_id"`
-	Repository             GitHubRepositoryIdentity `json:"repository"`
-	Stage                  string                   `json:"stage"`
-	FailureCode            string                   `json:"failure_code,omitempty"`
-	RetryOrigin            string                   `json:"retry_origin,omitempty"`
-	EnvironmentDisposition string                   `json:"environment_disposition,omitempty"`
-	Revision               uint64                   `json:"revision"`
-	SessionID              string                   `json:"session_id,omitempty"`
-	ClonePath              string                   `json:"clone_path,omitempty"`
-	EnvironmentID          string                   `json:"environment_id,omitempty"`
+	PreparationID string                   `json:"preparation_id"`
+	IntentID      string                   `json:"intent_id"`
+	ServerID      string                   `json:"server_id"`
+	Repository    GitHubRepositoryIdentity `json:"repository"`
+	Stage         string                   `json:"stage"`
+	FailureCode   string                   `json:"failure_code,omitempty"`
+	RetryOrigin   string                   `json:"retry_origin,omitempty"`
+	Revision      uint64                   `json:"revision"`
+	SessionID     string                   `json:"session_id,omitempty"`
+	ClonePath     string                   `json:"clone_path,omitempty"`
 }
 
 func reduceRepositoryCreateEvent(s State, connID ConnID, reqID string, p RepositoryCreateParams) (State, []Effect) {

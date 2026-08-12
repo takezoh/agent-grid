@@ -13,7 +13,6 @@ relations:
 - {type: references, target: note-20260624-technical-overview}
 - {type: references, target: note-20260624-user-getting-started}
 - {type: references, target: note-20260624-user-orchestrator}
-- {type: references, target: note-20260624-user-sandbox}
 - {type: references, target: note-20260624-user-systemd}
 - {type: references, target: note-20260624-user-web-server}
 - {type: references, target: note-20260715-user-codex-remote-control}
@@ -46,6 +45,5 @@ Agent Grid ships three binaries that map onto the [three-layer architecture](../
 - [run as a systemd service](note-20260624-user-systemd.md) — production stack (`server` + `web`) as per-user systemd units, with token persistence and boot-time autostart
 - [Codex Remote Control](note-20260715-user-codex-remote-control.md) — host-scoped daemon setup, mobile pairing lifecycle, and host/devcontainer session behavior
 - [orchestrator](note-20260624-user-orchestrator.md) — the `orchestrator` layer for end users: running a `WORKFLOW.md` pipeline, agent selection, observability HTTP
-- [sandbox setup](note-20260624-user-sandbox.md) — the `platform` layer for end users: per-project devcontainer isolation and credential proxy
 
 For internals, see the [technical docs](note-20260624-technical-overview.md).

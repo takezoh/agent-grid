@@ -123,7 +123,6 @@ type SessionSnapshot struct {
 	Frames          []SessionFrameSnapshot         `json:"frames"`
 	HeadFrameID     string                         `json:"head_frame_id,omitempty"`
 	MRUFrameIDs     []string                       `json:"mru_frame_ids,omitempty"`
-	Sandbox         state.SandboxOverride          `json:"sandbox,omitempty"`
 	FrameMessaging  *SessionFrameMessagingSnapshot `json:"frame_messaging,omitempty"`
 	FrameGeneration int                            `json:"frame_generation,omitempty"`
 	ResumeCapsule   *ResumeCapsuleSnapshot         `json:"resume_capsule,omitempty"`

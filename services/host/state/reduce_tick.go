@@ -99,7 +99,7 @@ func isIntentionalExit(code int) bool {
 //
 // The remaining idempotency check protects the crash path's driver state:
 // reconcileWindows may re-detect the same dead frame on subsequent ticks, so
-// once the driver is Stopped we skip stepDriver. Sandbox release is still
+// once the driver is Stopped we skip stepDriver. Frame release is still
 // emitted because a hook such as Claude SessionEnd can set Stopped before the
 // first process-exit event. Runtime cleanup is itself idempotent: it removes
 // the callback from its map before invoking it.
@@ -116,18 +116,18 @@ func reduceFrameCommandExited(s State, e EvFrameCommandExited) (State, []Effect)
 	frame := sess.Frames[idx]
 	drv := GetDriver(frame.Command)
 	if drv != nil && frame.Driver != nil && drv.Status(frame.Driver) == StatusStopped {
-		return s, []Effect{EffReleaseFrameSandbox{FrameID: e.FrameID}}
+		return s, []Effect{EffReleaseFrame{FrameID: e.FrameID}}
 	}
 
 	next, rawEffs, _ := stepDriver(s, e.FrameID, DEvCommandExited{
 		ExitCode:  e.ExitCode,
 		Timestamp: s.Now,
 	})
-	// Frame は Stopped で残すが、 sandbox は手放す: 異常 exit した
+	// Frame は Stopped で残すが、 frame resource は手放す: 異常 exit した
 	// agent process が居なくなった以上、 container を抱え込む意味が
 	// なく、 次回 cold restart で新 container + postCreate (hook 再
 	// 登録) を走らせたい。 frame remove はしないので EvictFrame 経路と
-	// は独立に EffReleaseFrameSandbox だけ追加する。
-	rawEffs = append(rawEffs, EffReleaseFrameSandbox{FrameID: e.FrameID})
+	// は独立に EffReleaseFrame だけ追加する。
+	rawEffs = append(rawEffs, EffReleaseFrame{FrameID: e.FrameID})
 	return next, rawEffs
 }

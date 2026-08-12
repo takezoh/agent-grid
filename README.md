@@ -90,7 +90,6 @@ enforced layer and dependency boundaries.
 |---|---|
 | Using Agent Grid | [User guide](docs/note/note-20260624-user-overview.md) |
 | Installing and launching | [Getting started](docs/note/note-20260624-user-getting-started.md) |
-| Configuring isolation | [Sandbox guide](docs/note/note-20260624-user-sandbox.md) |
 | Running unattended agents | [Orchestrator guide](docs/note/note-20260624-user-orchestrator.md) |
 | Contributing | [Contributor guide](docs/note/note-20260624-agent-contributing.md) |
 | Understanding internals | [Technical overview](docs/note/note-20260624-technical-overview.md) |

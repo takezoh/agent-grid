@@ -10,13 +10,12 @@ import (
 )
 
 // UserSettings holds the subset of ~/.agent-grid/settings.toml shared between the
-// client and the orchestrator: sandbox posture, project scoping, and the
-// data directory. The client decodes a richer superset in host/config;
+// client and the orchestrator: project scoping and the data directory.
+// The client decodes a richer superset in host/config;
 // both read the same file into the same platform types, so the shared sections
 // stay consistent. This keeps the orchestrator from importing client/.
 type UserSettings struct {
 	DataDir  string         `toml:"data_dir"`
-	Sandbox  SandboxConfig  `toml:"sandbox"`
 	Projects ProjectsConfig `toml:"projects"`
 }
 
@@ -25,18 +24,15 @@ func ConfigDir() string {
 	return filepath.Join(ExpandPath("~"), appid.DotDir)
 }
 
-// LoadUserSettings reads the shared subset of ~/.agent-grid/settings.toml. A missing
-// file yields defaults (direct sandbox mode); a parse or validation error is returned.
+// LoadUserSettings reads the shared subset of ~/.agent-grid/settings.toml.
+// A missing file yields defaults; a parse error is returned.
 func LoadUserSettings() (UserSettings, error) {
-	s := UserSettings{Sandbox: SandboxConfig{Mode: "direct"}}
+	var s UserSettings
 	path := filepath.Join(ConfigDir(), "settings.toml")
 	if _, err := toml.DecodeFile(path, &s); err != nil {
 		if os.IsNotExist(err) {
 			return s, nil
 		}
-		return UserSettings{}, err
-	}
-	if err := s.Sandbox.Validate(); err != nil {
 		return UserSettings{}, err
 	}
 	return s, nil

@@ -28,7 +28,7 @@ func (stubDriver) Name() string                       { return "stub" }
 func (stubDriver) DisplayName() string                { return "stub" }
 func (stubDriver) Status(s DriverState) Status        { return s.(stubDriverState).status }
 func (stubDriver) NewState(now time.Time) DriverState { return stubDriverState{} }
-func (stubDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, _ bool) (LaunchPlan, error) {
+func (stubDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions) (LaunchPlan, error) {
 	return LaunchPlan{Command: baseCommand, StartDir: project}, nil
 }
 func (stubDriver) Persist(s DriverState) map[string]string                  { return nil }
@@ -41,7 +41,7 @@ func (stubDriver) Step(prev DriverState, ctx FrameContext, ev DriverEvent) (Driv
 type plannerDriver struct{ stubDriver }
 
 func (plannerDriver) Name() string { return "planner" }
-func (plannerDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, _ bool) (LaunchPlan, error) {
+func (plannerDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions) (LaunchPlan, error) {
 	return LaunchPlan{Command: "planner --prepared", StartDir: "/prepared"}, nil
 }
 func (plannerDriver) PrepareCreate(s DriverState, sessionID SessionID, project, command string, options LaunchOptions) (DriverState, CreateLaunch, error) {
@@ -64,7 +64,7 @@ func (bootstrapDriver) Name() string                       { return "bootstrap" 
 func (bootstrapDriver) DisplayName() string                { return "bootstrap" }
 func (bootstrapDriver) Status(s DriverState) Status        { return s.(bootstrapState).status }
 func (bootstrapDriver) NewState(now time.Time) DriverState { return bootstrapState{} }
-func (bootstrapDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, _ bool) (LaunchPlan, error) {
+func (bootstrapDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions) (LaunchPlan, error) {
 	return LaunchPlan{Command: baseCommand, StartDir: project}, nil
 }
 func (bootstrapDriver) Persist(s DriverState) map[string]string { return nil }
@@ -95,7 +95,7 @@ func (sdDriver) Name() string { return "sdstub" }
 func (sdDriver) NewState(now time.Time) DriverState {
 	return sdState{}
 }
-func (sdDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, _ bool) (LaunchPlan, error) {
+func (sdDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions) (LaunchPlan, error) {
 	ss := s.(sdState)
 	startDir := project
 	if ss.startDir != "" {
@@ -643,7 +643,7 @@ func TestShutdownStartsSaveBarrier(t *testing.T) {
 	if _, ok := findEff[EffCommitShutdownSessions](effs); !ok {
 		t.Error("expected EffCommitShutdownSessions")
 	}
-	if _, ok := findEff[EffReleaseFrameSandboxes](effs); ok {
+	if _, ok := findEff[EffReleaseFrames](effs); ok {
 		t.Error("cleanup must wait for Save barrier success")
 	}
 	if _, ok := findEff[EffSendResponseSync](effs); ok {
@@ -1038,7 +1038,7 @@ func TestPushDriverMissingSessionIDErrors(t *testing.T) {
 type stdinDriver struct{ stubDriver }
 
 func (stdinDriver) Name() string { return "stdinstub" }
-func (stdinDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, _ bool) (LaunchPlan, error) {
+func (stdinDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions) (LaunchPlan, error) {
 	return LaunchPlan{Command: baseCommand, StartDir: project, Stdin: options.InitialInput}, nil
 }
 
@@ -1125,86 +1125,6 @@ func TestPushDriverNilInputProducesNilStdin(t *testing.T) {
 	}
 }
 
-// TestCreateSession_SandboxOverrideHost verifies that SandboxOverrideHost is
-// preserved in Session.Sandbox so the dispatcher can route to host.
-func TestCreateSession_SandboxOverrideHost(t *testing.T) {
-	s := New()
-	s.SandboxedProject = func(string) bool { return true } // project is sandboxed by config
-	payload, _ := json.Marshal(map[string]any{
-		"project": "/foo",
-		"command": "stub",
-		"sandbox": int(SandboxOverrideHost),
-	})
-	next, effs := Reduce(s, EvEvent{
-		ConnID: 1, ReqID: "r", Event: "create-session",
-		Payload: json.RawMessage(payload),
-	})
-	mustOK(t, effs)
-	spawn, ok := findEff[EffSpawnFrame](effs)
-	if !ok {
-		t.Fatal("expected EffSpawnFrame")
-	}
-	if spawn.Plan.Sandbox != SandboxOverrideHost {
-		t.Errorf("spawn.Plan.Sandbox = %v, want SandboxOverrideHost", spawn.Plan.Sandbox)
-	}
-	for _, sess := range next.Sessions {
-		if sess.Sandbox != SandboxOverrideHost {
-			t.Errorf("sess.Sandbox = %v, want SandboxOverrideHost", sess.Sandbox)
-		}
-		return
-	}
-	t.Fatal("no session found")
-}
-
-// TestPushDriver_InheritsSandboxFromSession verifies that a pushed frame inherits
-// the session-level Sandbox and propagates it through EffSpawnFrame.Sandbox.
-func TestPushDriver_InheritsSandboxFromSession(t *testing.T) {
-	s := New()
-	s.SandboxedProject = func(string) bool { return true }
-
-	// Create session with SandboxOverrideHost.
-	createPayload, _ := json.Marshal(map[string]any{
-		"project": "/foo",
-		"command": "stub",
-		"sandbox": int(SandboxOverrideHost),
-	})
-	next, effs := Reduce(s, EvEvent{
-		ConnID: 1, ReqID: "r1", Event: "create-session",
-		Payload: json.RawMessage(createPayload),
-	})
-	mustOK(t, effs)
-
-	var sessID SessionID
-	for id, sess := range next.Sessions {
-		if sess.Sandbox != SandboxOverrideHost {
-			t.Fatalf("sess.Sandbox = %v, want SandboxOverrideHost", sess.Sandbox)
-		}
-		sessID = id
-		break
-	}
-	if sessID == "" {
-		t.Fatal("no session created")
-	}
-
-	// Push a second driver frame (no sandbox field — auto).
-	pushPayload, _ := json.Marshal(map[string]any{
-		"session_id": string(sessID),
-		"command":    "stub",
-	})
-	_, pushEffs := Reduce(next, EvEvent{
-		ConnID: 2, ReqID: "r2", Event: "push-driver",
-		Payload: json.RawMessage(pushPayload),
-	})
-	mustOK(t, pushEffs)
-	spawn, ok := findEff[EffSpawnFrame](pushEffs)
-	if !ok {
-		t.Fatal("expected EffSpawnFrame from push-driver")
-	}
-	if spawn.Plan.Sandbox != SandboxOverrideHost {
-		t.Errorf("pushed frame spawn.Plan.Sandbox = %v, want SandboxOverrideHost", spawn.Plan.Sandbox)
-	}
-}
-
 // === reduceForkSession ===
 
 // forkableState carries the session ID needed by forkableDriver.
@@ -1222,7 +1142,7 @@ func (forkableDriver) Name() string { return "forkable" }
 func (forkableDriver) NewState(now time.Time) DriverState {
 	return forkableState{}
 }
-func (forkableDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, _ bool) (LaunchPlan, error) {
+func (forkableDriver) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions) (LaunchPlan, error) {
 	fs, ok := s.(forkableState)
 	dir := project
 	if ok && fs.startDir != "" {
@@ -1431,46 +1351,6 @@ func TestForkSessionNoSessionIDErrors(t *testing.T) {
 	}
 	if errEff.Code != ErrCodeUnsupported {
 		t.Errorf("code = %q, want %q", errEff.Code, ErrCodeUnsupported)
-	}
-}
-
-// TestPushDriver_AutoSandboxSession verifies that Auto sandbox session produces
-// Auto sandbox on pushed frames (project config decides at dispatch time).
-func TestPushDriver_AutoSandboxSession(t *testing.T) {
-	s := New()
-	s.SandboxedProject = func(string) bool { return true }
-
-	createPayload, _ := json.Marshal(map[string]any{
-		"project": "/foo",
-		"command": "stub",
-	})
-	next, effs := Reduce(s, EvEvent{
-		ConnID: 1, ReqID: "r1", Event: "create-session",
-		Payload: json.RawMessage(createPayload),
-	})
-	mustOK(t, effs)
-
-	var sessID SessionID
-	for id := range next.Sessions {
-		sessID = id
-		break
-	}
-
-	pushPayload, _ := json.Marshal(map[string]any{
-		"session_id": string(sessID),
-		"command":    "stub",
-	})
-	_, pushEffs := Reduce(next, EvEvent{
-		ConnID: 2, ReqID: "r2", Event: "push-driver",
-		Payload: json.RawMessage(pushPayload),
-	})
-	mustOK(t, pushEffs)
-	spawn, ok := findEff[EffSpawnFrame](pushEffs)
-	if !ok {
-		t.Fatal("expected EffSpawnFrame from push-driver")
-	}
-	if spawn.Plan.Sandbox != SandboxOverrideAuto {
-		t.Errorf("pushed frame spawn.Plan.Sandbox = %v, want SandboxOverrideAuto", spawn.Plan.Sandbox)
 	}
 }
 

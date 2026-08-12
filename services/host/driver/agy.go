@@ -55,9 +55,9 @@ func (d AgyDriver) PrepareCreate(s state.DriverState, id state.SessionID, projec
 	as.GenericState = next.(GenericState)
 	return as, launch, err
 }
-func (d AgyDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, command string, options state.LaunchOptions, recovered bool) (state.LaunchPlan, error) {
+func (d AgyDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, command string, options state.LaunchOptions) (state.LaunchPlan, error) {
 	as, _ := s.(AgyState)
-	return d.generic.PrepareLaunch(as.GenericState, mode, project, command, options, recovered)
+	return d.generic.PrepareLaunch(as.GenericState, mode, project, command, options)
 }
 
 func (d AgyDriver) Step(prev state.DriverState, ctx state.FrameContext, ev state.DriverEvent) (state.DriverState, []state.Effect, state.View) {

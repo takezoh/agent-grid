@@ -55,7 +55,6 @@ func TestRepositoryPreparationRoundTripAvailabilityInvariant(t *testing.T) {
 		t.Fatal("session_id on non-available")
 	}
 	avail := nonAvail
-	avail.Stage, avail.SessionID, avail.EnvironmentID = PrepWireAvailable, "sess-1", "env-1"
 	raw, err = EncodeRepositoryPreparation(avail)
 	if err != nil {
 		t.Fatal(err)

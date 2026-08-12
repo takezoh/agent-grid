@@ -333,15 +333,6 @@ type WorktreeOption struct {
 	Enabled bool `json:"enabled,omitempty"`
 }
 
-// SandboxOverride selects the sandbox mode for a session. It is set once at
-// session creation and applies to all frames in the session.
-type SandboxOverride int
-
-const (
-	SandboxOverrideAuto SandboxOverride = iota // follow project config
-	SandboxOverrideHost                        // force direct (host) launch
-)
-
 type LaunchOptions struct {
 	Worktree     WorktreeOption `json:"worktree,omitempty"`
 	InitialInput []byte         `json:"initial_input,omitempty"`
@@ -360,20 +351,6 @@ const (
 	LaunchSubsystemStream LaunchSubsystem = "stream"
 )
 
-type StreamSandboxPolicy string
-
-const (
-	StreamSandboxPolicyDefault  StreamSandboxPolicy = ""
-	StreamSandboxPolicyExternal StreamSandboxPolicy = "external"
-)
-
-type StreamApprovalPolicy string
-
-const (
-	StreamApprovalPolicyDefault     StreamApprovalPolicy = ""
-	StreamApprovalPolicyAutoApprove StreamApprovalPolicy = "auto_approve"
-)
-
 // ResumeTarget is the canonical recovery locator for tools that distinguish
 // between a live routing identity and a durable resume artifact.
 type ResumeTarget struct {
@@ -382,16 +359,14 @@ type ResumeTarget struct {
 }
 
 type StreamLaunchOptions struct {
-	SandboxPolicy                StreamSandboxPolicy  `json:"sandbox_policy,omitempty"`
-	ApprovalPolicy               StreamApprovalPolicy `json:"approval_policy,omitempty"`
-	DangerouslyBypassPermissions bool                 `json:"dangerously_bypass_permissions,omitempty"`
-	ResumeTarget                 ResumeTarget         `json:"resume_target,omitempty"`
-	ColdStartSessionID           string               `json:"cold_start_session_id,omitempty"`
+	DangerouslyBypassPermissions bool         `json:"dangerously_bypass_permissions,omitempty"`
+	ResumeTarget                 ResumeTarget `json:"resume_target,omitempty"`
+	ColdStartSessionID           string       `json:"cold_start_session_id,omitempty"`
 }
 
 type LaunchPlan struct {
 	// Command is a shell-style command string from drivers. Launch boundaries
-	// (DirectDispatcher / DevcontainerLauncher) tokenize it into Argv via
+	// (DirectDispatcher) tokenizes it into Argv via
 	// agentlaunch.NormalizePlanForFrameExec before frame-exec. Prefer Argv
 	// when the caller already has structured argv (e.g. codex stream attach).
 	Command string
@@ -404,8 +379,7 @@ type LaunchPlan struct {
 	// PreCommandTimeout is per-command deadline (default applied in the launcher).
 	PreCommandTimeout time.Duration
 	StartDir          string
-	Project           string          // canonical project root passed opaquely to the sandbox launcher
-	Sandbox           SandboxOverride // session-level sandbox mode, written by reducer before dispatch
+	Project           string // canonical project root passed opaquely to the frame launcher
 	Options           LaunchOptions
 	Subsystem         LaunchSubsystem
 	Stream            StreamLaunchOptions
@@ -419,7 +393,7 @@ type LaunchPlan struct {
 }
 
 type LaunchPreparer interface {
-	PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, sandboxed bool) (LaunchPlan, error)
+	PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions) (LaunchPlan, error)
 }
 
 // Driver is the interface every per-driver-type plugin implements. Each
@@ -499,7 +473,7 @@ type WarmStartRecoverer interface {
 // durable conversational state survives the loss of the backend frame and the
 // backend process — e.g. codex, whose thread lives in a host-mounted session
 // store and can be resumed against a fresh app-server. Cold start discards
-// the old backend (and may recreate the sandbox), so by default a stopped
+// the old backend, so by default a stopped
 // frame is unrecoverable and dropped: its state lived only in the dead frame.
 // A driver that returns true for a stopped state opts back in, so the runtime
 // keeps the frame and relaunches it (resuming the durable session) instead.

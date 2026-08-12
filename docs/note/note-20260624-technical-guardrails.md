@@ -95,16 +95,13 @@ Caps on simultaneous agents prevent resource exhaustion and runaway fan-out (`or
 
 RetryQueued issues are claimed, so they **occupy a slot during the backoff window** (`retryQueuedCount`) — a failing issue cannot be re-dispatched in a way that exceeds the cap.
 
-## 3. Capability sandboxing — what a running agent can touch
+## 3. Launch surface — what a running agent can touch
 
-A dispatched agent runs inside a per-project devcontainer and can only reach the host through brokers that enforce policy. This is the hard security boundary. Implementation is in [brokers.md](../design/design-platform.md#legacy-source-component-20260624-platform-brokers); the security model rationale is in [sandbox.md](../design/design-platform.md#legacy-source-component-20260624-platform-sandbox).
+A dispatched agent runs directly on the host under the user's own account. The
+guardrail that remains at the launch boundary is argv-direct exec.
 
 | Guardrail | What it limits | Enforced by |
 |---|---|---|
-| devcontainer isolation | direct host access | container boundary; the agent only sees brokered stdio / short-lived tokens |
-| hostexec allowlist | which host binaries the agent may run | `Policy.Check` — deny-first, default-deny glob patterns |
-| mcpproxy tool policy | which MCP tools the agent may call | `Policy.CheckTool` — gates `tools/call` and filters `tools/list` |
-| credproxy scoped tokens | cross-project credential access | per-project 256-bit token ↔ projectID |
 | argv-direct exec | shell-metacharacter injection | `agentlaunch.Spawn` interposes no `/bin/sh -c` ([spawn-and-launch.md](../design/design-platform.md#legacy-source-component-20260624-platform-spawn-and-launch)) |
 
 ## 4. Autonomy policy — what an agent may do without a human
@@ -159,7 +156,6 @@ Reconcile (`scheduler`, SPEC §7/§16) bounds how long an agent may run and how 
 
 ## Related
 
-- Broker implementation (capability enforcement): [brokers.md](../design/design-platform.md#legacy-source-component-20260624-platform-brokers) · security model: [sandbox.md](../design/design-platform.md#legacy-source-component-20260624-platform-sandbox)
 - Agent protocol (approval/sandbox options, turn sequence): [agent-protocol.md](../design/design-platform.md#legacy-source-component-20260624-platform-agent-protocol)
 - Orchestrator pipeline & state machines: [orchestrator README](../design/design-orchestrator.md)
 - Code/architecture enforcement (depguard, length limits): [code-enforcement.md](note-20260624-technical-code-enforcement.md)

@@ -111,7 +111,7 @@ test("hello-only recovery and independent fleet diagnosis (UAC-001/002/007/008/0
     sessionConfig: {
       project_roots: ["/repo/app"],
       project_paths: ["/repo/app"],
-      projects: [{ path: "/repo/app", isGit: true, isSandboxed: false }],
+      projects: [{ path: "/repo/app", isGit: true }],
       commands: ["claude"],
       push_commands: [],
     },

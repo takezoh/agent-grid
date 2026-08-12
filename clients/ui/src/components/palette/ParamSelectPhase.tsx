@@ -1,8 +1,8 @@
 // ParamSelectPhase — renders the second phase of the command palette.
 //
 // Spec: docs/specs/2026-06-24-web-ui-command-palette
-//   FR-011 vertical stack, show all / FR-012 listbox vs text / FR-013-014 worktree/host
-//   toggles / FR-015 conditional toggle visibility / FR-016 Tab vs focus
+//   FR-011 vertical stack, show all / FR-012 listbox vs text / FR-013 worktree
+//   toggle / FR-015 conditional toggle visibility / FR-016 Tab vs focus
 //   trap / FR-017 Esc back / FR-019 IME / FR-020 submitting disabled
 // Spec: docs/specs/2026-06-24-web-ui-fixes (palette-bugfix)
 //   FR-A1  dynamic-options listbox with leading-option preset
@@ -15,8 +15,6 @@
 //     submit goes through store.submit(ctx))
 //   - 0038 palette-fuzzy-pure-function (this phase does NOT use fuzzy
 //     ranges — listbox shows options in registry order)
-//   - 0042 palette-new-session-payload-wire-mirror (host toggle → wire
-//     "sandbox": "host")
 //   - 0049 dynamic-options-materialize-at-view (display layer projects
 //     materializeKey → ParamOption[]; store / wire stay daemon-free)
 
@@ -133,7 +131,6 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
   const moveCursor = usePaletteStore((s) => s.moveCursor);
   const submit = usePaletteStore((s) => s.submit);
   const setComposing = usePaletteStore((s) => s.setComposing);
-  const toggleHost = usePaletteStore((s) => s.toggleHost);
   const toggleWorktree = usePaletteStore((s) => s.toggleWorktree);
   const emitInfoAnnounce = usePaletteStore((s) => s.emitInfoAnnounce);
   const announcePreparation = useCallback(
@@ -167,9 +164,9 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
   const baseParams = useMemo<ParamDef[]>(() => tool?.params ?? [], [tool]);
 
   // Derive the selected project's capabilities to drive chip visibility.
-  // FR-015 / FR-016: chips are only shown when the command field is rendered
+  // FR-015 / FR-016: the chip is only shown when the command field is rendered
   // (param.id === 'command' exists in params up to stopIdx) AND the selected
-  // project has isGit / isSandboxed flags set.
+  // project has the isGit flag set.
   const selectedTarget = useMemo<NewSessionTarget | null>(() => {
     const target = paramValues.target;
     if (target && typeof target === "object") return target as NewSessionTarget;
@@ -270,22 +267,17 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
 
   // FR-015 / FR-016: chip visibility is derived from the selected project's
   // capabilities. hasCommandField is true when the 'command' param is in the
-  // params list (needed by useChipHotkey's commandFieldVisible guard).
+  // params list.
   const hasCommandField = params.some((p) => p.id === "command");
-  const showHostToggle = hasCommandField && selectedProject?.isSandboxed === true;
-  const hostOn = paramValues.host === true;
   // FR-013: worktree only applies to git projects.
   const showWorktreeToggle = hasCommandField && selectedProject?.isGit === true;
   const worktreeOn = paramValues.worktree === true;
 
-  // FR-018: mount the Alt+W / Alt+H keyboard shortcut handler. The hook
-  // is always called (stable hook ordering) but internally gates itself on
-  // the chip visibility flags so hotkeys are only active when the chip is
-  // visible.
+  // FR-018: mount the Alt+W keyboard shortcut handler. The hook is always
+  // called (stable hook ordering) but internally gates itself on the chip
+  // visibility flag so the hotkey is only active when the chip is visible.
   useChipHotkey({
     worktreeChipVisible: paramCursor === 1 && showWorktreeToggle,
-    hostChipVisible: paramCursor === 1 && showHostToggle,
-    commandFieldVisible: paramCursor === 1 && hasCommandField,
   });
 
   // FR-022: when a chip's visibility transitions from true → false while
@@ -295,15 +287,15 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
   // We capture the active element BEFORE the chip unmounts (render phase,
   // before the DOM mutation) so that by the time the useEffect runs the
   // chip is already gone but we already know it had focus.
-  const prevShowHostRef = useRef(showHostToggle);
-  const hostJustHidden = prevShowHostRef.current && !showHostToggle;
+  const prevShowWorktreeRef = useRef(showWorktreeToggle);
+  const worktreeJustHidden = prevShowWorktreeRef.current && !showWorktreeToggle;
   const focusWasOnChipRef = useRef(false);
-  if (hostJustHidden) {
+  if (worktreeJustHidden) {
     const active = document.activeElement;
     focusWasOnChipRef.current =
       active instanceof HTMLElement && active.closest("[data-toggle]") !== null;
   }
-  prevShowHostRef.current = showHostToggle;
+  prevShowWorktreeRef.current = showWorktreeToggle;
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — focusWasOnChipRef is a ref, not a dep; commandInputRef.current is accessed imperatively
@@ -316,7 +308,7 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
       return;
     }
     moveCursor(-1);
-  }, [showHostToggle, moveCursor]);
+  }, [showWorktreeToggle, moveCursor]);
 
   if (tool === null) {
     // Bug at the shell level (CommandPalette should render
@@ -348,7 +340,6 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
       target: { source: "project", project: projectTarget } satisfies NewSessionTarget,
     };
     if (project?.isGit !== true) next.worktree = undefined;
-    if (project?.isSandboxed !== true) next.host = undefined;
     setParams(next);
   }
 
@@ -375,7 +366,6 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
       next.executionServerId = paramValues.executionServerId;
     }
     if (paramValues.worktree !== undefined) next.worktree = paramValues.worktree;
-    if (paramValues.host !== undefined) next.host = paramValues.host;
     for (const parameter of profile?.parameters ?? []) {
       if (parameter.default !== undefined) {
         next[profileParameterID(parameter.name)] = parameter.default;
@@ -554,17 +544,6 @@ export function ParamSelectPhase({ ctx }: ParamSelectPhaseProps): JSX.Element | 
                 disabled={submitting}
                 composing={composing}
                 testId="worktree"
-              />
-            )}
-            {showHostToggle && (
-              <ChipSwitch
-                hintKey="H"
-                label="Run on host"
-                checked={hostOn}
-                onToggle={toggleHost}
-                disabled={submitting}
-                composing={composing}
-                testId="host"
               />
             )}
           </fieldset>

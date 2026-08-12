@@ -91,7 +91,7 @@ func (b *Backend) handleRequest(id codexclient.RequestID, method string, params 
 			_ = b.conn.ReplyError(id, "request cannot be correlated to a frame")
 			return
 		}
-		approval := approvalFromParams(method, params, b.autoApprove)
+		approval := approvalFromParams(method, params, false)
 		if approval.ID == "" {
 			// Without a stable id we cannot hold/resume; fall back to deny.
 			_ = b.conn.Reply(id, codexschema.ApprovalDecline)
@@ -242,11 +242,7 @@ func (b *Backend) ReplyHeldApproval(approvalID string, decision string, errMsg s
 	result := codexschema.ApprovalDecline
 	switch decision {
 	case string(state.ApprovalDecisionAccept), "accept_for_session":
-		if b.autoApprove {
-			result = codexschema.ApprovalAcceptForSession
-		} else {
-			result = codexschema.ApprovalAccept
-		}
+		result = codexschema.ApprovalAccept
 	}
 	_ = b.conn.Reply(reqID, result)
 }
@@ -326,7 +322,7 @@ func (b *Backend) handleThreadStarted(raw json.RawMessage) {
 		}
 		binding.observedID = threadID
 		if threadPath := extractThreadPath(raw); threadPath != "" {
-			if _, hostPath, err := translateRolloutPath(threadPath, b.mounts); err == nil {
+			if _, hostPath, err := translateRolloutPath(threadPath); err == nil {
 				binding.rolloutPath = hostPath
 			}
 		}

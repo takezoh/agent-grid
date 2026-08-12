@@ -80,7 +80,6 @@ describe("FR-A3 new-session integration: 5-step ordering", () => {
             serverId: "test-server",
             serverLabel: "Test Server",
             isGit: false,
-            isSandboxed: false,
             commandProfiles: [
               {
                 id: "claude",
@@ -117,7 +116,6 @@ describe("FR-A3 new-session integration: 5-step ordering", () => {
                 {
                   path: "/repo/a",
                   isGit: false,
-                  isSandboxed: false,
                   command_profiles: [
                     {
                       id: "claude",

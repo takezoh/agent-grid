@@ -1,9 +1,7 @@
 package runtime
 
 import (
-	"context"
 	"log/slog"
-	"path/filepath"
 	"time"
 
 	"github.com/takezoh/agent-grid/services/host/state"
@@ -60,7 +58,7 @@ func restoreSession(snap SessionSnapshot, coldStart bool, now time.Time) (state.
 	if createdAt.IsZero() {
 		createdAt = now
 	}
-	sess := state.Session{ID: state.SessionID(snap.ID), Project: snap.Project, CreatedAt: createdAt, Sandbox: snap.Sandbox}
+	sess := state.Session{ID: state.SessionID(snap.ID), Project: snap.Project, CreatedAt: createdAt}
 	for _, fsnap := range snap.Frames {
 		drv := state.GetDriver(fsnap.Command)
 		if drv == nil {
@@ -311,114 +309,10 @@ func (r *Runtime) bootstrapSessionEffect(sessID state.SessionID, frameID state.F
 // Daemon shutdown closes the IPC socket and tears down frames via
 // PtyBackend without any layout fix-up.
 
-// RecoverSandboxFrames tries to re-attach each persisted frame to its sandbox
-// (e.g. Docker container) before the cold-start spawn path runs. PtyBackend
-// terminal sessions die with the daemon, but devcontainer containers and
-// codex remote threads outlive a daemon restart — adopting them here lets the
-// subsequent fresh frame re-attach to the same running agent instead of losing
-// the container's working state.
-//
-// Returns the set of frame IDs that were successfully adopted so the cold-start
-// path can decide which frames need a fresh container vs an attach. Frames for
-// which AdoptFrame fails (no surviving container, dispatcher refuses) are left
-// alone — RecreateAll will spawn a fresh container for them via the normal
-// EnsureProject path.
-//
-// Per-frame ordering matters (issues/029, F6): each frame's warm token + mounts
-// are registered atomically via RegisterWithMounts and only THEN is the
-// container endpoint started. Previously recoverWarmTokens registered every
-// token first (token-only, no mounts) and per-frame StoreMounts followed in
-// the same loop body — this opened a window where the same-project endpoint
-// could already be live (from a sibling frame's iteration) while a later
-// frame's token was looked-up-able but its mounts were not yet stored, causing
-// container-relative paths to leak unconverted to the wire.
-func (r *Runtime) RecoverSandboxFrames(ctx context.Context) map[state.FrameID]struct{} {
-	l := launcher(r.cfg)
-	warmTokens := r.recoverWarmTokens()
-
-	adopted := make(map[state.FrameID]struct{})
-	for _, sess := range r.state.Sessions {
-		for _, frame := range sess.Frames {
-			cleanup, mounts, err := l.AdoptFrame(ctx, frame.ID, frame.Project)
-			if err != nil {
-				slog.Info("bootstrap: sandbox adopt skipped (no survivor)",
-					"frame", frame.ID, "project", frame.Project, "err", err)
-				continue
-			}
-			adopted[frame.ID] = struct{}{}
-			if cleanup != nil {
-				r.storeFrameCleanup(frame.ID, cleanup)
-			}
-			// Register token + mounts in one atomic step so a same-project hook
-			// arriving on the already-live endpoint never observes a half-set
-			// (token without mounts). Tokens with no mounts and mounts with no
-			// token both stay valid — RegisterWithMounts handles both shapes.
-			if tok := warmTokens[frame.ID]; tok != "" {
-				r.frameReg.RegisterWithMounts(frame.ID, tok, mounts)
-			} else if len(mounts) > 0 {
-				r.frameReg.StoreMounts(frame.ID, mounts)
-			}
-			if r.state.SandboxedProject != nil && r.state.SandboxedProject(frame.Project) && r.cfg.DataDir != "" {
-				runDirKey := frame.Project
-				if dl := devcontainerLauncherFor(l); dl != nil {
-					runDirKey = dl.RunDirKey(frame.Project)
-				}
-				runDir := ProjectRunDir(filepath.Join(r.cfg.DataDir, "run"), runDirKey)
-				r.startContainerEndpointIfNeeded(frame.Project, ContainerSockPath(runDir))
-			}
-			slog.Info("bootstrap: sandbox frame adopted",
-				"frame", frame.ID, "project", frame.Project, "mounts", len(mounts))
-		}
-	}
-	return adopted
-}
-
-// recoverWarmTokens reads warm/ and returns a per-frame map of saved container
-// tokens for frames still present in r.state. Stale warm entries (frames no
-// longer in the snapshot) are deleted proactively. Returns an empty map when
-// no warm store is configured, so callers can iterate unconditionally.
-//
-// Does NOT touch frameReg — the caller stages tokens into the per-frame
-// AdoptFrame loop and uses RegisterWithMounts so token + mounts land behind
-// the same lock (issues/029, F6).
-func (r *Runtime) recoverWarmTokens() map[state.FrameID]string {
-	out := map[state.FrameID]string{}
-	if r.warmFrames == nil {
-		return out
-	}
-	liveFrames := make(map[string]struct{})
-	for _, sess := range r.state.Sessions {
-		for _, frame := range sess.Frames {
-			liveFrames[string(frame.ID)] = struct{}{}
-		}
-	}
-	states, err := r.warmFrames.LoadAll()
-	if err != nil {
-		slog.Warn("bootstrap: warm frame load failed", "err", err)
-	}
-	for _, st := range states {
-		if _, ok := liveFrames[st.FrameID]; !ok {
-			_ = r.warmFrames.Delete(state.FrameID(st.FrameID))
-			continue
-		}
-		if st.ContainerToken != "" {
-			out[state.FrameID(st.FrameID)] = st.ContainerToken
-		}
-	}
-	return out
-}
-
 // SetAliases sets the command alias map on state. Called once at
 // startup from main.go with the config's [session] aliases.
 func (r *Runtime) SetAliases(aliases map[string]string) {
 	r.state.Aliases = aliases
-}
-
-// SetSandboxedProjectResolver installs a function that returns true when a
-// project path runs inside a sandbox. Called once at startup. Mirrors the
-// SetAliases pattern — generic signal, no sandbox-specific types in state.
-func (r *Runtime) SetSandboxedProjectResolver(fn func(string) bool) {
-	r.state.SandboxedProject = fn
 }
 
 // SetDefaultCommand sets the fallback command for sessions created

@@ -3,7 +3,7 @@ id: adr-20260715-credproxy-retry-owner-caller-side
 kind: adr
 title: 'ADR — credproxy: retry ownership is caller-only; credproxy internal default
   retry = 0 (fail fast)'
-status: accepted
+status: superseded
 created: '2026-07-15'
 tags:
 - adr
@@ -28,6 +28,10 @@ summary: credproxy 内部の Materialize retry を 0 attempts (fail fast) に pi
   は 100% caller (agent-grid の resolveOverlaySpecs / Runner) が specCtx envelope 内で所有する。library
   の部分保有 (default 1 attempt + caller envelope) は禁じる。
 ---
+
+> **Superseded 2026-08-12** — the sandbox feature (devcontainer backend, credential/host-exec/MCP
+> brokers, container path translation) was removed; agents always launch directly on the host.
+> This record is kept for history and no longer describes current behaviour.
 
 ## Context
 

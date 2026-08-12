@@ -393,7 +393,7 @@ func TestCodexPrepareLaunchAllowsThreadIDOnlySnapshot(t *testing.T) {
 	d, cs, _ := newCodex(t)
 	rollout, sessionID := writeCodexRollout(t)
 	cs.ThreadID = sessionID
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --model gpt-5-codex", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --model gpt-5-codex", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error = %v, want thread_id lookup resume support", err)
 	}
@@ -406,7 +406,7 @@ func TestCodexPrepareLaunchAllowsRolloutPathOnlySnapshot(t *testing.T) {
 	d, cs, _ := newCodex(t)
 	rollout, _ := writeCodexRollout(t)
 	cs.RolloutPath = rollout
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --model gpt-5-codex", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --model gpt-5-codex", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error = %v, want rollout_path-only resume support", err)
 	}
@@ -418,7 +418,7 @@ func TestCodexPrepareLaunchAllowsRolloutPathOnlySnapshot(t *testing.T) {
 func TestCodexPrepareLaunchNoDoubleResume(t *testing.T) {
 	d, cs, _ := newCodex(t)
 	cs.ThreadID = "thread-abc-123"
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex resume abc", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex resume abc", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -435,7 +435,7 @@ func TestCodexPrepareLaunchStripsWorktreeOnResume(t *testing.T) {
 	rollout, sessionID := writeCodexRollout(t)
 	cs.ThreadID = sessionID
 	cs.StartDir = "/repo/.agent-grid/worktrees/codex-1234"
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --worktree feature --model gpt-5-codex", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --worktree feature --model gpt-5-codex", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -449,7 +449,7 @@ func TestCodexPrepareLaunchStripsWorktreeOnResume(t *testing.T) {
 
 func TestCodexPrepareLaunchStripsWorktreeWithoutResume(t *testing.T) {
 	d, cs, _ := newCodex(t)
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "codex --worktree feature --model gpt-5-codex", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "codex --worktree feature --model gpt-5-codex", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -461,37 +461,11 @@ func TestCodexPrepareLaunchStripsWorktreeWithoutResume(t *testing.T) {
 	}
 }
 
-func TestCodexPrepareLaunchSetsExternalSandboxWhenSandboxed(t *testing.T) {
+func TestCodexPrepareLaunchLeavesBypassOffWithoutUserRequest(t *testing.T) {
 	d, cs, _ := newCodex(t)
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "codex --model gpt-5-codex", state.LaunchOptions{}, true)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "codex --model gpt-5-codex", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
-	}
-	if plan.Command != "codex --model gpt-5-codex" {
-		t.Fatalf("PrepareLaunch.Command = %q", plan.Command)
-	}
-	if plan.Subsystem != state.LaunchSubsystemStream {
-		t.Fatalf("PrepareLaunch.Subsystem = %q, want %q", plan.Subsystem, state.LaunchSubsystemStream)
-	}
-	if plan.Stream.SandboxPolicy != state.StreamSandboxPolicyExternal {
-		t.Fatalf("Stream.SandboxPolicy = %q, want %q", plan.Stream.SandboxPolicy, state.StreamSandboxPolicyExternal)
-	}
-	if plan.Stream.ApprovalPolicy != state.StreamApprovalPolicyAutoApprove {
-		t.Fatalf("Stream.ApprovalPolicy = %q, want %q", plan.Stream.ApprovalPolicy, state.StreamApprovalPolicyAutoApprove)
-	}
-}
-
-func TestCodexPrepareLaunchLeavesStreamPoliciesDefaultWithoutSandbox(t *testing.T) {
-	d, cs, _ := newCodex(t)
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "codex --model gpt-5-codex", state.LaunchOptions{}, false)
-	if err != nil {
-		t.Fatalf("PrepareLaunch error: %v", err)
-	}
-	if plan.Stream.SandboxPolicy != state.StreamSandboxPolicyDefault {
-		t.Fatalf("Stream.SandboxPolicy = %q, want default", plan.Stream.SandboxPolicy)
-	}
-	if plan.Stream.ApprovalPolicy != state.StreamApprovalPolicyDefault {
-		t.Fatalf("Stream.ApprovalPolicy = %q, want default", plan.Stream.ApprovalPolicy)
 	}
 	if plan.Stream.DangerouslyBypassPermissions {
 		t.Fatal("Stream.DangerouslyBypassPermissions = true, want false without user request")
@@ -506,7 +480,6 @@ func TestCodexPrepareLaunchPreservesExplicitDangerBypassWithoutSandbox(t *testin
 		"/repo",
 		"codex --dangerously-bypass-approvals-and-sandbox",
 		state.LaunchOptions{},
-		false,
 	)
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
@@ -534,7 +507,7 @@ func TestCodexPrepareLaunchSandboxedResumesWithHostVisibleRolloutPath(t *testing
 	d, cs, _ := newCodex(t)
 	cs.ThreadID = "thread-abc-123"
 	cs.RolloutPath, cs.SessionID = writeCodexRollout(t)
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex", state.LaunchOptions{}, true)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -551,7 +524,7 @@ func TestCodexPrepareLaunchAllowsLegacyTranscriptPathFallback(t *testing.T) {
 	if err := os.WriteFile(cs.TranscriptPath, []byte("{}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex", state.LaunchOptions{}, true)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error = %v, want success via legacy transcript fallback", err)
 	}
@@ -565,7 +538,7 @@ func TestCodexPrepareLaunchFailsWhenRolloutMissingAndLookupFails(t *testing.T) {
 	cs.ThreadID = "thread-abc-123"
 	cs.RolloutPath = filepath.Join(t.TempDir(), "missing.jsonl")
 	t.Setenv("CODEX_HOME", filepath.Join(t.TempDir(), "missing-codex-home"))
-	if _, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --model gpt-5-codex", state.LaunchOptions{}, false); err == nil {
+	if _, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --model gpt-5-codex", state.LaunchOptions{}); err == nil {
 		t.Fatal("PrepareLaunch error = nil, want failure instead of fresh thread when rollout lookup fails")
 	}
 }
@@ -577,7 +550,7 @@ func TestCodexPrepareLaunchAllowsLegacyTranscriptOnlySnapshotWithoutSessionID(t 
 	if err := os.WriteFile(cs.TranscriptPath, []byte("{}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error = %v, want fallback resume without session_id", err)
 	}
@@ -600,7 +573,7 @@ func TestCodexPrepareLaunchSetsColdStartSessionID(t *testing.T) {
 	d, cs, _ := newCodex(t)
 	cs.ThreadID = "thread-abc-123"
 	cs.RolloutPath, cs.SessionID = writeCodexRollout(t)
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -618,7 +591,7 @@ func TestCodexPrepareLaunchRepairsZeroByteRolloutFromSQLite(t *testing.T) {
 	if err := os.WriteFile(cs.RolloutPath, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error = %v, want sqlite rollout repair", err)
 	}
@@ -635,7 +608,7 @@ func TestCodexPrepareLaunchFailsForSessionIDMismatch(t *testing.T) {
 	cs.ThreadID = "thread-abc-123"
 	cs.RolloutPath, _ = writeCodexRollout(t)
 	cs.SessionID = "019e727e-fde4-7432-9036-ae6604ce1b28"
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error = %v, want persisted session_id to be trusted", err)
 	}
@@ -653,7 +626,7 @@ func TestCodexPrepareLaunchUsesPersistedSessionIDWithoutSQLite(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("CODEX_HOME", filepath.Join(t.TempDir(), "missing-codex-home"))
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error = %v, want persisted session_id fallback", err)
 	}
@@ -665,7 +638,7 @@ func TestCodexPrepareLaunchUsesPersistedSessionIDWithoutSQLite(t *testing.T) {
 func TestCodexPrepareLaunchSkipsNonCodexBaseCommand(t *testing.T) {
 	d, cs, _ := newCodex(t)
 	cs.ThreadID = "thread-abc-123"
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "env FOO=bar", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "env FOO=bar", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -678,7 +651,7 @@ func TestCodexPrepareLaunchColdStartUsesPersistedStartDir(t *testing.T) {
 	d, cs, _ := newCodex(t)
 	cs.StartDir = "/proj/.agent-grid/worktrees/foo"
 	for _, mode := range []state.LaunchMode{state.LaunchModeCreate, state.LaunchModeColdStart} {
-		plan, err := d.PrepareLaunch(cs, mode, "/proj", "codex", state.LaunchOptions{}, false)
+		plan, err := d.PrepareLaunch(cs, mode, "/proj", "codex", state.LaunchOptions{})
 		if err != nil {
 			t.Fatalf("mode=%v PrepareLaunch error: %v", mode, err)
 		}
@@ -691,7 +664,7 @@ func TestCodexPrepareLaunchColdStartUsesPersistedStartDir(t *testing.T) {
 func TestCodexPrepareLaunchFallsBackToProjectWhenStartDirEmpty(t *testing.T) {
 	d, cs, _ := newCodex(t)
 	for _, mode := range []state.LaunchMode{state.LaunchModeCreate, state.LaunchModeColdStart} {
-		plan, err := d.PrepareLaunch(cs, mode, "/proj", "codex", state.LaunchOptions{}, false)
+		plan, err := d.PrepareLaunch(cs, mode, "/proj", "codex", state.LaunchOptions{})
 		if err != nil {
 			t.Fatalf("mode=%v PrepareLaunch error: %v", mode, err)
 		}
@@ -1410,7 +1383,7 @@ func TestCodexPrepareLaunchColdStartRestoresModelEffort(t *testing.T) {
 	d, cs, _ := newCodex(t)
 	cs.Model = "gpt-5-codex"
 	cs.Effort = "high"
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1423,7 +1396,7 @@ func TestCodexPrepareLaunchColdStartReplacesEqualsFlagsWithPersistedValues(t *te
 	d, cs, _ := newCodex(t)
 	cs.Model = "gpt-5-codex"
 	cs.Effort = "low"
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --model=gpt-4.1 --effort=high", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --model=gpt-4.1 --effort=high", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1441,7 +1414,7 @@ func TestCodexPrepareLaunchColdStartKeepsClearedMetadata(t *testing.T) {
 	cs.EffortSet = true
 	cs.ModelAuthoritative = true
 	cs.EffortAuthoritative = true
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --model gpt-5-codex --effort high", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeColdStart, "/repo", "codex --model gpt-5-codex --effort high", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1454,7 +1427,7 @@ func TestCodexPrepareLaunchKeepsWorktreeNormalizationWhenReplacingMetadata(t *te
 	d, cs, _ := newCodex(t)
 	cs.Model = "gpt-5-codex"
 	cs.Effort = "low"
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "codex --worktree feature --model=gpt-4.1 --effort=high", state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", "codex --worktree feature --model=gpt-4.1 --effort=high", state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}
@@ -1473,7 +1446,7 @@ func TestCodexPrepareLaunchPreservesQuotedArgsWhenReplacingMetadata(t *testing.T
 	d, cs, _ := newCodex(t)
 	cs.Model = "gpt-5-codex"
 	cs.Effort = "low"
-	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", `codex -c 'foo = "bar baz"' --model=gpt-4.1 --effort=high`, state.LaunchOptions{}, false)
+	plan, err := d.PrepareLaunch(cs, state.LaunchModeCreate, "/repo", `codex -c 'foo = "bar baz"' --model=gpt-4.1 --effort=high`, state.LaunchOptions{})
 	if err != nil {
 		t.Fatalf("PrepareLaunch error: %v", err)
 	}

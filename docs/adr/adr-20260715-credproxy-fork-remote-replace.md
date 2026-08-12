@@ -3,7 +3,7 @@ id: adr-20260715-credproxy-fork-remote-replace
 kind: adr
 title: 'ADR — credproxy: local dev via go.work (gitignored), CI via require pseudo-version
   to github.com/takezoh/credproxy'
-status: accepted
+status: superseded
 created: '2026-07-15'
 tags:
 - adr
@@ -26,6 +26,10 @@ decision_makers:
 summary: Use a gitignored go.work for local credproxy iteration and a pinned module
   pseudo-version for shared and CI builds.
 ---
+
+> **Superseded 2026-08-12** — the sandbox feature (devcontainer backend, credential/host-exec/MCP
+> brokers, container path translation) was removed; agents always launch directly on the host.
+> This record is kept for history and no longer describes current behaviour.
 
 ## Context
 

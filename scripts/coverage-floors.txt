@@ -36,10 +36,9 @@ github.com/takezoh/agent-grid/services/uihost                          90
 
 # cmd/ — binary entry points
 github.com/takezoh/agent-grid/services/cmd/claude-app-server               60
-github.com/takezoh/agent-grid/services/cmd/credproxy-run                    0
 github.com/takezoh/agent-grid/services/cmd/harness-check                    0
 github.com/takezoh/agent-grid/services/cmd/linear-graphql-cli               0
-# cmd/orchestrator: buildDevcontainerLauncher (requires Docker) and main() are
+# cmd/orchestrator: main() is
 # structurally untestable in unit tests; floor reflects achievable non-Docker coverage.
 github.com/takezoh/agent-grid/services/cmd/orchestrator                    55
 github.com/takezoh/agent-grid/services/cmd/bridge                     0
@@ -76,18 +75,15 @@ github.com/takezoh/agent-grid/services/platform/agentlaunch                63
 github.com/takezoh/agent-grid/services/platform/appid                       0
 github.com/takezoh/agent-grid/services/platform/codexconfig                 70
 github.com/takezoh/agent-grid/services/platform/config                     62
-github.com/takezoh/agent-grid/services/platform/credproxy                  10
 github.com/takezoh/agent-grid/services/platform/e2etest                    45
 github.com/takezoh/agent-grid/services/platform/features                   85
 github.com/takezoh/agent-grid/services/platform/framelaunch                 83
-github.com/takezoh/agent-grid/services/platform/hostexec                   50
 github.com/takezoh/agent-grid/services/platform/internal/globutil          95
 github.com/takezoh/agent-grid/services/platform/lib/claude/cli             95
 github.com/takezoh/agent-grid/services/platform/lib/claude/fakeclaude      80
 github.com/takezoh/agent-grid/services/platform/lib/claude/hookpayload     40
 github.com/takezoh/agent-grid/services/platform/lib/claude/streamjson      85
 github.com/takezoh/agent-grid/services/platform/lib/codex                  75
-github.com/takezoh/agent-grid/services/platform/lib/dockercli              95
 github.com/takezoh/agent-grid/services/platform/lib/git                    70
 github.com/takezoh/agent-grid/services/platform/lib/github                 85
 github.com/takezoh/agent-grid/services/platform/lib/grok                    45
@@ -103,15 +99,8 @@ github.com/takezoh/agent-grid/services/platform/lib/vcs                    85
 github.com/takezoh/agent-grid/services/platform/lib/wsl                    45
 github.com/takezoh/agent-grid/services/platform/logger                     60
 github.com/takezoh/agent-grid/services/platform/mcpoverlay                  90
-github.com/takezoh/agent-grid/services/platform/mcpproxy                   50
 github.com/takezoh/agent-grid/services/platform/metrics                    95
-github.com/takezoh/agent-grid/services/platform/pathmap                    95
 github.com/takezoh/agent-grid/services/platform/procgroup                  75
-github.com/takezoh/agent-grid/services/platform/sandbox                    90
-github.com/takezoh/agent-grid/services/platform/sandbox/devcontainer       86
-github.com/takezoh/agent-grid/services/platform/sandbox/devcontainer/fakedocker 0
-github.com/takezoh/agent-grid/services/platform/sandbox/devcontainer/fakedocker/cmd/docker 0
-github.com/takezoh/agent-grid/services/platform/secretenv                  34
 github.com/takezoh/agent-grid/services/platform/shellalias                  90
 github.com/takezoh/agent-grid/services/platform/socketpath                95
 github.com/takezoh/agent-grid/services/platform/termvt                     85

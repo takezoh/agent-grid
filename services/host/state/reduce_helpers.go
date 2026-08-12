@@ -30,14 +30,8 @@ func allocFrameID() FrameID {
 	return FrameID(allocSessionID())
 }
 
-// isSandboxed reports whether a frame for the given project should run inside a sandbox.
-// Returns false when the session has SandboxOverrideHost or no resolver is configured.
-func isSandboxed(s State, project string, override SandboxOverride) bool {
-	return s.SandboxedProject != nil && s.SandboxedProject(project) && override != SandboxOverrideHost
-}
-
 // spawnEffect builds an EffSpawnFrame from a resolved LaunchPlan.
-// plan.Project, plan.Sandbox, and plan.Stdin must be set by the caller before invoking.
+// plan.Project and plan.Stdin must be set by the caller before invoking.
 // The runtime resolves the frame's SubsystemID during ensureSubsystem and
 // reports it back via EvFrameSpawned.
 //

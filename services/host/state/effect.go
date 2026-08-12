@@ -63,12 +63,12 @@ type EffUnsetSessionEnv struct {
 	Key string
 }
 
-// EffReleaseFrameSandboxes asks the runtime to destroy all sandbox resources
-// (Docker containers, VMs, …) held by active frames. Emitted by reduceShutdown
-// only — daemon shutdown drains frame cleanups in parallel before the process
-// exits. ctx-cancel-driven shutdown (warm restart) must NOT emit it so
-// containers survive for adoption next boot.
-type EffReleaseFrameSandboxes struct {
+// EffReleaseFrames asks the runtime to release every resource held by active
+// frames — today the per-frame subsystems. Emitted by reduceShutdown only:
+// daemon shutdown drains the releases in parallel before the process exits.
+// ctx-cancel-driven shutdown (warm restart) must NOT emit it so the agent
+// processes survive for adoption next boot.
+type EffReleaseFrames struct {
 	TransactionID uint64
 }
 
@@ -88,20 +88,16 @@ const (
 type EffCompleteShutdown struct{ Result ShutdownResult }
 type EffTerminateRuntime struct{}
 
-// EffReleaseFrameSandbox asks the runtime to invoke the per-frame sandbox
-// cleanup closure. The runtime delegates to invokeFrameCleanup which fires
-// the closure stored at handleSpawnComplete (devcontainer.makeCleanup =
-// Manager.ReleaseFrame → 0 なら DestroyInstance). Per-project / shared 両
-// mode は manager 側で cs.isolation().ContainerKey によって正しい粒度に
-// 分かれるので、 reducer は frame ID だけ送れば良い。
+// EffReleaseFrame asks the runtime to release every resource it owns on behalf
+// of one frame — the frame's subsystem binding and its frame-registry entry.
 //
 // Emitted by evictFrame (root + child) and reduceFrameCommandExited (異常
-// exit 枝) so frame が vanish しても crash しても sandbox は確実に release
+// exit 枝) so frame が vanish しても crash しても resource は確実に release
 // される。 EffKillFrame とは責務を分けていて、 後者は backend frame
 // (pty session) を kill するためだけのもの。 frame が既に消えていて
-// EffKillFrame が要らない経路 (EvFrameVanished) でも sandbox
-// release は別途必要なので別 effect に分けてある。
-type EffReleaseFrameSandbox struct {
+// EffKillFrame が要らない経路 (EvFrameVanished) でも release は別途必要な
+// ので別 effect に分けてある。
+type EffReleaseFrame struct {
 	FrameID FrameID
 }
 
@@ -281,11 +277,11 @@ func (EffRegisterFrame) isEffect()             {}
 func (EffUnregisterFrame) isEffect()           {}
 func (EffSetSessionEnv) isEffect()             {}
 func (EffUnsetSessionEnv) isEffect()           {}
-func (EffReleaseFrameSandboxes) isEffect()     {}
+func (EffReleaseFrames) isEffect()             {}
 func (EffCommitShutdownSessions) isEffect()    {}
 func (EffCompleteShutdown) isEffect()          {}
 func (EffTerminateRuntime) isEffect()          {}
-func (EffReleaseFrameSandbox) isEffect()       {}
+func (EffReleaseFrame) isEffect()              {}
 func (EffSendResponse) isEffect()              {}
 func (EffSendResponseSync) isEffect()          {}
 func (EffSendError) isEffect()                 {}

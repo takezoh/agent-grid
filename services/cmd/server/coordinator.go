@@ -21,12 +21,8 @@ import (
 	"github.com/takezoh/agent-grid/services/host/state"
 	"github.com/takezoh/agent-grid/services/platform/agentlaunch"
 	"github.com/takezoh/agent-grid/services/platform/appid"
-	platformconfig "github.com/takezoh/agent-grid/services/platform/config"
-	"github.com/takezoh/agent-grid/services/platform/credproxy"
 	"github.com/takezoh/agent-grid/services/platform/features"
-	"github.com/takezoh/agent-grid/services/platform/lib/dockercli"
 	"github.com/takezoh/agent-grid/services/platform/logger"
-	sandboxdc "github.com/takezoh/agent-grid/services/platform/sandbox/devcontainer"
 	"github.com/takezoh/agent-grid/services/platform/shellalias"
 	serverapi "github.com/takezoh/agent-grid/services/server/api"
 )
@@ -40,9 +36,6 @@ func runDaemon(df *daemonFlagSet, stdout io.Writer) error {
 	}
 	cfg, err := loadConfig()
 	if err != nil {
-		return err
-	}
-	if err := cfg.Sandbox.Validate(); err != nil {
 		return err
 	}
 	slog.Info("starting coordinator")
@@ -111,10 +104,9 @@ func registerDefaultDrivers(cfg *config.Config, dataDir string, idleThreshold ti
 	statedriver.RegisterRunners(cfg.Driver.SummarizeCommand, cfg.Driver.CapsuleCommand)
 }
 
-// agentHookPostCreateSubcmds returns the bridge subcommand list the
-// devcontainer postCreate runs to register reactor hooks inside the
-// container, derived from agenthook.All so adding an agent in one place
-// flows through to the container surface automatically.
+// agentHookPostCreateSubcmds returns the bridge subcommand list that
+// registers reactor hooks, derived from agenthook.All so adding an agent in
+// one place flows through automatically.
 func agentHookPostCreateSubcmds() []string {
 	out := make([]string, 0, len(agenthook.All)+1)
 	for _, spec := range agenthook.All {
@@ -126,12 +118,10 @@ func agentHookPostCreateSubcmds() []string {
 
 // registerHostAgentHooks ensures the host's ~/.<agent>/settings.json routes
 // every supported agent's lifecycle events at THIS server binary. Without
-// it, host-direct (non-devcontainer) sessions never reach the daemon:
-// SessionID stays empty, transcript path is never resolved, and the
-// session card title sticks on "New Session" with status frozen. The
-// in-container path is covered separately by the devcontainer postCreate;
-// this fills the gap for SandboxModeDirect / SandboxOverrideHost sessions,
-// which spawn the agent in the same filesystem namespace the daemon runs in.
+// it, sessions never reach the daemon: SessionID stays empty, transcript
+// path is never resolved, and the session card title sticks on "New Session"
+// with status frozen. Agents spawn in the same filesystem namespace the
+// daemon runs in, so the host settings.json is the whole story.
 //
 // `-data-dir` is always appended. Yes, daemon-spawned agents inherit
 // AG_SOCKET in their env and win via that env, but an agent process the
@@ -214,61 +204,44 @@ func buildRuntimeWithCloneAuthority(ctx context.Context, cfg *config.Config, dat
 	pool := worker.NewPool(ctx, 4)
 
 	featureSet := features.FromConfig(cfg.Features.Enabled, features.All())
-	sbResolver := platformconfig.NewSandboxResolver(cfg.Sandbox)
-	agentLauncher, streamDispatcher, dcMgr, err := newAgentLauncher(ctx, cfg.Sandbox, sbResolver, cfg.Projects, dataDir, sockPath, cfg.ResolveDevcontainerPrefix())
-	if err != nil {
-		return nil, "", err
-	}
-	// Production repository environment authority: share the sandbox manager
-	// when present; otherwise inject a typed unavailable adapter (never nil).
-	repoDC := runtime.RepositoryDevcontainer(runtime.UnavailableRepositoryDevcontainer{})
-	if dcMgr != nil {
-		repoDC = runtime.NewPlatformRepositoryDevcontainer(dcMgr)
-	}
+	agentLauncher, streamDispatcher := newAgentLauncher(sockPath)
 	rt := runtime.New(runtime.Config{
-		DataDir:                    dataDir,
-		TickInterval:               pollInterval,
-		Backend:                    ptyBackend,
-		Persist:                    runtime.NewFilePersist(dataDir),
-		EventLog:                   runtime.NewFileEventLog(dataDir),
-		ToolLog:                    runtime.NewFileToolLog(dataDir),
-		Pool:                       pool,
-		Tap:                        ptyTap,
-		Features:                   featureSet,
-		ResumeCapsulesEnabled:      cfg.Driver.CapsuleCommand != "",
-		Launcher:                   agentLauncher,
-		StreamDispatcher:           streamDispatcher,
-		StreamReadTimeout:          time.Duration(cfg.Codex.ReadTimeoutMs) * time.Millisecond,
-		RepositorySessionsRoot:     filepath.Join(dataDir, "repository-sessions"),
-		RepositoryDevcontainer:     repoDC,
-		RepositoryConfigGeneration: cfg.ResolveDevcontainerPrefix(),
-		CloneAuthority:             authority,
-	})
-	rt.SetSandboxedProjectResolver(func(project string) bool {
-		return sbResolver.Resolve(project).IsSandboxed()
+		DataDir:                dataDir,
+		TickInterval:           pollInterval,
+		Backend:                ptyBackend,
+		Persist:                runtime.NewFilePersist(dataDir),
+		EventLog:               runtime.NewFileEventLog(dataDir),
+		ToolLog:                runtime.NewFileToolLog(dataDir),
+		Pool:                   pool,
+		Tap:                    ptyTap,
+		Features:               featureSet,
+		ResumeCapsulesEnabled:  cfg.Driver.CapsuleCommand != "",
+		Launcher:               agentLauncher,
+		StreamDispatcher:       streamDispatcher,
+		StreamReadTimeout:      time.Duration(cfg.Codex.ReadTimeoutMs) * time.Millisecond,
+		RepositorySessionsRoot: filepath.Join(dataDir, "repository-sessions"),
+		CloneAuthority:         authority,
 	})
 	return rt, sockPath, nil
 }
 
 // startSession registers the shell driver and runs the boot bootstrap.
 // PtyBackend's termvt sessions die with the daemon, so each boot creates fresh
-// frames from the persisted snapshot. Devcontainer containers and codex remote
-// threads can outlive a daemon restart, so the boot sequence first asks the
-// sandbox to adopt surviving frames (RecoverSandboxFrames) and asks durable
-// drivers to resume their state (RecoverWarmStartSessions) before falling back
-// to fresh container provisioning for un-adoptable frames (RecreateAll).
+// frames from the persisted snapshot. Codex remote threads can outlive a
+// daemon restart, so the boot sequence asks durable drivers to resume their
+// state (RecoverWarmStartSessions) before respawning frames (RecreateAll).
 //
 // References: ADR 0004 (decision 2).
 func startSession(ctx context.Context, rt *runtime.Runtime, loginShell string, idleThreshold time.Duration) error {
 	shellDriver := statedriver.NewShellDriver(statedriver.ShellDriverName, shellDisplayName(loginShell), idleThreshold)
-	if err := bootSession(ctx, rt, shellDriver); err != nil {
+	if err := bootSession(rt, shellDriver); err != nil {
 		return err
 	}
 	go rt.CleanupSubsystems(ctx)
 	return nil
 }
 
-func bootSession(ctx context.Context, rt *runtime.Runtime, shellDriver statedriver.ShellDriver) error {
+func bootSession(rt *runtime.Runtime, shellDriver statedriver.ShellDriver) error {
 	slog.Info("booting session")
 	state.Register(shellDriver)
 	if err := rt.LoadSnapshot(true); err != nil {
@@ -280,18 +253,10 @@ func bootSession(ctx context.Context, rt *runtime.Runtime, shellDriver statedriv
 	// and before RecreateAll so interrupted clones are marked before clients attach.
 	rt.ReconcileRepositoryPreparations()
 
-	// Try to adopt sandbox containers / codex threads that outlived the previous
-	// daemon. Adopted frames carry their cleanup callback + container mounts
-	// forward so the subsequent fresh-frame spawn re-attaches to the same agent.
-	// Failures are silent: the frame just goes through the normal cold-spawn
-	// path in RecreateAll.
-	adoptCtx, adoptCancel := context.WithTimeout(ctx, 2*time.Minute)
-	adopted := rt.RecoverSandboxFrames(adoptCtx)
-	adoptCancel()
+	// Durable drivers (codex remote threads) can outlive a daemon restart, so
+	// ask them to resume their state before frames are respawned.
 	rt.RecoverWarmStartSessions()
-	slog.Info("boot: sandbox adoption complete", "adopted_frames", len(adopted))
 
-	rt.PrewarmContainers(ctx)
 	if err := rt.RecreateAll(); err != nil {
 		slog.Error("recreate failed", "err", err)
 	}
@@ -324,16 +289,16 @@ func superviseRun(cancel context.CancelFunc, errCh chan<- error, fn func() error
 	}
 }
 
-// shutdownDrainTimeout caps how long we wait for the EffReleaseFrameSandboxes
+// shutdownDrainTimeout caps how long we wait for the EffReleaseFrames
 // drain. Sized to fit inside systemd's TimeoutStopSec= so a stuck per-frame
 // cleanup never blocks the unit indefinitely.
 const shutdownDrainTimeout = 8 * time.Second
 
 // installSignalHandlers wires SIGINT/SIGTERM/SIGHUP into the coordinator
 // context. SIGINT/SIGTERM trigger graceful shutdown: requestShutdown
-// enqueues EventShutdown so the reducer can drain sandbox cleanups
-// (containers, codex app-servers, …) before the runtime context is
-// cancelled and the event loop exits. SIGHUP is logged and ignored — a
+// enqueues EventShutdown so the reducer can drain frame releases
+// (codex app-servers, …) before the runtime context is cancelled and the
+// event loop exits. SIGHUP is logged and ignored — a
 // parent terminal can deliver spurious SIGHUP when its own window closes
 // (WSL2 init quirks etc.), and the daemon should outlive that signal
 // because session state lives in memory and persists across the IPC
@@ -409,14 +374,10 @@ func runAndWaitWithAuthority(ctx context.Context, cancel context.CancelFunc, rt 
 	return nil
 }
 
-// newAgentLauncher returns the AgentLauncher (TTY, for backend frames) and
-// StreamDispatcher (non-TTY, for codex app-server stdio) for the configured
-// sandbox mode. Both dispatchers share the same devcontainer manager so
-// container provisioning is consistent. namePrefix is propagated to the
-// devcontainer Manager and ultimately to ContainerName + label keys, so two
-// peer daemons (primary vs. run-dev gateway) under distinct prefixes never
-// compete for the same docker container name.
-func newAgentLauncher(ctx context.Context, sb platformconfig.SandboxConfig, resolver *platformconfig.SandboxResolver, projects platformconfig.ProjectsConfig, dataDir, sockPath, namePrefix string) (runtime.AgentLauncher, agentlaunch.Dispatcher, *sandboxdc.Manager, error) {
+// newAgentLauncher returns the AgentLauncher (for backend frames) and the
+// StreamDispatcher (for codex app-server stdio). Both resolve launches
+// directly on the host.
+func newAgentLauncher(sockPath string) (runtime.AgentLauncher, agentlaunch.Dispatcher) {
 	selfBin, err := os.Executable()
 	if err == nil {
 		if resolved, rerr := filepath.EvalSymlinks(selfBin); rerr == nil {
@@ -425,71 +386,13 @@ func newAgentLauncher(ctx context.Context, sb platformconfig.SandboxConfig, reso
 	} else {
 		selfBin = ""
 	}
-	newDispatcher := func() *agentlaunch.SandboxDispatcher {
-		return &agentlaunch.SandboxDispatcher{
-			Resolver: resolver,
-			Direct: agentlaunch.DirectDispatcher{
-				SockPath: sockPath,
-				SelfBin:  selfBin,
-			},
+	newDispatcher := func() agentlaunch.DirectDispatcher {
+		return agentlaunch.DirectDispatcher{
+			SockPath: sockPath,
+			SelfBin:  selfBin,
 		}
 	}
-	d := newDispatcher()
-	sd := newDispatcher()
-	var mgr *sandboxdc.Manager
-	if sb.Mode == "devcontainer" {
-		setup, err := dockercli.Setup(func(p string) bool { _, err := os.Stat(p); return err == nil })
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		if setup.UsingRootless {
-			slog.Info("sandbox: rootless docker detected", "DOCKER_HOST", setup.DOCKERHOST)
-		} else if setup.UsingDefaultSock {
-			slog.Info("sandbox: using default docker socket (rootless not detected)")
-		}
-		runner, err := credproxy.Start(ctx, dataDir, resolver.Resolve, agentlaunch.BuildProviderHooks(resolver.Resolve, projects), credproxy.Paths{
-			RunDir:  agentlaunch.ContainerRunDir,
-			BinPath: agentlaunch.ContainerBinaryPath,
-			MCPSock: agentlaunch.ContainerMCPSockPath,
-		})
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("sandbox: start in-process credproxy: %w", err)
-		}
-		// credproxy providers run under a child of this ctx (the daemon context).
-		// The coordinator's defer cancel() on graceful shutdown cascades into
-		// them, reaping provider-managed processes such as the ssh-agent. detach
-		// leaves ctx live so the agent survives for warm restart.
-		// "{claude,gemini}-setup-hooks" run as devcontainer postCreate so the
-		// moment a container comes up, ~/.<agent>/settings.json inside it
-		// points every lifecycle event at /opt/agent-grid/run/bridge.
-		// Without these the daemon never learns SessionID for in-container
-		// sessions and card titles stick on "New Session" forever. Phase F-C
-		// had pushed this to scripts/setup-{claude,gemini}.sh; that delegation
-		// made hook state an out-of-band setup step rather than a runtime
-		// invariant, and the scripts have since been removed in favour of
-		// bridge owning the registration end-to-end via
-		// host/lib/agenthook.
-		overlayFn := agentlaunch.BuildContainerOverlay(func(project string) platformconfig.SandboxConfig {
-			return resolver.Resolve(project)
-		}, projects, runner, dataDir, agentHookPostCreateSubcmds())
-		mgr = sandboxdc.NewWithPrefix(overlayFn, namePrefix)
-		slog.Info("sandbox: devcontainer prefix", "prefix", mgr.NamePrefix())
-		newDC := func(tty bool) *agentlaunch.DevcontainerLauncher {
-			return agentlaunch.NewDevcontainerLauncher(mgr,
-				func(project string) platformconfig.SandboxConfig { return resolver.Resolve(project) },
-				func(project string) *platformconfig.SandboxConfig { return resolver.ResolveProjectScope(project) },
-				runner,
-				dataDir,
-				tty,
-			)
-		}
-		// d is for interactive backend frames (TTY=true); sd is the stream
-		// dispatcher used by codex app-server stdio (TTY=false).
-		d.Devcontainer = newDC(true)
-		sd.Devcontainer = newDC(false)
-		slog.Info("sandbox: devcontainer backend enabled")
-	}
-	return runtime.NewDispatcherAdapter(d), sd, mgr, nil
+	return runtime.NewDispatcherAdapter(newDispatcher()), newDispatcher()
 }
 
 // shellDisplayName picks the display name (basename) for the shell driver from

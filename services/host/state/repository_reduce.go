@@ -12,8 +12,6 @@ func reduceRepository(s State, e EvRepository) (State, []Effect) {
 		return reduceRepositoryCloneStarted(s, e)
 	case "clone_ready":
 		return reduceRepositoryCloneReady(s, e)
-	case "devcontainer_started":
-		return reduceRepositoryDevcontainerStarted(s, e)
 	case "failed":
 		return reduceRepositoryFailed(s, e)
 	case "cancelled":
@@ -55,8 +53,7 @@ func reduceRepositoryCreate(s State, e EvRepository) (State, []Effect) {
 	}
 	prep := RepositoryPreparation{
 		ID: e.PreparationID, IntentID: e.IntentID, ServerID: e.ServerID, Repository: e.Repository,
-		Stage: PrepStageConfirmed, EnvironmentDisposition: EnvDispositionNone,
-		Revision: 1, LastOwnedWorkerGeneration: 1,
+		Stage: PrepStageConfirmed, Revision: 1, LastOwnedWorkerGeneration: 1,
 	}
 	s = putCreationIntent(s, intent)
 	s = putPreparation(s, prep)
@@ -80,7 +77,7 @@ func reduceRepositoryCloneStarted(s State, e EvRepository) (State, []Effect) {
 	if prep.RetryOrigin != RetryOriginNone && prep.RetryOrigin != RetryOriginClone {
 		return s, illegal(prep, e.ConnID, e.ReqID)
 	}
-	return advancePrep(s, prep, PrepStageCloneInProgress, PrepFailureNone, RetryOriginNone, EnvDispositionNone, e.ConnID, e.ReqID)
+	return advancePrep(s, prep, PrepStageCloneInProgress, PrepFailureNone, RetryOriginNone, e.ConnID, e.ReqID)
 }
 
 func reduceRepositoryCloneReady(s State, e EvRepository) (State, []Effect) {
@@ -99,20 +96,9 @@ func reduceRepositoryCloneReady(s State, e EvRepository) (State, []Effect) {
 	s = putPreparation(s, prep)
 	return s, []Effect{
 		EffRepositoryPersist{PreparationID: prep.ID, Revision: prep.Revision},
-		EffRepositoryEnsureEnvironment{PreparationID: prep.ID, ServerID: prep.ServerID, Repository: prep.Repository, Generation: prep.LastOwnedWorkerGeneration},
+		EffRepositoryLaunchSession{PreparationID: prep.ID, ServerID: prep.ServerID, Repository: prep.Repository, Generation: prep.LastOwnedWorkerGeneration},
 		okResp(e.ConnID, e.ReqID, prepSnapshot(prep)),
 	}
-}
-
-func reduceRepositoryDevcontainerStarted(s State, e EvRepository) (State, []Effect) {
-	prep, ok, effs := loadPrepFenced(s, e.PreparationID, e.ObservedRevision, e.ConnID, e.ReqID)
-	if !ok {
-		return s, effs
-	}
-	if (prep.Stage != PrepStageCloneReady && prep.Stage != PrepStageFailed && prep.Stage != PrepStageCancelled) || !prep.CloneDurable {
-		return s, illegal(prep, e.ConnID, e.ReqID)
-	}
-	return advancePrep(s, prep, PrepStageDevcontainerInProgress, PrepFailureNone, RetryOriginNone, EnvDispositionEnsuring, e.ConnID, e.ReqID)
 }
 
 func reduceRepositoryFailed(s State, e EvRepository) (State, []Effect) {
@@ -123,17 +109,17 @@ func reduceRepositoryFailed(s State, e EvRepository) (State, []Effect) {
 	if prep.Stage.IsTerminal() {
 		return s, illegal(prep, e.ConnID, e.ReqID)
 	}
-	code, origin, env := e.Code, RetryOriginClone, prep.EnvironmentDisposition
+	code, origin := e.Code, RetryOriginClone
 	if code == PrepFailureNone {
 		code = PrepFailureCloneFailed
 	}
-	if prep.Stage == PrepStageDevcontainerInProgress || prep.Stage == PrepStageCloneReady {
-		origin, env = RetryOriginDevcontainer, EnvDispositionFailed
+	if prep.Stage == PrepStageCloneReady {
+		origin = RetryOriginLaunch
 		if code == PrepFailureCloneFailed {
-			code = PrepFailureDevcontainerFail
+			code = PrepFailureLaunchFailed
 		}
 	}
-	return advancePrep(s, prep, PrepStageFailed, code, origin, env, e.ConnID, e.ReqID)
+	return advancePrep(s, prep, PrepStageFailed, code, origin, e.ConnID, e.ReqID)
 }
 
 func reduceRepositoryCancelled(s State, e EvRepository) (State, []Effect) {
@@ -145,8 +131,8 @@ func reduceRepositoryCancelled(s State, e EvRepository) (State, []Effect) {
 		return s, illegal(prep, e.ConnID, e.ReqID)
 	}
 	origin := RetryOriginClone
-	if prep.Stage == PrepStageDevcontainerInProgress || prep.Stage == PrepStageCloneReady {
-		origin = RetryOriginDevcontainer
+	if prep.Stage == PrepStageCloneReady {
+		origin = RetryOriginLaunch
 	}
 	prep.Stage, prep.FailureCode, prep.RetryOrigin, prep.Revision = PrepStageCancelled, PrepFailureCancelled, origin, prep.Revision+1
 	s = putPreparation(s, prep)
@@ -163,15 +149,15 @@ func reduceRepositoryInterrupted(s State, e EvRepository) (State, []Effect) {
 		return s, rejectPrep(e.ConnID, e.ReqID, PrepFailureInvalidIdentity, "preparation not found")
 	}
 	switch prep.Stage {
-	case PrepStageConfirmed, PrepStageCloneInProgress, PrepStageDevcontainerInProgress:
+	case PrepStageConfirmed, PrepStageCloneInProgress, PrepStageCloneReady:
 	default:
 		return s, []Effect{okResp(e.ConnID, e.ReqID, prepSnapshot(prep))}
 	}
 	origin := RetryOriginClone
-	if prep.Stage == PrepStageDevcontainerInProgress {
-		origin = RetryOriginDevcontainer
+	if prep.Stage == PrepStageCloneReady {
+		origin = RetryOriginLaunch
 	}
-	return advancePrep(s, prep, PrepStageInterrupted, PrepFailureInterrupted, origin, prep.EnvironmentDisposition, e.ConnID, e.ReqID)
+	return advancePrep(s, prep, PrepStageInterrupted, PrepFailureInterrupted, origin, e.ConnID, e.ReqID)
 }
 
 func reduceRepositoryQuarantined(s State, e EvRepository) (State, []Effect) {
@@ -182,7 +168,7 @@ func reduceRepositoryQuarantined(s State, e EvRepository) (State, []Effect) {
 	if prep.IsSessionAvailable() {
 		return s, illegal(prep, e.ConnID, e.ReqID)
 	}
-	return advancePrep(s, prep, PrepStageInternalCorruption, PrepFailureInternalCorrupt, RetryOriginNone, prep.EnvironmentDisposition, e.ConnID, e.ReqID)
+	return advancePrep(s, prep, PrepStageInternalCorruption, PrepFailureInternalCorrupt, RetryOriginNone, e.ConnID, e.ReqID)
 }
 
 func reduceRepositoryRetry(s State, e EvRepository) (State, []Effect) {
@@ -196,12 +182,11 @@ func reduceRepositoryRetry(s State, e EvRepository) (State, []Effect) {
 	prep.LastOwnedWorkerGeneration++
 	prep.FailureCode, prep.Revision = PrepFailureNone, prep.Revision+1
 	var start Effect
-	if prep.RetryOrigin == RetryOriginDevcontainer {
-		prep.Stage, prep.EnvironmentDisposition = PrepStageCloneReady, EnvDispositionNone
-		start = EffRepositoryEnsureEnvironment{PreparationID: prep.ID, ServerID: prep.ServerID, Repository: prep.Repository, Generation: prep.LastOwnedWorkerGeneration}
+	if prep.RetryOrigin == RetryOriginLaunch {
+		prep.Stage = PrepStageCloneReady
+		start = EffRepositoryLaunchSession{PreparationID: prep.ID, ServerID: prep.ServerID, Repository: prep.Repository, Generation: prep.LastOwnedWorkerGeneration}
 	} else {
 		prep.Stage, prep.CloneDurable, prep.ClonePath = PrepStageConfirmed, false, ""
-		prep.EnvironmentReady, prep.EnvironmentDisposition = false, EnvDispositionNone
 		start = EffRepositoryStartClone{PreparationID: prep.ID, ServerID: prep.ServerID, Repository: prep.Repository, Generation: prep.LastOwnedWorkerGeneration}
 	}
 	prep.RetryOrigin = RetryOriginNone
@@ -218,26 +203,21 @@ func reduceRepositoryCommitAvailable(s State, e EvRepository) (State, []Effect) 
 	if !ok {
 		return s, effs
 	}
-	if prep.Stage != PrepStageDevcontainerInProgress && prep.Stage != PrepStageCloneReady {
+	if prep.Stage != PrepStageCloneReady {
 		return s, illegal(prep, e.ConnID, e.ReqID)
 	}
-	if !e.CloneDurable || !e.EnvironmentReady || !e.LaunchSucceeded {
-		return s, rejectPrep(e.ConnID, e.ReqID, PrepFailureIncompleteCommit, "clone, environment, and launch evidence required")
+	if !e.CloneDurable || !e.LaunchSucceeded {
+		return s, rejectPrep(e.ConnID, e.ReqID, PrepFailureIncompleteCommit, "clone and launch evidence required")
 	}
-	if e.SessionID == "" || e.ClonePath == "" || e.EnvironmentID == "" {
-		return s, rejectPrep(e.ConnID, e.ReqID, PrepFailureInvalidIdentity, "session, clone path, and environment ids required")
+	if e.SessionID == "" || e.ClonePath == "" {
+		return s, rejectPrep(e.ConnID, e.ReqID, PrepFailureInvalidIdentity, "session and clone path ids required")
 	}
 	if SessionIsAvailableProjection(s, e.SessionID) {
 		return s, rejectPrep(e.ConnID, e.ReqID, PrepFailureIllegalTransition, "session already available")
 	}
 	prep.Stage, prep.SessionID = PrepStageAvailable, e.SessionID
-	prep.ClonePath, prep.EnvironmentID = e.ClonePath, e.EnvironmentID
-	prep.CloneDurable, prep.EnvironmentReady, prep.LaunchSucceeded = true, true, true
-	if e.EnvironmentReused {
-		prep.EnvironmentDisposition = EnvDispositionReused
-	} else {
-		prep.EnvironmentDisposition = EnvDispositionReady
-	}
+	prep.ClonePath = e.ClonePath
+	prep.CloneDurable, prep.LaunchSucceeded = true, true
 	prep.FailureCode, prep.RetryOrigin, prep.Revision = PrepFailureNone, RetryOriginNone, prep.Revision+1
 	s = putPreparation(s, prep)
 	s.Sessions = cloneSessions(s.Sessions)
@@ -263,7 +243,7 @@ func reduceRepositoryAbandon(s State, e EvRepository) (State, []Effect) {
 	if prep.Stage == PrepStageAvailable {
 		return s, illegal(prep, e.ConnID, e.ReqID)
 	}
-	s, _ = advancePrep(s, prep, PrepStageAbandoned, prep.FailureCode, prep.RetryOrigin, prep.EnvironmentDisposition, e.ConnID, e.ReqID)
+	s, _ = advancePrep(s, prep, PrepStageAbandoned, prep.FailureCode, prep.RetryOrigin, e.ConnID, e.ReqID)
 	prep, _ = FindPreparation(s, e.PreparationID)
 	return s, []Effect{
 		EffRepositoryPersist{PreparationID: prep.ID, Revision: prep.Revision},
@@ -272,8 +252,8 @@ func reduceRepositoryAbandon(s State, e EvRepository) (State, []Effect) {
 	}
 }
 
-func advancePrep(s State, prep RepositoryPreparation, stage PreparationStage, code PreparationFailureCode, origin RetryOrigin, env EnvironmentDisposition, conn ConnID, req string) (State, []Effect) {
-	prep.Stage, prep.FailureCode, prep.RetryOrigin, prep.EnvironmentDisposition = stage, code, origin, env
+func advancePrep(s State, prep RepositoryPreparation, stage PreparationStage, code PreparationFailureCode, origin RetryOrigin, conn ConnID, req string) (State, []Effect) {
+	prep.Stage, prep.FailureCode, prep.RetryOrigin = stage, code, origin
 	prep.Revision++
 	s = putPreparation(s, prep)
 	return s, []Effect{
@@ -314,8 +294,7 @@ func prepSnapshot(p RepositoryPreparation) RepositoryPreparationReply {
 	return RepositoryPreparationReply{
 		PreparationID: string(p.ID), IntentID: string(p.IntentID), ServerID: string(p.ServerID),
 		Repository: p.Repository, Stage: string(p.Stage), FailureCode: string(p.FailureCode),
-		RetryOrigin: string(p.RetryOrigin), EnvironmentDisposition: string(p.EnvironmentDisposition),
-		Revision: p.Revision, SessionID: string(p.SessionID), ClonePath: string(p.ClonePath),
-		EnvironmentID: string(p.EnvironmentID),
+		RetryOrigin: string(p.RetryOrigin),
+		Revision:    p.Revision, SessionID: string(p.SessionID), ClonePath: string(p.ClonePath),
 	}
 }

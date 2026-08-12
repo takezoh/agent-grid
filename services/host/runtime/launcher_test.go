@@ -35,9 +35,6 @@ func TestDirectLauncher_passthrough(t *testing.T) {
 	if got.Env["AG_FRAME_ID"] != "f1" {
 		t.Errorf("Env not forwarded, got %v", got.Env)
 	}
-	if got.Cleanup != nil {
-		t.Error("DirectLauncher Cleanup should be nil")
-	}
 }
 
 func TestDirectLauncher_injectsAG_SOCKET(t *testing.T) {
@@ -65,13 +62,6 @@ func TestDirectLauncher_noSockPath_noAG_SOCKET(t *testing.T) {
 	}
 	if _, ok := got.Env["AG_SOCKET"]; ok {
 		t.Errorf("AG_SOCKET should not be set when SockPath is empty, got %v", got.Env)
-	}
-}
-
-func TestDirectLauncher_IsContainer(t *testing.T) {
-	l := DirectLauncher{}
-	if l.IsContainer("/any/project") {
-		t.Error("DirectLauncher.IsContainer should always return false")
 	}
 }
 
@@ -108,9 +98,6 @@ func TestDirectLauncher_keepsManagedMCPAuthorityToken(t *testing.T) {
 	}
 	if got.Env["HOME"] != home {
 		t.Fatalf("HOME = %q, want preserved %q", got.Env["HOME"], home)
-	}
-	if got.Cleanup != nil {
-		t.Fatal("launch-scoped MCP configuration must not install HOME cleanup")
 	}
 	var spec framelaunch.FrameSpec
 	if err := json.Unmarshal([]byte(got.Env["AG_FRAME_SPEC"]), &spec); err != nil {

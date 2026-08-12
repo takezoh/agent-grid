@@ -23,7 +23,7 @@ func TestReduceShutdownOrdersBarrierCleanupAckAndTerminal(t *testing.T) {
 	if len(effects) != 1 {
 		t.Fatalf("barrier success effects = %#v", effects)
 	}
-	release, ok := effects[0].(EffReleaseFrameSandboxes)
+	release, ok := effects[0].(EffReleaseFrames)
 	if !ok || release.TransactionID != txID {
 		t.Fatalf("barrier success effect = %#v", effects[0])
 	}
@@ -65,7 +65,7 @@ func TestReduceShutdownSaveFailureRollsBackWithoutCleanup(t *testing.T) {
 		t.Fatal("Save failure must roll back to Running")
 	}
 	for _, effect := range effects {
-		if _, ok := effect.(EffReleaseFrameSandboxes); ok {
+		if _, ok := effect.(EffReleaseFrames); ok {
 			t.Fatal("Save failure must not start cleanup")
 		}
 		if _, ok := effect.(EffTerminateRuntime); ok {

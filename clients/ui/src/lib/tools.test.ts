@@ -137,7 +137,6 @@ function makeCtx(overrides: Partial<ToolCtx> = {}): ToolCtx {
         {
           path: "/repo/a",
           isGit: false,
-          isSandboxed: false,
           commandProfiles: [defaultProfile],
         },
       ],
@@ -456,43 +455,6 @@ describe("new-session.submit", () => {
     });
   });
 
-  it("maps host=true to sandbox: 'host' (ADR-0042)", async () => {
-    const http = makeFakeHttp();
-    const ctx = makeCtx({ http });
-    const tool = findTool(listTools(ctx.daemon, []), "new-session");
-    await tool.submit(ctx, {
-      project: "/repo/a",
-      command: "claude",
-      host: true,
-    });
-    expect(http.createSession).toHaveBeenCalledWith({
-      project: "/repo/a",
-      version: 2,
-      profile_id: "claude",
-      profile_revision: "revision-claude",
-      parameters: {},
-      sandbox: "host",
-    });
-  });
-
-  it("omits sandbox when host=false (= 'auto' on the wire)", async () => {
-    const http = makeFakeHttp();
-    const ctx = makeCtx({ http });
-    const tool = findTool(listTools(ctx.daemon, []), "new-session");
-    await tool.submit(ctx, {
-      project: "/repo/a",
-      command: "claude",
-      host: false,
-    });
-    expect(http.createSession).toHaveBeenCalledWith({
-      project: "/repo/a",
-      version: 2,
-      profile_id: "claude",
-      profile_revision: "revision-claude",
-      parameters: {},
-    });
-  });
-
   it("throws when project is missing and does not notify / close", async () => {
     const http = makeFakeHttp();
     const notify = makeFakeNotify();
@@ -526,8 +488,8 @@ describe("projectOptions", () => {
   it("projects daemon.projects to value + label ParamOption entries", () => {
     const daemon = makeDaemonSnapshot({
       projects: [
-        { path: "/repo/a", isGit: true, isSandboxed: false },
-        { path: "/repo/b", isGit: false, isSandboxed: true },
+        { path: "/repo/a", isGit: true },
+        { path: "/repo/b", isGit: false },
       ],
     });
     const opts = projectOptions(daemon);
@@ -701,7 +663,7 @@ describe("push ToolDef.submit", () => {
       activeSessionID: "sess_abcd1234efgh",
       activeOccupant: "frame",
       sessions: [sessionFixture("sess_abcd1234efgh", undefined, "/home/foo/bar")],
-      projects: [{ path: "/home/foo/bar", isGit: true, isSandboxed: true }],
+      projects: [{ path: "/home/foo/bar", isGit: true }],
     });
   }
 

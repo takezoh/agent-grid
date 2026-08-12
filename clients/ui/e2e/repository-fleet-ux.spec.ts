@@ -9,7 +9,7 @@ import { expect, test } from "./support/test";
 const sessionConfig = {
   project_roots: ["/repo"],
   project_paths: ["/repo/a"],
-  projects: [{ path: "/repo/a", isGit: true, isSandboxed: false }],
+  projects: [{ path: "/repo/a", isGit: true }],
   commands: ["codex"],
   push_commands: [],
 };

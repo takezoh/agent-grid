@@ -5,11 +5,11 @@ import (
 	"testing"
 )
 
-// containsReleaseFor returns true when EffReleaseFrameSandbox{frameID} is
+// containsReleaseFor returns true when EffReleaseFrame{frameID} is
 // present in effs. Helper for the tests below.
 func containsReleaseFor(effs []Effect, frameID FrameID) bool {
 	for _, e := range effs {
-		if r, ok := e.(EffReleaseFrameSandbox); ok && r.FrameID == frameID {
+		if r, ok := e.(EffReleaseFrame); ok && r.FrameID == frameID {
 			return true
 		}
 	}
@@ -33,7 +33,7 @@ func containsKillSessionWindow(effs []Effect, frameID FrameID) bool {
 // fix for the “container never goes away” bug. When the frame process
 // exits (pty EOF) the reducer routes via evictFrame(killWindow=false) so
 // no EffKillFrame is emitted (the backend window is already
-// gone), but EffReleaseFrameSandbox MUST still fire so the per-frame
+// gone), but EffReleaseFrame MUST still fire so the per-frame
 // cleanup runs Manager.ReleaseFrame → 0 なら DestroyInstance. Before the
 // fix the two responsibilities were welded into EffKillFrame and
 // frame-vanished left the container alive forever.
@@ -54,7 +54,7 @@ func TestFrameVanished_emitsReleaseFrameSandbox_butNotKill(t *testing.T) {
 	_, effs := Reduce(s, EvFrameVanished{FrameID: rootID})
 
 	if !containsReleaseFor(effs, rootID) {
-		t.Errorf("expected EffReleaseFrameSandbox{%q} in effects, got %v", rootID, effectTypes(effs))
+		t.Errorf("expected EffReleaseFrame{%q} in effects, got %v", rootID, effectTypes(effs))
 	}
 	if containsKillSessionWindow(effs, rootID) {
 		t.Errorf("EffKillFrame must not fire when window already vanished, effects=%v", effectTypes(effs))
@@ -83,7 +83,7 @@ func TestFrameCommandExited_intentional_emitsKillAndRelease(t *testing.T) {
 	_, effs := Reduce(s, EvFrameCommandExited{FrameID: rootID, ExitCode: 0})
 
 	if !containsReleaseFor(effs, rootID) {
-		t.Errorf("clean exit must emit EffReleaseFrameSandbox{%q}, got %v", rootID, effectTypes(effs))
+		t.Errorf("clean exit must emit EffReleaseFrame{%q}, got %v", rootID, effectTypes(effs))
 	}
 	if !containsKillSessionWindow(effs, rootID) {
 		t.Errorf("clean exit must emit EffKillFrame{%q}, got %v", rootID, effectTypes(effs))
@@ -117,7 +117,7 @@ func TestFrameCommandExited_abnormal_releasesSandboxButKeepsFrame(t *testing.T) 
 		t.Fatalf("abnormal exit must keep the session in state for user inspection")
 	}
 	if !containsReleaseFor(effs, rootID) {
-		t.Errorf("abnormal exit must emit EffReleaseFrameSandbox{%q}, got %v", rootID, effectTypes(effs))
+		t.Errorf("abnormal exit must emit EffReleaseFrame{%q}, got %v", rootID, effectTypes(effs))
 	}
 }
 
@@ -147,7 +147,7 @@ func TestStopSession_releasesEveryFrameSandbox(t *testing.T) {
 
 	for _, fid := range []FrameID{rootID, childID} {
 		if !containsReleaseFor(effs, fid) {
-			t.Errorf("stop-session must emit EffReleaseFrameSandbox{%q}; effects=%v", fid, effectTypes(effs))
+			t.Errorf("stop-session must emit EffReleaseFrame{%q}; effects=%v", fid, effectTypes(effs))
 		}
 		if !containsKillSessionWindow(effs, fid) {
 			t.Errorf("stop-session must emit EffKillFrame{%q}; effects=%v", fid, effectTypes(effs))

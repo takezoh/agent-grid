@@ -36,7 +36,7 @@ export function workspaceOf(s: FleetSessionRow): string {
 export type ConnectionStatus = "connecting" | "open" | "reconnecting" | "closed";
 
 // SessionConfigSlice mirrors the subset of GET /api/session-config the
-// palette needs to gate behavior: the projects list (with isGit/isSandboxed
+// palette needs to gate behavior: the projects list (with the isGit
 // flags driving the new-session worktree/host toggles per FR-013/FR-014), the
 // curated [session].commands list (feeds the new-session "Command" dynamic
 // listbox) and the push_commands enumeration (FR-027, fed to the dynamic

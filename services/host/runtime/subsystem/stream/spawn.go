@@ -15,23 +15,16 @@ import (
 // The returned *strings.Builder accumulates the app-server's stderr; read it
 // only after the process is reaped (res.Wait) so the copier goroutine is done.
 func (b *Backend) spawnServer(ctx context.Context) (agentlaunch.SpawnResult, *strings.Builder, error) {
-	argv := libcodex.AppServerListenArgs(b.serverBin, b.listenSock, b.configArgs, b.sandboxed)
+	argv := libcodex.AppServerListenArgs(b.serverBin, b.listenSock, b.configArgs)
 	if b.shouldUseShim() {
 		argv = b.shimArgs()
 	}
 
-	// ForceHost mirrors the Factory-computed b.isContainer decision. Without
-	// this, a state.SandboxOverrideHost that already made b.isContainer=false
-	// would still route the app-server through SandboxDispatcher's project-mode
-	// path (devcontainer) — the frame would run on host while the app-server
-	// stayed in the container and the two could not share the UDS listenSock.
-	// The two axes (frame vs app-server placement) MUST agree per session.
 	plan := agentlaunch.LaunchPlan{
-		Command:   strings.Join(argv, " "),
-		Argv:      argv,
-		Project:   b.project,
-		StartDir:  "",
-		ForceHost: !b.isContainer,
+		Command:  strings.Join(argv, " "),
+		Argv:     argv,
+		Project:  b.project,
+		StartDir: "",
 	}
 
 	errBuf := &strings.Builder{}
@@ -42,38 +35,29 @@ func (b *Backend) spawnServer(ctx context.Context) (agentlaunch.SpawnResult, *st
 		if err != nil {
 			return agentlaunch.SpawnResult{}, errBuf, fmt.Errorf("stream backend: dispatch wrap: %w", err)
 		}
-		b.setSpawnCleanup(wrapped.Cleanup)
 	} else {
 		wrapped = agentlaunch.WrappedLaunch{Argv: argv}
 	}
 
-	b.dialSock = resolveDialSock(b.listenSock, wrapped)
-	b.mounts = toPathmapMounts(wrapped.Mounts)
+	b.dialSock = b.listenSock
 	// Clear any stale socket before the app-server binds it (e.g. a crashed
-	// predecessor left the file behind). Removing the host path also clears the
-	// bind-mounted container path.
+	// predecessor left the file behind).
 	_ = os.Remove(b.dialSock)
 
 	res, err := agentlaunch.Spawn(b.ctx, wrapped, agentlaunch.SpawnOptions{
 		InheritEnv: true,
 		Stderr:     newPrefixWriter(errBuf, 8192),
 	})
-	if err != nil {
-		b.cleanupSpawn(context.Background())
-	}
 	return res, errBuf, err
 }
 
 func (b *Backend) shouldUseShim() bool {
-	return b.isContainer || b.helperBin != ""
+	return b.helperBin != ""
 }
 
 func (b *Backend) shimArgs() []string {
 	upstreamSock := b.listenSock + ".upstream"
 	helperBin := b.helperBin
-	if b.isContainer {
-		helperBin = agentlaunch.ContainerBinaryPath
-	}
 	args := []string{
 		helperBin,
 		"codex-app-server-shim",
@@ -85,11 +69,8 @@ func (b *Backend) shimArgs() []string {
 	for _, arg := range b.configArgs {
 		args = append(args, "--server-arg", arg)
 	}
-	if b.sandboxed {
-		args = append(args, "--sandbox-external")
-	}
 	if b.serverBin == "" {
-		return libcodex.AppServerListenArgs(b.serverBin, b.listenSock, b.configArgs, b.sandboxed)
+		return libcodex.AppServerListenArgs(b.serverBin, b.listenSock, b.configArgs)
 	}
 	return args
 }

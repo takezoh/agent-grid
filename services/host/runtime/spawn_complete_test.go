@@ -11,7 +11,6 @@ import (
 	"github.com/takezoh/agent-grid/services/host/proto"
 	rsubsystem "github.com/takezoh/agent-grid/services/host/runtime/subsystem"
 	"github.com/takezoh/agent-grid/services/host/state"
-	"github.com/takezoh/agent-grid/services/platform/pathmap"
 )
 
 // TestHandleSpawnComplete_storesHandlesNonContainer verifies the event loop
@@ -42,46 +41,6 @@ func TestHandleSpawnComplete_storesHandlesNonContainer(t *testing.T) {
 	}
 	if got := atomic.LoadInt32(&sub.activateN); got != 1 {
 		t.Errorf("ActivateFrame calls = %d, want 1 after runtime handles are committed", got)
-	}
-	if _, ok := r.frameReg.GetMounts("f1"); ok {
-		t.Errorf("non-container frame must not register mounts")
-	}
-}
-
-// TestHandleSpawnComplete_registersContainerFrame verifies that a container
-// spawn (token set) atomically registers the token and mounts via the registry
-// and starts the endpoint.
-func TestHandleSpawnComplete_registersContainerFrame(t *testing.T) {
-	dir := t.TempDir()
-	r := New(Config{Backend: newFakeBackend()})
-	t.Cleanup(r.shutdownContainerEndpoints)
-
-	r.state.Sessions["s1"] = state.Session{
-		ID: "s1", Project: "/p",
-		Frames: []state.SessionFrame{{ID: "f1", Project: "/p", Command: "shell"}},
-	}
-	sub := &fakeSubsystem{id: "sub-1", kind: state.LaunchSubsystemCLI}
-	ms := pathmap.Mounts{{Host: "/h/work", Container: "/work"}}
-
-	r.handleSpawnComplete(internalSpawnComplete{
-		effect:           state.EffSpawnFrame{SessionID: "s1", FrameID: "f1", Plan: state.LaunchPlan{Project: "/p"}},
-		subsystemID:      "sub-1",
-		sub:              sub,
-		token:            "tok-1",
-		mounts:           ms,
-		containerSockDir: dir,
-	})
-
-	id, ok := r.frameReg.Lookup("tok-1")
-	if !ok || id != "f1" {
-		t.Fatalf("frameReg.Lookup(tok-1) = (%q, %v), want (f1, true)", id, ok)
-	}
-	got, ok := r.frameReg.GetMounts("f1")
-	if !ok || len(got) != 1 {
-		t.Fatalf("frameReg.GetMounts(f1) = (%v, %v), want one mount", got, ok)
-	}
-	if _, ok := r.containerEndpoints["/p"]; !ok {
-		t.Errorf("container endpoint for project /p not started")
 	}
 }
 
@@ -182,35 +141,6 @@ func TestSpawnFrameWindow_emitsSpawnFailedOnError(t *testing.T) {
 	}
 }
 
-// TestSpawnFrameWindow_cleanupOnSpawnError verifies that when the sandbox was
-// acquired (WrapLaunch returned a Cleanup) but backend SpawnFrame then fails, the
-// spawn goroutine releases the sandbox — otherwise the container ref leaks
-// because no EvFrameSpawned / kill path ever reaches this frame.
-func TestSpawnFrameWindow_cleanupOnSpawnError(t *testing.T) {
-	var cleaned atomic.Bool
-	backend := newFakeBackend()
-	backend.spawnErr = errors.New("backend boom")
-
-	deps := spawnDeps{
-		backend:  backend,
-		launcher: &testLauncher{cleanup: func() error { cleaned.Store(true); return nil }},
-		factories: map[state.LaunchSubsystem]rsubsystem.Factory{
-			state.LaunchSubsystemCLI: &fakeFactory{sub: &fakeSubsystem{id: "s", kind: state.LaunchSubsystemCLI}},
-		},
-		sendInternal: func(internalEvent) {},
-		sendEvent:    func(state.Event) {},
-	}
-
-	spawnFrameWindow(deps, state.EffSpawnFrame{
-		SessionID: "s1", FrameID: "f1",
-		Plan: state.LaunchPlan{Project: "/p", Command: "minimal-test"},
-	})
-
-	if !cleaned.Load() {
-		t.Error("wrapped.Cleanup was not invoked after SpawnFrame failure (sandbox leak)")
-	}
-}
-
 // TestHandleSpawnComplete_discardsWhenFrameKilledMidSpawn verifies the 027
 // fix: if the spawn target session/frame is no longer in reducer state when
 // the completion arrives (EffKillFrame processed first), the loop
@@ -222,13 +152,11 @@ func TestHandleSpawnComplete_discardsWhenFrameKilledMidSpawn(t *testing.T) {
 	// state.Sessions is empty — frame "f1" does not exist.
 
 	sub := &fakeSubsystem{id: "sub-1", kind: state.LaunchSubsystemCLI}
-	var cleaned atomic.Bool
 
 	r.handleSpawnComplete(internalSpawnComplete{
 		effect:      state.EffSpawnFrame{SessionID: "s1", FrameID: "f1", Plan: state.LaunchPlan{Project: "/p"}},
 		subsystemID: "sub-1",
 		sub:         sub,
-		cleanup:     func() error { cleaned.Store(true); return nil },
 	})
 
 	// Loop-owned maps must remain untouched.
@@ -251,77 +179,13 @@ func TestHandleSpawnComplete_discardsWhenFrameKilledMidSpawn(t *testing.T) {
 		t.Errorf("expected one KillFrame(\"f1\"), got killCalls=%d killedFrames=%v", killCalls, killedFrames)
 	}
 
-	// Cleanup + ReleaseFrame run off-loop. Wait briefly for the goroutine.
+	// ReleaseFrame runs off-loop. Wait briefly for the goroutine.
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
-		if cleaned.Load() && atomic.LoadInt32(&sub.releaseN) == 1 {
+		if atomic.LoadInt32(&sub.releaseN) == 1 {
 			break
 		}
 		time.Sleep(5 * time.Millisecond)
-	}
-	if !cleaned.Load() {
-		t.Error("cleanup closure was not invoked (container/sandbox leak)")
-	}
-	if got := atomic.LoadInt32(&sub.releaseN); got != 1 {
-		t.Errorf("sub.ReleaseFrame call count = %d, want 1", got)
-	}
-}
-
-// TestHandleSpawnComplete_discardsContainerFrame asserts the same discard
-// path also skips container registration (token+mounts) when the frame is
-// gone. This is the path described in 027 that previously caused container
-// endpoint + warm-file leaks.
-func TestHandleSpawnComplete_discardsContainerFrame(t *testing.T) {
-	dir := t.TempDir()
-	backend := newFakeBackend()
-	r := New(Config{Backend: backend})
-	t.Cleanup(r.shutdownContainerEndpoints)
-
-	sub := &fakeSubsystem{id: "sub-1", kind: state.LaunchSubsystemCLI}
-	ms := pathmap.Mounts{{Host: "/h/work", Container: "/work"}}
-	var cleaned atomic.Bool
-
-	r.handleSpawnComplete(internalSpawnComplete{
-		effect:           state.EffSpawnFrame{SessionID: "ghost", FrameID: "ghost", Plan: state.LaunchPlan{Project: "/p"}},
-		subsystemID:      "sub-1",
-		sub:              sub,
-		cleanup:          func() error { cleaned.Store(true); return nil },
-		token:            "tok-1",
-		mounts:           ms,
-		containerSockDir: dir,
-	})
-
-	if _, ok := r.frameReg.Lookup("tok-1"); ok {
-		t.Error("frameReg.Lookup(tok-1) succeeded for a killed frame (container token leak)")
-	}
-	if _, ok := r.frameReg.GetMounts("ghost"); ok {
-		t.Error("frameReg.GetMounts(ghost) returned mounts for a killed frame (mount leak)")
-	}
-	if _, ok := r.containerEndpoints["/p"]; ok {
-		t.Error("container endpoint was started for a killed frame (endpoint leak)")
-	}
-
-	// Frame kill is loop-synchronous.
-	backend.mu.Lock()
-	killCalls := backend.killCalls
-	killedFrames := append([]string(nil), backend.killedFrames...)
-	backend.mu.Unlock()
-	if killCalls != 1 || len(killedFrames) != 1 || killedFrames[0] != "ghost" {
-		t.Errorf("expected one KillFrame(\"ghost\"), got killCalls=%d killedFrames=%v", killCalls, killedFrames)
-	}
-
-	// Cleanup + ReleaseFrame run off-loop. The container-frame discard path is
-	// the more leak-prone branch (endpoint + token + warm-file all in scope),
-	// so it must release the same resources the non-container sibling does.
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		if cleaned.Load() && atomic.LoadInt32(&sub.releaseN) == 1 {
-			break
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	if !cleaned.Load() {
-		t.Error("cleanup closure was not invoked for discarded container frame")
 	}
 	if got := atomic.LoadInt32(&sub.releaseN); got != 1 {
 		t.Errorf("sub.ReleaseFrame call count = %d, want 1", got)

@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"log/slog"
-	"sync"
 	"sync/atomic"
 )
 
@@ -12,15 +11,13 @@ import (
 type Worker struct {
 	cancel          context.CancelFunc
 	done            <-chan struct{}
-	cleanup         func(context.Context) error
-	once            sync.Once
 	issueID         string
 	issueIdentifier string
 	graceful        atomic.Bool // true when kill is orchestrator-initiated due to agent handoff/completion
 }
 
 // Kill stops the underlying codex subprocess by cancelling the worker context.
-// It blocks until the subprocess exits, then runs Cleanup once.
+// It blocks until the subprocess exits.
 // Reasons "terminal" and "non-active" are agent-initiated state transitions (handoff/Done);
 // the graceful flag suppresses turn_failed for those cases.
 func (w *Worker) Kill(reason string) error {
@@ -34,7 +31,6 @@ func (w *Worker) Kill(reason string) error {
 	}
 	w.cancel()
 	<-w.done
-	w.runCleanup()
 	return nil
 }
 
@@ -43,16 +39,4 @@ func (w *Worker) Kill(reason string) error {
 // Used by awaitTurn to suppress turn_failed for orchestrator-managed stops.
 func (w *Worker) WasKilledGracefully() bool {
 	return w.graceful.Load()
-}
-
-// runCleanup calls the WrappedLaunch.Cleanup function exactly once.
-func (w *Worker) runCleanup() {
-	if w.cleanup == nil {
-		return
-	}
-	w.once.Do(func() {
-		if err := w.cleanup(context.Background()); err != nil {
-			slog.Warn("agent: cleanup error", "err", err)
-		}
-	})
 }

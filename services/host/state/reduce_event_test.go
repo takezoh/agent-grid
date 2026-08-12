@@ -18,7 +18,7 @@ func (pushDriverStub) Name() string                       { return "pushstub" }
 func (pushDriverStub) DisplayName() string                { return "pushstub" }
 func (pushDriverStub) Status(s DriverState) Status        { return StatusIdle }
 func (pushDriverStub) NewState(now time.Time) DriverState { return pushStubState{} }
-func (pushDriverStub) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, _ bool) (LaunchPlan, error) {
+func (pushDriverStub) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions) (LaunchPlan, error) {
 	return LaunchPlan{Command: baseCommand, StartDir: project}, nil
 }
 func (pushDriverStub) Persist(s DriverState) map[string]string { return nil }
@@ -54,7 +54,7 @@ func (subsystemDriverStub) Name() string                       { return "subsyst
 func (subsystemDriverStub) DisplayName() string                { return "subsystemstub" }
 func (subsystemDriverStub) Status(s DriverState) Status        { return StatusIdle }
 func (subsystemDriverStub) NewState(now time.Time) DriverState { return subsystemStubState{} }
-func (subsystemDriverStub) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, _ bool) (LaunchPlan, error) {
+func (subsystemDriverStub) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions) (LaunchPlan, error) {
 	return LaunchPlan{Command: baseCommand, StartDir: project}, nil
 }
 func (subsystemDriverStub) Persist(s DriverState) map[string]string { return nil }
@@ -87,7 +87,7 @@ func (bogusSessionDriverStub) Name() string                       { return "bogu
 func (bogusSessionDriverStub) DisplayName() string                { return "bogussessionstub" }
 func (bogusSessionDriverStub) Status(s DriverState) Status        { return StatusIdle }
 func (bogusSessionDriverStub) NewState(now time.Time) DriverState { return pushStubState{} }
-func (bogusSessionDriverStub) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions, _ bool) (LaunchPlan, error) {
+func (bogusSessionDriverStub) PrepareLaunch(s DriverState, mode LaunchMode, project, baseCommand string, options LaunchOptions) (LaunchPlan, error) {
 	return LaunchPlan{Command: baseCommand, StartDir: project}, nil
 }
 func (bogusSessionDriverStub) Persist(s DriverState) map[string]string { return nil }

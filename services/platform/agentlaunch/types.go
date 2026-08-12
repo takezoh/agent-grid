@@ -1,7 +1,6 @@
 package agentlaunch
 
 import (
-	"context"
 	"time"
 )
 
@@ -33,24 +32,15 @@ type LaunchPlan struct {
 	ManagedMCPTools   ManagedMCPTools
 }
 
-// Mount is a host↔container path pair used to translate paths at the IPC boundary.
-type Mount struct {
-	Host, Container string
-}
-
-// WrappedLaunch is the resolved launch specification after sandboxing has been
-// applied. Command/StartDir/Env are handed to the caller's spawn layer (a frame
-// backend for the client, a direct stdio exec for the orchestrator);
-// Cleanup is called when the launch is torn down.
+// WrappedLaunch is the resolved launch specification. Command/StartDir/Env are
+// handed to the caller's spawn layer (a frame backend for the client, a direct
+// stdio exec for the orchestrator).
 //
 // Argv, when non-nil, is the argv for Spawn (no host-side shell). Command is the
 // shell-joined equivalent for backend frame launchers. Dispatchers populate both.
 type WrappedLaunch struct {
-	Command          string
-	Argv             []string
-	StartDir         string
-	Env              map[string]string
-	Cleanup          func(context.Context) error
-	ContainerSockDir string
-	Mounts           []Mount
+	Command  string
+	Argv     []string
+	StartDir string
+	Env      map[string]string
 }

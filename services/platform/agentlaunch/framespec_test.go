@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/takezoh/agent-grid/services/platform/framelaunch"
-	"github.com/takezoh/agent-grid/services/platform/sandbox"
 )
 
 func TestEncodeFrameSpec_RoundTrip(t *testing.T) {
@@ -50,28 +49,5 @@ func TestEncodeFrameSpec_EmptyPreExecOmittedFromJSON(t *testing.T) {
 	}
 	if strings.Contains(raw, "pre_exec") {
 		t.Fatalf("empty PreExec should be omitted: %s", raw)
-	}
-}
-
-func TestEncodeFrameSpecFromLaunchSpec_MatchesPlan(t *testing.T) {
-	spec := sandbox.LaunchSpec{
-		Argv:        []string{"echo", "hi"},
-		PreExec:     "export A=1",
-		PreCommands: [][]string{{"true"}},
-	}
-	raw, err := EncodeFrameSpecFromLaunchSpec(spec)
-	if err != nil {
-		t.Fatalf("EncodeFrameSpecFromLaunchSpec: %v", err)
-	}
-	planRaw, err := EncodeFrameSpec(LaunchPlan{
-		Argv:        spec.Argv,
-		PreExec:     spec.PreExec,
-		PreCommands: spec.PreCommands,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if raw != planRaw {
-		t.Fatalf("mismatch:\n  fromSpec=%s\n  fromPlan=%s", raw, planRaw)
 	}
 }

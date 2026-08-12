@@ -85,7 +85,7 @@ func (d GrokDriver) PrepareCreate(s state.DriverState, sessionID state.SessionID
 	return gs, launch, err
 }
 
-func (d GrokDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, command string, options state.LaunchOptions, _ bool) (state.LaunchPlan, error) {
+func (d GrokDriver) PrepareLaunch(s state.DriverState, mode state.LaunchMode, project, command string, options state.LaunchOptions) (state.LaunchPlan, error) {
 	gs, _ := s.(GrokState)
 	startDir := project
 	if gs.StartDir != "" {

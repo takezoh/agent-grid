@@ -69,31 +69,21 @@ func ParseCommand(argv []string) (CommandConfig, error) {
 
 // AppServerListenArgs returns the argv for `codex app-server --listen unix://<sock>`.
 // extra is passed through verbatim (e.g. ["-c", "key=val"] config overrides).
-// When sandboxExternal is true, -c sandbox_mode="danger-full-access" is appended.
-func AppServerListenArgs(serverBin, sock string, extra []string, sandboxExternal bool) []string {
+func AppServerListenArgs(serverBin, sock string, extra []string) []string {
 	args := []string{serverBin, "app-server", "--listen", "unix://" + sock}
-	args = append(args, extra...)
-	if sandboxExternal {
-		args = append(args, "-c", `sandbox_mode="danger-full-access"`)
-	}
-	return args
+	return append(args, extra...)
 }
 
 // AppServerStdioArgs returns the argv for `codex app-server` (stdio transport, no --listen).
-func AppServerStdioArgs(extra []string, sandboxExternal bool) []string {
+func AppServerStdioArgs(extra []string) []string {
 	args := []string{DriverName, "app-server"}
-	args = append(args, extra...)
-	if sandboxExternal {
-		args = append(args, "-c", `sandbox_mode="danger-full-access"`)
-	}
-	return args
+	return append(args, extra...)
 }
 
 // RemoteAttachArgs returns the argv for the codex CLI frame that attaches to
-// the per-session app-server over its unix domain socket. sock is the
-// container-absolute UDS path the app-server binds; the codex CLI runs in
-// the same sandbox, so it connects to that socket directly (no TCP routing
-// bridge).
+// the per-session app-server over its unix domain socket. sock is the UDS
+// path the app-server binds; the codex CLI connects to that socket directly
+// (no TCP routing bridge).
 //
 // threadID selects the thread the CLI attaches to:
 //

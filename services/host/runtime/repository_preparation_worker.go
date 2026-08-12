@@ -43,13 +43,11 @@ type prepWorker struct {
 }
 
 type pendingTerminalLaunch struct {
-	SessionID     state.SessionID
-	ClonePath     state.ClonePathID
-	EnvironmentID state.RepositoryEnvironmentID
-	Command       string
-	Revision      uint64
-	EnvReused     bool
-	Generation    uint64
+	SessionID  state.SessionID
+	ClonePath  state.ClonePathID
+	Command    string
+	Revision   uint64
+	Generation uint64
 }
 
 func NewPreparationController(store PreparationStore, fs gitclone.FilesystemProcess, cloner gitclone.Cloner, root string, enqueue func(state.Event)) *PreparationController {
@@ -383,7 +381,7 @@ func (c *PreparationController) ReconcileStartup(preps []state.RepositoryPrepara
 	var out []state.Event
 	for _, prep := range preps {
 		switch prep.Stage {
-		case state.PrepStageConfirmed, state.PrepStageCloneInProgress, state.PrepStageDevcontainerInProgress:
+		case state.PrepStageConfirmed, state.PrepStageCloneInProgress:
 			out = append(out, state.EvRepository{Kind: "interrupted", PreparationID: prep.ID})
 		case state.PrepStageCloneReady:
 			staging := filepath.Join(c.SessionsRoot, "staging", string(prep.ID))

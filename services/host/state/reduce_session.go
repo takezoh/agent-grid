@@ -5,10 +5,9 @@ import (
 )
 
 type CreateSessionParams struct {
-	Project string          `json:"project"`
-	Command string          `json:"command"`
-	Sandbox SandboxOverride `json:"sandbox,omitempty"`
-	Options LaunchOptions   `json:"options,omitempty"`
+	Project string        `json:"project"`
+	Command string        `json:"command"`
+	Options LaunchOptions `json:"options,omitempty"`
 }
 
 type PushDriverParams struct {
@@ -58,7 +57,6 @@ func reduceCreateSession(s State, connID ConnID, reqID string, p CreateSessionPa
 		CreatedAt:     s.Now,
 		HeadFrameID:   rootFrameID,
 		Command:       command,
-		Sandbox:       p.Sandbox,
 		LaunchOptions: p.Options,
 		Driver:        driverState,
 		Frames: []SessionFrame{{
@@ -71,12 +69,12 @@ func reduceCreateSession(s State, connID ConnID, reqID string, p CreateSessionPa
 		}},
 	}
 
-	launch, err := drv.PrepareLaunch(driverState, LaunchModeCreate, p.Project, createLaunch.Command, createLaunch.Options, isSandboxed(s, p.Project, p.Sandbox))
+	launch, err := drv.PrepareLaunch(driverState, LaunchModeCreate, p.Project, createLaunch.Command, createLaunch.Options)
 	if err != nil {
 		return s, []Effect{errResp(connID, reqID, ErrCodeInvalidArgument, err.Error())}
 	}
 	launch.Project = p.Project
-	launch.Sandbox = p.Sandbox
+
 	session.Frames[0].LaunchOptions = launch.Options
 
 	s.Sessions = cloneSessions(s.Sessions)
@@ -196,12 +194,12 @@ func pushDriverInternal(s State, sid SessionID, project, rawCommand string, opti
 	s.Sessions = cloneSessions(s.Sessions)
 	s.Sessions[sid] = sess
 
-	launch, err := drv.PrepareLaunch(driverState, LaunchModeCreate, project, createLaunch.Command, createLaunch.Options, isSandboxed(s, project, sess.Sandbox))
+	launch, err := drv.PrepareLaunch(driverState, LaunchModeCreate, project, createLaunch.Command, createLaunch.Options)
 	if err != nil {
 		return s, nil, err
 	}
 	launch.Project = project
-	launch.Sandbox = sess.Sandbox
+
 	sess.Frames[len(sess.Frames)-1].LaunchOptions = launch.Options
 	s.Sessions[sid] = sess
 
@@ -280,12 +278,12 @@ func spawnForkSession(s State, connID ConnID, reqID string, sess Session, forkDr
 	}
 	rootFrameID := allocFrameID()
 	newSess := makeForkSession(s, sess, newSessID, rootFrameID, durableCommand, opts, driverState)
-	launch, err := forkDrv.PrepareLaunch(driverState, LaunchModeCreate, sess.Project, launchCommand, opts, isSandboxed(s, sess.Project, sess.Sandbox))
+	launch, err := forkDrv.PrepareLaunch(driverState, LaunchModeCreate, sess.Project, launchCommand, opts)
 	if err != nil {
 		return s, []Effect{errResp(connID, reqID, ErrCodeInvalidArgument, err.Error())}
 	}
 	launch.Project = sess.Project
-	launch.Sandbox = sess.Sandbox
+
 	newSess.Frames[0].LaunchOptions = launch.Options
 	s.Sessions = cloneSessions(s.Sessions)
 	s.Sessions[newSessID] = newSess
@@ -300,7 +298,6 @@ func makeForkSession(s State, src Session, newSessID SessionID, rootFrameID Fram
 		CreatedAt:     s.Now,
 		HeadFrameID:   rootFrameID,
 		Command:       durableCommand,
-		Sandbox:       src.Sandbox,
 		LaunchOptions: opts,
 		Driver:        driverState,
 		Frames: []SessionFrame{{
