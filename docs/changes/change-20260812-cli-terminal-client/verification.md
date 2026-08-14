@@ -218,10 +218,23 @@ reads the geometry is Windows-specific. Writing it that way immediately caught a
 real defect: the first version's stop function panicked when called twice, which
 `localTerminal.Close` does on a signal exit.
 
-The BSD input-queue flush is genuinely still open: `flush_other.go` returns
-`ErrUnsupportedPlatform` because the `TIOCFLUSH`/`FREAD` spelling has not been
-run against a real terminal here, and unlike the Windows case there is no second
-documented API to reach for. Linux is implemented and tested.
+The BSD input-queue flush was listed here as genuinely open, on the ground that
+there was no second documented API to reach for. That was wrong in the same way
+the Windows claim was: `golang.org/x/sys/unix` exports `TIOCFLUSH` for darwin,
+dragonfly, freebsd, netbsd and openbsd, and the read-side flag it takes is
+`FREAD 0x0001` from `sys/file.h`. It is implemented in `flush_bsd.go` and
+cross-compiles for all five.
+
+More usefully, the assertion that will judge it **runs here today**.
+`TestE2E_DiscardInputQueueEmptiesTheDriverQueue` writes into a pty master, calls
+`DiscardInputQueue`, and requires nothing to come back — with a control case
+beside it proving the bytes do arrive when nothing discards them. Replacing
+`flushTerminalInput` with a no-op makes it fail, naming the nine bytes that
+survived, while the control still passes. So the same test that passes on Linux
+is a real check of the BSD path wherever it runs, rather than a hope.
+
+`flush_other.go` now covers only solaris, aix, plan9 and js, where no ioctl has
+been identified.
 
 ### Acceptance-to-verification coverage
 

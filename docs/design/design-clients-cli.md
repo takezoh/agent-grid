@@ -187,10 +187,16 @@ Four absences are load-bearing rather than incidental:
 
 ## Known gaps
 
-The BSD input-queue flush is unimplemented: `flush_other.go` returns
-`ErrUnsupportedPlatform` because the `TIOCFLUSH`/`FREAD` spelling has not been
-run against a real terminal, and a wrong guess about a terminal leaves the
-operator with a shell that does not echo. Linux and Windows are implemented.
+Every platform the CLI can plausibly run on now discards the input queue: Linux
+through `TCFLSH`, the BSD family through `TIOCFLUSH`, Windows through
+`FlushConsoleInputBuffer`. `flush_other.go` covers only what is left — solaris,
+aix, plan9, js — and returns `ErrUnsupportedPlatform` so a caller learns the
+queue was not discarded instead of believing it was.
+
+The BSD and Windows paths have not been run on their own platforms from here.
+`TestE2E_DiscardInputQueueEmptiesTheDriverQueue` is what will observe the BSD
+one, and it is proven able to fail: replacing the flush with a no-op leaves all
+nine typed bytes and the test names them.
 
 The Windows console paths are implemented against documented APIs
 (`FlushConsoleInputBuffer` for the input queue, polled `GetSize` for geometry)

@@ -144,8 +144,12 @@ Outstanding before `closing`:
   and `codex` binaries emit nothing for `0x1D` while reacting visibly to a
   control key, so the default does not shadow a chord either owns. The two
   Windows observations are implemented, cross-compiled and covered by a
-  registered e2e file, but no run on a Windows console has happened yet. The BSD
-  input-queue flush remains genuinely open.
+  registered e2e file, but no run on a Windows console has happened yet — and
+  none is possible from here: `binfmt_misc` is not mounted, so no `.exe` can be
+  executed at all.
+- The BSD input-queue flush is implemented (`TIOCFLUSH` with `FREAD`) and
+  cross-compiles for all five BSD targets. It has not been run on a BSD machine,
+  but the test that judges it runs on Linux today and is proven able to fail.
 - `open-ambiguous-candidate-breadth` is still with the user.
 
 Everything else that was listed here is closed.

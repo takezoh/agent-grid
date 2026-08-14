@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/creack/pty"
 	"golang.org/x/term"
@@ -77,8 +78,10 @@ func observeRaw(terminal Terminal) bool {
 	return state != nil && local.original != nil && *state != *local.original
 }
 
-// openRealTerminal allocates a pty and opens the production Terminal over it.
-func openRealTerminal(t *testing.T) Terminal {
+// openRealTerminal returns the production Terminal over a fresh pty slave, and
+// the master. Writing to the master is how a test plays the part of someone
+// typing, which is what the input-queue assertions need.
+func openRealTerminal(t *testing.T) (Terminal, *os.File) {
 	t.Helper()
 	master, slave, err := pty.Open()
 	if err != nil {
@@ -97,7 +100,25 @@ func openRealTerminal(t *testing.T) Terminal {
 		t.Fatalf("open the real terminal: %v", err)
 	}
 	t.Cleanup(func() { _ = terminal.Close() })
-	return terminal
+	return terminal, master
+}
+
+// readAvailable returns whatever the terminal hands over within the window.
+// The read runs on its own goroutine because a pty does not honour read
+// deadlines here; the descriptors are closed by cleanup, which releases it.
+func readAvailable(terminal Terminal, window time.Duration) []byte {
+	got := make(chan []byte, 1)
+	go func() {
+		buffer := make([]byte, 256)
+		n, _ := terminal.Reader().Read(buffer)
+		got <- buffer[:n]
+	}()
+	select {
+	case data := <-got:
+		return data
+	case <-time.After(window):
+		return nil
+	}
 }
 
 // TestE2E_FakeVsRealTerminalRestore requires the fake and a real terminal to
@@ -108,7 +129,8 @@ func TestE2E_FakeVsRealTerminalRestore(t *testing.T) {
 	}
 
 	fakeRaw, fakeRestored := terminalStateCycle(t, NewFake(120, 40))
-	realRaw, realRestored := terminalStateCycle(t, openRealTerminal(t))
+	real, _ := openRealTerminal(t)
+	realRaw, realRestored := terminalStateCycle(t, real)
 
 	if fakeRaw != realRaw {
 		t.Errorf("raw entry differs: fake %v, real %v; fix the fake", fakeRaw, realRaw)
@@ -127,7 +149,7 @@ func TestE2E_RealTerminalGeometryIsReadBack(t *testing.T) {
 		t.Skip("AG_E2E_REAL_TTY is unset; the terminal fidelity backstop needs a real terminal")
 	}
 
-	terminal := openRealTerminal(t)
+	terminal, _ := openRealTerminal(t)
 	local, ok := terminal.(*localTerminal)
 	if !ok {
 		t.Fatalf("openRealTerminal returned %T, not the production terminal", terminal)
@@ -143,4 +165,63 @@ func TestE2E_RealTerminalGeometryIsReadBack(t *testing.T) {
 	if cols != 132 || rows != 43 {
 		t.Errorf("Size reported %dx%d, want 132x43", cols, rows)
 	}
+}
+
+// TestE2E_DiscardInputQueueEmptiesTheDriverQueue observes the effect the fake
+// can only record: that bytes already sitting in the terminal driver's input
+// queue are gone afterwards.
+//
+// This is the assertion the detach boundary rests on. Keystrokes typed after
+// the detach key live in two places — the ones this process already read, which
+// the input pump drops itself, and the ones still in the driver, which would be
+// handed to the shell the moment cooked mode returns and would execute whatever
+// the user typed while they believed they were still talking to the agent.
+//
+// The control case is what makes it an assertion rather than a hope: it proves
+// that bytes written to the master do reach a reader when nothing discards
+// them, so the silence in the second case is the discard and not a broken
+// probe. Without it, a flushTerminalInput that returned nil and did nothing
+// would pass — and on the platforms this repository cannot run, that is exactly
+// the failure to guard against.
+func TestE2E_DiscardInputQueueEmptiesTheDriverQueue(t *testing.T) {
+	if os.Getenv("AG_E2E_REAL_TTY") == "" {
+		t.Skip("AG_E2E_REAL_TTY is unset; the terminal fidelity backstop needs a real terminal")
+	}
+
+	typed := []byte("rm -rf /\n")
+
+	t.Run("control: without a discard the bytes arrive", func(t *testing.T) {
+		terminal, master := openRealTerminal(t)
+		if err := terminal.MakeRaw(); err != nil {
+			t.Fatalf("MakeRaw: %v", err)
+		}
+		if _, err := master.Write(typed); err != nil {
+			t.Fatalf("write to the master: %v", err)
+		}
+		time.Sleep(100 * time.Millisecond)
+
+		if got := readAvailable(terminal, time.Second); len(got) == 0 {
+			t.Fatal("nothing arrived even without a discard; " +
+				"this probe cannot tell a flushed queue from an unread one")
+		}
+	})
+
+	t.Run("after a discard nothing arrives", func(t *testing.T) {
+		terminal, master := openRealTerminal(t)
+		if err := terminal.MakeRaw(); err != nil {
+			t.Fatalf("MakeRaw: %v", err)
+		}
+		if _, err := master.Write(typed); err != nil {
+			t.Fatalf("write to the master: %v", err)
+		}
+		time.Sleep(100 * time.Millisecond)
+
+		if err := terminal.DiscardInputQueue(); err != nil {
+			t.Fatalf("DiscardInputQueue: %v", err)
+		}
+		if got := readAvailable(terminal, time.Second); len(got) != 0 {
+			t.Errorf("%d bytes survived the discard (%q); "+
+				"they would reach the shell when cooked mode returns", len(got), got)
+		}
+	})
 }

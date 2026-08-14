@@ -1,13 +1,14 @@
-//go:build !linux && !windows
+//go:build !linux && !windows && !darwin && !dragonfly && !freebsd && !netbsd && !openbsd
 
 package tty
 
-// flushTerminalInput has no observed spelling on this platform.
+// flushTerminalInput has no known spelling on this platform.
 //
-// The BSD family spells it TIOCFLUSH with FREAD rather than Linux's TCFLSH with
-// TCIFLUSH, and that spelling has not been run against a real terminal here.
+// Linux, the BSD family and Windows each have one, and each has its own file.
+// What is left here is everything else — solaris, aix, plan9, js — where no
+// ioctl or console call has been identified.
+//
 // Returning the unsupported error rather than silently doing nothing keeps the
 // detach boundary honest: a caller learns the queue was not discarded instead
-// of believing it was. Implementing it means observing it first, exactly as the
-// Windows console path does.
+// of believing it was.
 func flushTerminalInput(uintptr) error { return ErrUnsupportedPlatform }
