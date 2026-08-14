@@ -143,16 +143,32 @@ Outstanding before `closing`:
   Windows console and a real agent session. The Windows size-change source and
   input-queue discard stay explicitly unimplemented until they exist.
 - `open-ambiguous-candidate-breadth` is still with the user.
-- `TestTerminalRelay_SeversSlowSubscriberWithoutBlockingOthers` in
-  `services/host/runtime` is flaky — it fails intermittently in isolation at
-  `bcf6d844` as well, so it predates every CLI commit. Not caused here, not
-  fixed here, but the repository is not reliably green until it is.
 
-The four gateway scenario failures that were listed here are fixed: they
-asserted the pre-retention contract that
+Everything else that was listed here is closed.
+
+The four gateway scenario failures asserted the pre-retention contract that
 `change-20260814-cli-prerequisite-contracts` replaced, and two of them were
 passing vacuously. Recorded in that change's verification member, where the
 missed regression sweep belongs.
+
+Three unrelated defects surfaced while establishing that the repository is
+green, and each is fixed at its cause rather than worked around:
+
+- `TestTerminalRelay_SeversSlowSubscriberWithoutBlockingOthers` raced its own
+  subject — it began draining before severance was reached, and asserted that a
+  buffered event survives severance, which the relay does not offer. It now
+  waits for the observable outcome. 60 runs, and 40 under `-race`, are green.
+- `TestWorkspaceWriteResourceBoundConcurrentRSS` read process-wide RSS inside a
+  shared test binary, so it charged other tests' allocations to itself. The
+  measurement now runs alone in a child process; the 32 MiB bound is unchanged
+  and the measured delta dropped to about 7 MiB.
+- `gitclone.FakeGitClone` had a genuine data race under `-race`: the preparation
+  controller clones from one goroutine each, and the fake recorded calls without
+  synchronisation while the real cloner is safe for concurrent use. Fixed in the
+  fake, per the rule that a failing fidelity check is the fake's defect.
+
+`cd services && go test ./...` is green over five consecutive full runs and
+`make test-race` is green.
 
 Both fidelity backstops have now been observed passing.
 `cli-gateway` found three defects on its first real run — a wrong scheme in the

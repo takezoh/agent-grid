@@ -284,10 +284,31 @@ The same legs, on a host where `socket(AF_UNIX)` is permitted.
 | `make lint` | 0 issues in both modules |
 | `scripts/vet-go-e2e.sh` | ok |
 
-Two failures remain in `services/server/api` and are **not** environmental:
-`TestE2E_GatewayScenarioWorkspaceFileWrite` and
-`TestE2E_GatewayScenarioFakeCodexSurfaceAndSessionState` both time out waiting
-for a session to appear. They fail identically at `bcf6d844`, the commit before
-any CLI work, verified in a separate worktree — so they are pre-existing and
-outside this change. They are deterministic rather than flaky, which makes them
-worth their own investigation.
+### Getting to a repository that is actually green, 2026-08-15
+
+Four defects stood between "the CLI's own checks pass" and "the suite passes".
+None was caused by this change; all four are fixed at their cause, because a
+suite that is red for reasons nobody owns stops being read at all.
+
+| Defect | Nature | Fix |
+|---|---|---|
+| Four gateway scenario tests | asserted the pre-retention contract; two passed **vacuously** on a helper that any frame satisfied | `waitForSessionTerminal`, which requires the published terminal state *and* the retained row |
+| `TestTerminalRelay_SeversSlowSubscriberWithoutBlockingOthers` | raced its own subject: drained before severance was reached, and required a buffered event to survive severance | waits for the observable outcome (`awaitSevered`); the prefix bound is now upper-only |
+| `TestWorkspaceWriteResourceBoundConcurrentRSS` | read **process-wide** RSS inside a shared test binary, charging other tests' allocations to itself | the measurement re-runs alone in a child process; the 32 MiB bound is untouched |
+| `gitclone.FakeGitClone` | a real data race under `-race` — recorded calls without synchronisation while the real cloner is concurrency-safe | mutex plus locked accessors, per "fix the fake, never the assertion" |
+
+Two of these were **false green**, which is the worse failure mode: the relay
+test's vacuous sibling and `waitForSessionAbsent` both reported success while
+asserting nothing. A test that cannot fail is indistinguishable from coverage
+until someone checks.
+
+Final state on a host that permits unix sockets:
+
+| Leg | Result |
+|---|---|
+| `cd services && go test ./...` | green, five consecutive full runs |
+| `make test-race` | green |
+| `TestTerminalRelay_SeversSlowSubscriber…` | 60 runs green; 40 more under `-race` |
+| `make lint` | 0 issues in both modules |
+| `scripts/check-test-skips.sh` | ok |
+| `clients/cli` unit suite | green |

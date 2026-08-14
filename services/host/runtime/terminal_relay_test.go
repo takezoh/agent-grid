@@ -175,6 +175,36 @@ func collectEvents(t *testing.T, ch <-chan internalEvent, n int, timeout time.Du
 	return out
 }
 
+// awaitSevered blocks until the relay has dropped key, driving further
+// broadcasts on frameID until it does.
+//
+// Severance is what the calling test is about, and the number of broadcasts
+// needed to provoke it is not fixed: it depends on whether the subscription's
+// fanOut goroutine has consumed anything yet, which no amount of synchronising
+// on *other* subscribers can establish. Waiting for the observable outcome
+// instead of guessing a count is what makes the test deterministic.
+//
+// The extra events never reach the subscriber. fanOut severs on the event that
+// finds the relay buffer full and drops that event rather than enqueueing it,
+// so the prefix the caller then asserts over is still bounded by the buffer.
+func awaitSevered(
+	t *testing.T, tr *TerminalRelay, b *fakeSurfaceBackend, key surfaceKey, frameID string,
+) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		tr.mu.Lock()
+		_, present := tr.subs[key]
+		tr.mu.Unlock()
+		if !present {
+			return
+		}
+		b.Broadcast(frameID, termvt.Event{Kind: termvt.EventOutput, Data: []byte("z")})
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("the slow subscriber was never severed")
+}
+
 // collectUntilSurfaceClosed reads events until an internalSurfaceClosed
 // arrives (inclusive) or the timeout expires.
 func collectUntilSurfaceClosed(t *testing.T, ch <-chan internalEvent, timeout time.Duration) []internalEvent {
@@ -750,6 +780,13 @@ func TestTerminalRelay_SeversSlowSubscriberWithoutBlockingOthers(t *testing.T) {
 		}
 	}
 
+	// Severance must be reached before the drain starts, and three broadcasts
+	// are not enough to guarantee it: the blocked subscriber's fanOut goroutine
+	// may not have consumed any of them yet, in which case nothing ever found
+	// the buffer full and nothing was severed. Keeping the healthy subscribers
+	// in step does not help, because they have their own goroutines.
+	awaitSevered(t, tr, b, blockedKey, "%1")
+
 	go func() {
 		for ev := range blockedCh {
 			blockedDrain <- ev
@@ -765,9 +802,18 @@ func TestTerminalRelay_SeversSlowSubscriberWithoutBlockingOthers(t *testing.T) {
 	if _, ok := gotBlocked[len(gotBlocked)-1].(internalSurfaceClosed); !ok {
 		t.Fatalf("last blocked event type = %T, want internalSurfaceClosed", gotBlocked[len(gotBlocked)-1])
 	}
+	// The prefix may be empty. Severance discards whatever is still sitting in
+	// the size-1 buffer, so 0, 1 and 2 are all legal outcomes of the race the
+	// comment above describes; only more than 2 would mean the subscriber was
+	// never treated as slow. The earlier lower bound of 1 asserted that a
+	// buffered event survives severance — not a property the relay offers, and
+	// the reason this test failed intermittently.
+	//
+	// That the relay delivers to healthy subscribers at all is established
+	// above, by the two that received all three events in order.
 	prefix := gotBlocked[:len(gotBlocked)-1]
-	if len(prefix) < 1 || len(prefix) > 2 {
-		t.Fatalf("blocked key broadcasts before severance = %d, want 1 or 2", len(prefix))
+	if len(prefix) > 2 {
+		t.Fatalf("blocked key broadcasts before severance = %d, want at most 2", len(prefix))
 	}
 	for i, ev := range prefix {
 		bs, ok := ev.(internalBroadcastSurface)

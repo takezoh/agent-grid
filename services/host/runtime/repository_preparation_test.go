@@ -109,8 +109,10 @@ func TestPreparationIdempotencyDistinctIntents(t *testing.T) {
 	if p1.ClonePath == p2.ClonePath {
 		t.Fatal("clones must be independent")
 	}
-	if len(cloner.Calls) < 2 {
-		t.Fatalf("clone calls=%d", len(cloner.Calls))
+	// Through the accessor: two clones ran concurrently, so reading the slice
+	// header directly races with whichever goroutine appended last.
+	if calls := cloner.CloneCalls(); len(calls) < 2 {
+		t.Fatalf("clone calls=%d", len(calls))
 	}
 	if len(backend.spawned) != 2 || backend.spawned[0].command != "codex --model selected" || backend.spawned[1].command != "codex --model selected" {
 		t.Fatalf("repository command profile was not propagated to launch: %#v", backend.spawned)

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -66,9 +67,26 @@ func TestWorkspaceWriteTimingNFR101(t *testing.T) {
 	}
 }
 
+// rssBenchChildEnv marks the re-executed child that performs the measurement.
+const rssBenchChildEnv = "AG_RSS_BENCH_CHILD"
+
+// TestWorkspaceWriteResourceBoundConcurrentRSS asserts that sixteen concurrent
+// 1 MiB uploads do not grow the process by more than 32 MiB — that request
+// bodies are streamed to disk rather than buffered whole.
+//
+// It measures /proc/self/status, which reports the whole process, so it re-runs
+// itself alone in a child process. In the shared test binary the number it read
+// included every other test's allocations: it passed in isolation and failed
+// intermittently under full-suite load, which is a property of the measurement
+// rather than of the code being measured. Isolating it keeps the 32 MiB bound
+// exactly as strict while making it answerable.
 func TestWorkspaceWriteResourceBoundConcurrentRSS(t *testing.T) {
 	if testing.Short() {
 		t.Skip("rss bench skipped in -short mode")
+	}
+	if os.Getenv(rssBenchChildEnv) == "" {
+		runRSSBenchInChild(t)
+		return
 	}
 	d, fd := newDaemonPair(t)
 	mux := NewMux(d, "tok")
@@ -114,6 +132,24 @@ func TestWorkspaceWriteResourceBoundConcurrentRSS(t *testing.T) {
 	const maxDelta = 32 << 20
 	if delta > maxDelta {
 		t.Fatalf("rss delta = %d, want <= %d", delta, maxDelta)
+	}
+}
+
+// runRSSBenchInChild re-executes this test binary so the measurement runs with
+// nothing else in the process. The child's output is forwarded verbatim, so the
+// measured numbers stay visible in the parent's log.
+func runRSSBenchInChild(t *testing.T) {
+	t.Helper()
+	command := exec.Command(os.Args[0],
+		"-test.run", "^"+t.Name()+"$",
+		"-test.v",
+		"-test.timeout", "2m",
+	)
+	command.Env = append(os.Environ(), rssBenchChildEnv+"=1")
+	output, err := command.CombinedOutput()
+	t.Logf("isolated rss bench:\n%s", output)
+	if err != nil {
+		t.Fatalf("isolated rss bench failed: %v", err)
 	}
 }
 

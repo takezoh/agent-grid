@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/takezoh/agent-grid/services/platform/procgroup"
@@ -126,15 +127,45 @@ func runGit(ctx context.Context, broker *Broker, prep *BrokerPrepare, bin string
 	return outBuf.Bytes(), errBuf.Bytes(), code, err
 }
 
+// FakeGitClone stands in for the real cloner, which the preparation controller
+// invokes from one goroutine per admitted clone. The fake must therefore be safe
+// for concurrent use for the same reason the real one is: a fake that is not is
+// a fake that reports races its counterpart does not have.
+//
+// Result and Hook are inputs, set before any clone starts and only read here.
+// Calls and Captured are recordings and are guarded; read them through
+// CloneCalls and CapturedSurfaces rather than directly whenever more than one
+// clone can be in flight.
 type FakeGitClone struct {
+	mu       sync.Mutex
 	Calls    []CloneRequest
 	Result   CloneResult
 	Hook     func(CloneRequest) CloneResult
 	Captured struct{ Argv, Env, Surfaces []string }
 }
 
+// CloneCalls returns a copy of the requests recorded so far.
+func (f *FakeGitClone) CloneCalls() []CloneRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]CloneRequest, len(f.Calls))
+	copy(out, f.Calls)
+	return out
+}
+
+// CapturedSurfaces returns a copy of the surfaces recorded by the last clone.
+func (f *FakeGitClone) CapturedSurfaces() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]string, len(f.Captured.Surfaces))
+	copy(out, f.Captured.Surfaces)
+	return out
+}
+
 func (f *FakeGitClone) Clone(_ context.Context, req CloneRequest) CloneResult {
+	f.mu.Lock()
 	f.Calls = append(f.Calls, CloneRequest{Owner: req.Owner, Name: req.Name, DestDir: req.DestDir})
+	f.mu.Unlock()
 	remote, err := CanonicalHTTPSRemote(req.Owner, req.Name)
 	if err != nil {
 		return CloneResult{Code: CodeInvalidIdentity}
@@ -154,9 +185,13 @@ func (f *FakeGitClone) Clone(_ context.Context, req CloneRequest) CloneResult {
 	if res.Code == CodeOK && req.DestDir != "" {
 		_ = os.MkdirAll(filepath.Join(req.DestDir, ".git"), 0o755)
 	}
-	f.Captured.Argv, f.Captured.Env = res.Argv, res.Env
-	f.Captured.Surfaces = []string{remote, strings.Join(res.Argv, " "), strings.Join(res.Env, "\n"), res.Diagnostic}
-	if ContainsSentinel(f.Captured.Surfaces, req.Cred.Token) {
+	surfaces := []string{remote, strings.Join(res.Argv, " "), strings.Join(res.Env, "\n"), res.Diagnostic}
+	f.mu.Lock()
+	f.Captured.Argv, f.Captured.Env, f.Captured.Surfaces = res.Argv, res.Env, surfaces
+	f.mu.Unlock()
+	// Checked against the local copy: the leak verdict must describe the clone
+	// that produced these surfaces, not whichever concurrent clone recorded last.
+	if ContainsSentinel(surfaces, req.Cred.Token) {
 		res.Code, res.Diagnostic = CodeCloneFailed, CodeCredentialSurfaceLeak
 	}
 	return res
