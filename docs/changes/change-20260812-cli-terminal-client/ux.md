@@ -1438,7 +1438,7 @@ Counterexample: 対話 terminal でのみ「本当に終了しますか」の確
 ## 9. Product decisions remaining (carried, not closed here)
 
 - **曖昧候補の提示に所属 server と display name を併記するか ID だけか** — explore が未確定として残した軸を、そのままの文言で保持する。planner が既定値を置いたが、利用者確認を経ていないため確定要求へ昇格させない。UAC-031 は「候補同士が相互に判別できること」だけを要求し、併記の広さには依存しない (handoff-ambiguous-candidate-breadth)。
-- **実行 binary の canonical 名** — 短縮名か自己記述名かは packaging 時に決定する (handoff-cli-binary-canonical-name)。
+- ~~**実行 binary の canonical 名**~~ — packaging 時に `agent-grid` で確定した (`adr-20260814-cli-canonical-binary-name`)。短縮名 `ag` は The Silver Searcher が広く占めているため installer は主張せず、利用者が任意で alias する。本書の `ag ...` 例は alias 形として読む。
 - **name selector および短縮 ID の一意性を fleet 全体で見るか server 単位で見るか** — stable name field の実在が未測定であり、短縮 ID の一意性判定範囲も同じ未測定軸に束ねる。存在しなければ selector 種別は完全 ID と prefix の 2 段に縮む。本 consultation で確定した cc-server-display-name-unique は **server** の display name にかかる制約であり、session 側の name / 短縮 ID の一意性範囲を決めない。server 名が一意になると、この軸が「server 単位」を選んだ場合に server 指定で範囲を確定させる手段は確保されるが、指定を添えない実行の解決範囲は依然として未確定である。確定要求へ昇格させない。
 - **server が graceful/force を区別する場合に CLI も両方公開するか** — 区別の実在が未測定。
 - **異なる geometry の同時 attach で共有 PTY の cols/rows をどう決めるか** — 既存 execution plane の semantics に属する (handoff-shared-pty-geometry-resolution)。UAC-020 は geometry 一致時の観察だけを固定する。
@@ -1450,7 +1450,7 @@ Counterexample: 対話 terminal でのみ「本当に終了しますか」の確
 
 ## 10. Design handoffs
 
-- **handoff-cli-binary-canonical-name** — 実行 binary の canonical 名。観察を変えない packaging 判断。
+- **handoff-cli-binary-canonical-name** — 実行 binary の canonical 名。観察を変えない packaging 判断。**解決済み**: `agent-grid` (`adr-20260814-cli-canonical-binary-name`)。
 - **handoff-shared-pty-geometry-resolution** — 共有 PTY が単一の cols/rows しか持てないときの解決方法。既存 execution plane の semantics に属する。
 - **handoff-exit-code-numeric-assignment** — 4 失敗種別と使い方の誤りに割り当てる具体的な番号。
 - **handoff-input-transport-batching** — 入力を 1 回の送信へどうまとめるか。順序が保たれる限り観察は変わらない。

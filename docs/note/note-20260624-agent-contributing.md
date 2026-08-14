@@ -36,6 +36,7 @@ make build-server            # Build services/ → dist/bin/server (+ bridge)
 make build-orchestrator      # → ./orchestrator
 make build-claude-app-server # → ./claude-app-server
 make build-cli               # → dist/bin/agent-grid (terminal client)
+make install-cli             # → $HOME/.local/bin/agent-grid, and nothing else
 make build-all               # Every binary
 make vet                     # go vet ./... in each module
 make lint                    # golangci-lint (depguard, funlen, staticcheck, etc.)
@@ -57,6 +58,12 @@ cd clients/cli       && GOWORK=off go test ./...   # the terminal client
 `make lint` builds the pinned golangci-lint into `dist/bin/` and runs it inside
 each module, because a tool dependency of the services module cannot be resolved
 with `go tool` from another one. `clients/cli` carries its own `.golangci.yml`.
+
+The terminal client installs under one name, `agent-grid`, and `make install-cli`
+places no alias: `ag` belongs to The Silver Searcher on a large share of
+developer machines, and an installer that takes it shadows it silently
+(`adr-20260814-cli-canonical-binary-name`). The UX member's `ag …` examples read
+as the alias an operator adds themselves.
 
 `clients/cli` must never gain a dependency edge to the services module — it is a
 client of the public wire contract, nothing more. Three mechanisms say so at

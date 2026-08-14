@@ -33,7 +33,7 @@ CODEX_SCHEMA_TMP := /tmp/codex-schema-gen
 
 .PHONY: build build-orchestrator build-claude-app-server build-server build-wsl-supervisor-windows build-web build-cli build-all \
         build-web-frontend \
-        run-dev install install-systemd install-codex-remote-control-systemd install-web install-server update-web update-server clean test test-race vet lint \
+        run-dev install install-systemd install-codex-remote-control-systemd install-web install-server install-cli update-web update-server clean test test-race vet lint \
         verify-bridge-deps \
         codex-schema-update codex-schema-check generate-sdks protocol-compat protocol-simserver \
         verify-save verify-pre-push verify-pr verify-nightly verify-compatibility
@@ -119,6 +119,18 @@ install: build
 	install -d $(INSTALL_DIR) $(LIBEXEC_DIR)
 	install -m 755 $(SERVER) $(INSTALL_DIR)/$(notdir $(SERVER))
 	install -m 755 $(BRIDGE) $(LIBEXEC_DIR)/$(notdir $(BRIDGE))
+
+# install-cli installs the terminal client under its canonical name,
+# agent-grid, which is the module path's command name and the built artifact's
+# name (adr-20260814-cli-canonical-binary-name). No short alias is installed:
+# an installer that claims a two-letter name shadows whatever already owns it
+# on the operator's PATH, and an alias the operator adds is theirs to remove.
+install-cli: build-cli
+	install -d $(INSTALL_DIR)
+	install -m 755 $(CLI) $(INSTALL_DIR)/$(notdir $(CLI))
+	@echo
+	@echo "Installed $(INSTALL_DIR)/$(notdir $(CLI))."
+	@echo "For a shorter name, alias it yourself: alias ag=agent-grid"
 
 # install-systemd composes install-server (server + bridge binaries) and
 # install-web (web binary) into the user-scope locations consumed by
