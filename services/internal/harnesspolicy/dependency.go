@@ -293,7 +293,8 @@ func checkSuiteLink(root string, dependency Dependency, suites E2ESuiteRegistry)
 	if suite.Package == "./..." {
 		modulePath = ""
 	}
-	fidelityPath := strings.TrimPrefix(filepath.ToSlash(dependency.Fidelity.Path), "services/")
+	fidelityPath := strings.TrimPrefix(
+		filepath.ToSlash(dependency.Fidelity.Path), suite.ModuleDir()+"/")
 	if modulePath != "" && fidelityPath != modulePath && !strings.HasPrefix(fidelityPath, modulePath+"/") {
 		return []error{violation(dependency.ID, "fidelity.path is outside suite package "+suite.Package)}
 	}

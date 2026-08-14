@@ -1,0 +1,89 @@
+{
+  "base_command_profiles": [
+    {
+      "argv": [
+        "claude",
+        "--permission-mode",
+        "{{permission}}"
+      ],
+      "executable": "claude",
+      "id": "claude",
+      "label": "Claude Code",
+      "parameters": [
+        {
+          "default": "acceptEdits",
+          "label": "Permission mode",
+          "name": "permission",
+          "required": true,
+          "type": "enum",
+          "values": [
+            "acceptEdits",
+            "plan"
+          ]
+        }
+      ],
+      "revision": "189b0d6e71e2ee660f540a708828f1568c2ebf507e2143a921cfce6c98071a9d"
+    },
+    {
+      "argv": [
+        "bash",
+        "-l"
+      ],
+      "executable": "bash",
+      "id": "shell",
+      "label": "Shell",
+      "parameters": [],
+      "revision": "ba316256031e69afe4eb5332f5c71cd7a4d55f89a67690f983faaf697fe87b11"
+    }
+  ],
+  "project_paths": [
+    "/projects/agent-grid"
+  ],
+  "project_roots": [],
+  "projects": [
+    {
+      "command_profiles": [
+        {
+          "argv": [
+            "claude",
+            "--permission-mode",
+            "{{permission}}"
+          ],
+          "executable": "claude",
+          "id": "claude",
+          "label": "Claude Code",
+          "parameters": [
+            {
+              "default": "acceptEdits",
+              "label": "Permission mode",
+              "name": "permission",
+              "required": true,
+              "type": "enum",
+              "values": [
+                "acceptEdits",
+                "plan"
+              ]
+            }
+          ],
+          "revision": "189b0d6e71e2ee660f540a708828f1568c2ebf507e2143a921cfce6c98071a9d"
+        },
+        {
+          "argv": [
+            "bash",
+            "-l"
+          ],
+          "executable": "bash",
+          "id": "shell",
+          "label": "Shell",
+          "parameters": [],
+          "revision": "ba316256031e69afe4eb5332f5c71cd7a4d55f89a67690f983faaf697fe87b11"
+        }
+      ],
+      "isGit": false,
+      "path": "/projects/agent-grid"
+    }
+  ],
+  "push_commands": [
+    "/compact"
+  ]
+}

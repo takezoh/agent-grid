@@ -1,0 +1,12 @@
+{
+  "cols": 120,
+  "parameters": {
+    "permission": "acceptEdits"
+  },
+  "profile_id": "claude",
+  "profile_revision": "sha256:0000000000000000",
+  "project": "/projects/agent-grid",
+  "rows": 40,
+  "version": 2,
+  "worktree": false
+}

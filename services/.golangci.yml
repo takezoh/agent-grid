@@ -130,6 +130,12 @@ linters:
         state-pure-core:
           files:
             - "**/host/state/**"
+            # The SessionInfo golden vector is an external test package
+            # (view_test) that reproduces the wire payload from the server's own
+            # serializer. It cannot be imported by state/, so it is not part of
+            # the pure core, and the whole point of the check is that it reads
+            # the shape proto ships (adr-20260814-sessioninfo-golden-vector-conformance).
+            - "!**/host/state/view/view_golden_test.go"
           deny:
             - pkg: github.com/takezoh/agent-grid/services/host/driver
               desc: "state/ must not import driver (pure functional core)"

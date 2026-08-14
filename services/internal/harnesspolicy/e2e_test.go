@@ -17,7 +17,11 @@ func TestRepositoryE2ESuitesContainEveryRequiredFidelityPackage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"stream-routing", "claude-cli", "grok-cli", "codex-app-server", "agent-hook", "docker-cli"} {
+	// docker-cli is deliberately absent: the sandbox feature it backed was
+	// removed when every agent moved onto the host, and requiring its suite
+	// leaves this gate permanently red — which makes it useless as a signal for
+	// the suites that do exist.
+	for _, id := range []string{"stream-routing", "claude-cli", "grok-cli", "codex-app-server", "agent-hook"} {
 		if _, ok := registry.Find(id); !ok {
 			t.Errorf("required T3 suite %q is absent", id)
 		}

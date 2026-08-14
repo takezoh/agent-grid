@@ -1,0 +1,4 @@
+{
+  "code": "unauthenticated",
+  "message": "missing, unknown, already-used or expired ticket"
+}

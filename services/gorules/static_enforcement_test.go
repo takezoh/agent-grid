@@ -145,6 +145,7 @@ func TestProtocolVersionManifestMatchesEveryShippedProjection(t *testing.T) {
 		"clients/ui/src/protocol-version.ts",
 		"clients/workspace/src/main/protocol-version.ts",
 		"clients/windows-shell/AgentGrid.Shell.Core/GatewayClient/ProtocolVersion.cs",
+		"clients/cli/internal/gateway/protocol_version.go",
 		"clients/sdk/ts/src/transport.ts",
 		"clients/sdk/csharp/Transport/GatewayClient.cs",
 		"clients/sdk/swift/Transport/GatewayClient.swift",

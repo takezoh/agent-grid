@@ -1,0 +1,84 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+# clients/cli is an independent module, so it carries its own lint policy rather
+# than inheriting services/.golangci.yml. The linter set mirrors the services
+# one; the rules that differ are the ones that only make sense here.
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+    - gocritic
+    - revive
+    - misspell
+    - unconvert
+    - unparam
+    - copyloopvar
+    - exhaustive
+    - depguard
+    - forbidigo
+    - funlen
+    - nolintlint
+
+  settings:
+    funlen:
+      lines: 80
+      statements: 99999
+      ignore-comments: true
+
+    exhaustive:
+      default-signifies-exhaustive: true
+
+    nolintlint:
+      allow-unused: false
+      require-specific: true
+      require-explanation: false
+
+    forbidigo:
+      # This is a command-line program; printing is its job.
+      forbid-default-patterns: false
+      patterns:
+        - pattern: 'os\.Exit'
+          pkg: github\.com/takezoh/agent-grid/clients/cli/internal/.*
+          msg: "only cmd/agent-grid exits; internal packages return a FailureClass so exit.go stays the single owner of the exit-code assignment"
+
+    depguard:
+      rules:
+        no-services-module:
+          # The module boundary, restated at lint time. ver-no-services-module-edge
+          # is the authority (it walks the real dependency graph); this catches the
+          # import at the moment it is written.
+          files:
+            - "**/*.go"
+          deny:
+            - pkg: github.com/takezoh/agent-grid/services
+              desc: "clients/cli is a client of the public wire contract, not of the services module (adr-20260814-cli-independent-go-module)"
+        wire-stdlib-only:
+          # The frame codec is hand-written against encoding/json, like every
+          # other wire projection in this repository.
+          files:
+            - "**/internal/gateway/**"
+          deny:
+            - pkg: google.golang.org/protobuf
+              desc: "the wire layer is stdlib-only (encoding/json)"
+            - pkg: github.com/golang/protobuf
+              desc: "the wire layer is stdlib-only (encoding/json)"
+        terminal-behind-the-tty-seam:
+          # Every terminal side effect goes through internal/tty so the attach
+          # runtime is drivable by a fake (contract-terminal-mode-lifecycle).
+          files:
+            - "**/*.go"
+            - "!**/internal/tty/**"
+          deny:
+            - pkg: golang.org/x/term
+              desc: "terminal state changes belong behind internal/tty's single seam"
+
+formatters:
+  enable:
+    - gofmt

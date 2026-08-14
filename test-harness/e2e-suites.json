@@ -9,6 +9,8 @@
     {"id":"agy-hooks","package":"./host/driver/...","dependency_id":"agy-hooks"},
     {"id":"stream-routing","package":"./host/runtime/subsystem/stream/...","dependency_id":"codex-app-server"},
     {"id":"wsl-runtime","package":"./platform/wslhost/...","dependency_id":"wsl-runtime"},
-    {"id":"fleet-health-gateway","package":"./server/api/...","dependency_id":"fleet-health-gateway"}
+    {"id":"fleet-health-gateway","package":"./server/api/...","dependency_id":"fleet-health-gateway"},
+    {"id":"cli-gateway","module":"clients/cli","package":"./internal/gateway/...","dependency_id":"cli-gateway"},
+    {"id":"cli-local-terminal","module":"clients/cli","package":"./internal/tty/...","dependency_id":"cli-local-terminal"}
   ]
 }

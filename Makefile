@@ -5,9 +5,16 @@ CLAUDE_APP_SERVER := $(BIN_DIR)/claude-app-server
 SERVER           := $(BIN_DIR)/server
 WSL_SUPERVISOR   := dist/windows/agent-grid-wsl-supervisor.exe
 WEB              := $(BIN_DIR)/web-host
+CLI              := $(BIN_DIR)/agent-grid
 SERVICES_DIR     := services
 WEB_HOST_DIR     := clients/web-host
 GOCLIENT_DIR     := clients/goclient
+CLI_DIR          := clients/cli
+# golangci-lint is pinned as a tool dependency of the services module. The
+# independent client modules cannot resolve it through `go tool` from their own
+# module, so the pinned binary is built once and run inside each of them. This
+# keeps one pinned linter version for the whole repository.
+GOLANGCI         := $(CURDIR)/$(BIN_DIR)/golangci-lint
 INSTALL_DIR    := $(HOME)/.local/bin
 LIBEXEC_DIR    := $(HOME)/.local/lib/agent-grid
 SYSTEMD_USER_DIR := $(HOME)/.config/systemd/user
@@ -24,7 +31,7 @@ WEB_BIN     := agent-grid-web
 CODEX_SCHEMA_DIR := $(SERVICES_DIR)/platform/agent/codexschema
 CODEX_SCHEMA_TMP := /tmp/codex-schema-gen
 
-.PHONY: build build-orchestrator build-claude-app-server build-server build-wsl-supervisor-windows build-web build-all \
+.PHONY: build build-orchestrator build-claude-app-server build-server build-wsl-supervisor-windows build-web build-cli build-all \
         build-web-frontend \
         run-dev install install-systemd install-codex-remote-control-systemd install-web install-server update-web update-server clean test test-race vet lint \
         verify-bridge-deps \
@@ -95,7 +102,14 @@ build-web: $(WEB_HOST_DIST)
 	mkdir -p $(BIN_DIR)
 	cd $(WEB_HOST_DIR) && GOWORK=off go build -o ../../$(WEB) ./cmd/web-host
 
-build-all: build build-orchestrator build-claude-app-server build-server build-web
+# build-cli builds the terminal client. It is an independent module with no
+# dependency edge to services (adr-20260814-cli-independent-go-module), so it is
+# built from its own directory with the workspace disabled.
+build-cli:
+	mkdir -p $(BIN_DIR)
+	cd $(CLI_DIR) && GOWORK=off go build -o ../../$(CLI) ./cmd/agent-grid
+
+build-all: build build-orchestrator build-claude-app-server build-server build-web build-cli
 
 # run-dev builds and launches the backend + web-client together for local dev.
 run-dev: build-server build-web
@@ -189,6 +203,8 @@ update-server: install-server
 test:
 	cd $(SERVICES_DIR) && GOWORK=off go test ./...
 	cd $(WEB_HOST_DIR) && GOWORK=off go test ./...
+	cd $(GOCLIENT_DIR) && GOWORK=off go test ./...
+	cd $(CLI_DIR) && GOWORK=off go test ./...
 
 # test-race runs the concurrency-sensitive subtrees under the race detector.
 # Scoped to platform/termvt (Session actor model + emulator drain) and
@@ -203,9 +219,17 @@ vet:
 	cd $(SERVICES_DIR) && GOWORK=off go vet ./...
 	cd $(WEB_HOST_DIR) && GOWORK=off go vet ./...
 	cd $(GOCLIENT_DIR) && GOWORK=off go vet ./...
+	cd $(CLI_DIR) && GOWORK=off go vet ./...
 
-lint:
+# $(GOLANGCI) materializes the pinned linter so an independent client module can
+# be linted with the same version as services.
+$(GOLANGCI):
+	mkdir -p $(BIN_DIR)
+	cd $(SERVICES_DIR) && GOWORK=off go build -o $(GOLANGCI) github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+
+lint: $(GOLANGCI)
 	cd $(SERVICES_DIR) && GOWORK=off go tool golangci-lint run ./...
+	cd $(CLI_DIR) && GOWORK=off $(GOLANGCI) run ./...
 
 # Opt-in fidelity backstop: real-CLI e2e for the fakes.
 #
@@ -262,7 +286,7 @@ protocol-simserver:
 # Note: if ~/.cache/go-build is unwritable, run with GOCACHE=/tmp/gocache-agent-grid.
 
 clean:
-	rm -f $(SERVER) $(WEB) $(BRIDGE) $(ORCHESTRATOR) $(CLAUDE_APP_SERVER) $(PROTOCOL_SIMSERVER)
+	rm -f $(SERVER) $(WEB) $(CLI) $(BRIDGE) $(ORCHESTRATOR) $(CLAUDE_APP_SERVER) $(PROTOCOL_SIMSERVER) $(GOLANGCI)
 
 # codex-schema-check — verify committed bundle files match current codex output.
 # Comparison is done with sorted keys so JSON object ordering doesn't matter.

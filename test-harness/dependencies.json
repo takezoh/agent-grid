@@ -69,6 +69,20 @@
       "fidelity": {"path":"services/platform/wslhost/wsl_runtime_e2e_test.go","test":"TestE2E_FakeVsRealWSLBoundDistribution","shared_input":"BuildWSLExecArgv","real_marker":"wsl.exe","suite_id":"wsl-runtime"}
     },
     {
+      "id": "cli-gateway", "strategy": "triple",
+      "seam": {"path":"clients/cli/internal/gateway/client.go","symbol":"Dialer"},
+      "fake": {"path":"clients/cli/internal/gateway/fakegateway/fakegateway.go","symbol":"New"},
+      "contract": {"path":"clients/cli/internal/gateway/fakegateway/fakegateway_test.go","test":"TestFakeGatewayContract_ShapesMatchCapturedFixtures","invariant":"the fake answers the shapes the Phase 0 captures recorded","assertion":"reflect.DeepEqual"},
+      "fidelity": {"path":"clients/cli/internal/gateway/fakegateway/gateway_e2e_test.go","test":"TestE2E_FakeVsRealGatewayAdmission","shared_input":"probeSequence","real_marker":"AG_E2E_SERVER_BIN","suite_id":"cli-gateway"}
+    },
+    {
+      "id": "cli-local-terminal", "strategy": "triple",
+      "seam": {"path":"clients/cli/internal/tty/tty.go","symbol":"Terminal"},
+      "fake": {"path":"clients/cli/internal/tty/tty_fake.go","symbol":"NewFake"},
+      "contract": {"path":"clients/cli/internal/tty/tty_test.go","test":"TestFakeDrivesEveryTerminalOperation","invariant":"the fake covers every operation on the terminal seam","assertion":"DiscardedBeforeRestore"},
+      "fidelity": {"path":"clients/cli/internal/tty/terminal_e2e_test.go","test":"TestE2E_FakeVsRealTerminalRestore","shared_input":"terminalStateCycle","real_marker":"AG_E2E_REAL_TTY","suite_id":"cli-local-terminal"}
+    },
+    {
       "id": "fleet-health-gateway", "strategy": "triple",
       "seam": {"path":"services/internal/harnesspolicy/testsupport/fleet_health_gateway.go","symbol":"ProbeFleetHealthGateway"},
       "fake": {"path":"services/internal/harnesspolicy/testsupport/fleet_health_gateway.go","symbol":"NewFleetHealthGatewayFake"},

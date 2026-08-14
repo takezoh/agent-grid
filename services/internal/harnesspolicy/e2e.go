@@ -16,9 +16,30 @@ type E2ESuiteRegistry struct {
 }
 
 type E2ESuite struct {
-	ID           string `json:"id"`
+	ID string `json:"id"`
+	// Module is the Go module the package is relative to, as a repository-
+	// relative directory. It defaults to "services", which is where every
+	// suite lived when this repository had one Go module for backend code.
+	//
+	// It exists because the independent client modules — clients/cli today —
+	// have external boundaries of their own, and a boundary whose fidelity
+	// backstop could not be registered would have to be admitted as an
+	// exception instead. That would make "every external dependency ships the
+	// full triple" a rule with a hole exactly where the newest code is.
+	Module       string `json:"module,omitempty"`
 	Package      string `json:"package"`
 	DependencyID string `json:"dependency_id"`
+}
+
+// DefaultE2EModule is the module a suite belongs to when it names none.
+const DefaultE2EModule = "services"
+
+// ModuleDir is the suite's module as a repository-relative directory.
+func (s E2ESuite) ModuleDir() string {
+	if strings.TrimSpace(s.Module) == "" {
+		return DefaultE2EModule
+	}
+	return s.Module
 }
 
 func ParseE2ESuiteRegistry(data []byte) (E2ESuiteRegistry, error) {
@@ -47,11 +68,12 @@ func ParseE2ESuiteRegistry(data []byte) (E2ESuiteRegistry, error) {
 		if !strings.HasPrefix(suite.Package, "./") || !strings.HasSuffix(suite.Package, "/...") {
 			return registry, fmt.Errorf("e2e suite %s package must end in /... and stay module-relative", suite.ID)
 		}
-		if seenPackage[suite.Package] {
-			return registry, fmt.Errorf("duplicate e2e package %q", suite.Package)
+		qualified := suite.ModuleDir() + " " + suite.Package
+		if seenPackage[qualified] {
+			return registry, fmt.Errorf("duplicate e2e package %q", qualified)
 		}
 		seenID[suite.ID] = true
-		seenPackage[suite.Package] = true
+		seenPackage[qualified] = true
 	}
 	sort.Slice(registry.Suites, func(i, j int) bool { return registry.Suites[i].ID < registry.Suites[j].ID })
 	return registry, nil

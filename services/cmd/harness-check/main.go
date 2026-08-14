@@ -89,8 +89,11 @@ func runE2EPackages(root, registryPath string) {
 		fmt.Fprintf(os.Stderr, "harness-check: %v\n", err)
 		os.Exit(2)
 	}
+	// One line per suite, module first, so the runner can group packages by the
+	// module they have to be run from. Independent client modules cannot be
+	// reached with a package pattern from the services module.
 	for _, suite := range registry.Suites {
-		fmt.Fprintln(os.Stdout, suite.Package)
+		fmt.Fprintf(os.Stdout, "%s\t%s\n", suite.ModuleDir(), suite.Package)
 	}
 }
 
