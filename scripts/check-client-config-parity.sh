@@ -24,10 +24,22 @@ echo "== TypeScript loader =="
 (cd clients/workspace && npx vitest run tests/config-corpus.test.ts)
 
 echo "== C# loader =="
+# A user-local SDK install is not on PATH by default; clients/windows-shell/
+# scripts/e2e.sh reaches for the same kind of fallback on the Windows side.
+#
+# In a sandbox that denies socket(2), add `-m:1`: MSBuild's out-of-proc nodes
+# talk over a named pipe, and without it the build dies with SocketException
+# (13) before compiling anything.
+dotnet_bin=""
 if command -v dotnet >/dev/null 2>&1; then
-  dotnet test clients/windows-shell/AgentGrid.Shell.Core.Tests \
+  dotnet_bin=dotnet
+elif [[ -x "$HOME/.dotnet/dotnet" ]]; then
+  dotnet_bin="$HOME/.dotnet/dotnet"
+fi
+if [[ -n "$dotnet_bin" ]]; then
+  "$dotnet_bin" test clients/windows-shell/AgentGrid.Shell.Core.Tests \
     --nologo --filter 'FullyQualifiedName~ConfigCorpusTests'
 else
-  echo "SKIPPED: dotnet is not installed; the C# corpus reader did not run." >&2
+  echo "SKIPPED: no .NET SDK on PATH or at ~/.dotnet; the C# corpus reader did not run." >&2
   echo "SKIPPED: run 'dotnet test clients/windows-shell/AgentGrid.Shell.Core.Tests --filter FullyQualifiedName~ConfigCorpusTests' on a machine with the .NET SDK." >&2
 fi
