@@ -139,9 +139,13 @@ its `source_paths` are the server tree and the web host.
 
 Outstanding before `closing`:
 
-- `unit-platform-hardening-spikes` — the three platform observations need a real
-  Windows console and a real agent session. The Windows size-change source and
-  input-queue discard stay explicitly unimplemented until they exist.
+- `unit-platform-hardening-spikes` — one of its three observations is still
+  unrun. `evidence-detach-key-chord-collision` is **acquired**: the real `claude`
+  and `codex` binaries emit nothing for `0x1D` while reacting visibly to a
+  control key, so the default does not shadow a chord either owns. The two
+  Windows observations are implemented, cross-compiled and covered by a
+  registered e2e file, but no run on a Windows console has happened yet. The BSD
+  input-queue flush remains genuinely open.
 - `open-ambiguous-candidate-breadth` is still with the user.
 
 Everything else that was listed here is closed.

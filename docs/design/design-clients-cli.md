@@ -187,13 +187,24 @@ Four absences are load-bearing rather than incidental:
 
 ## Known gaps
 
-`unit-platform-hardening-spikes` is open. On Windows, `SizeChanges` yields
-nothing and `DiscardInputQueue` returns `ErrUnsupportedPlatform`; the BSD
-input-queue flush is in the same state. These are unimplemented rather than
-guessed, because a wrong guess about a console leaves the operator with a shell
-that does not echo. The detach byte's default (`0x1D`) has not been checked
-against Claude Code's or Codex's own key chords, which is why `--detach-key`
-exists.
+The BSD input-queue flush is unimplemented: `flush_other.go` returns
+`ErrUnsupportedPlatform` because the `TIOCFLUSH`/`FREAD` spelling has not been
+run against a real terminal, and a wrong guess about a terminal leaves the
+operator with a shell that does not echo. Linux and Windows are implemented.
+
+The Windows console paths are implemented against documented APIs
+(`FlushConsoleInputBuffer` for the input queue, polled `GetSize` for geometry)
+and covered by `terminal_windows_e2e_test.go`, but no run on a real console has
+happened yet. Polling was chosen over `WINDOW_BUFFER_SIZE_EVENT` for a stated
+reason: the event source consumes from the same console input buffer the input
+pump reads keystrokes from, so an observer built on it would race the user's
+typing.
+
+The default detach byte is checked rather than assumed:
+`TestE2E_DetachByteIsNotBoundByRealAgents` drives the real agent binaries and
+requires `0x1D` to provoke no reaction from an agent that demonstrably reacts to
+other keys. `--detach-key` remains the escape hatch for a terminal or agent that
+does claim it.
 
 ## Related Decisions
 

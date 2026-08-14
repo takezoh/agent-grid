@@ -187,22 +187,41 @@ ones, and a fake must not be the laxer counterparty) and with a fixed
 `serverTime`, because a hello frame that changed between runs would make every
 byte-level assertion over it flaky for reasons unrelated to the code under test.
 
-### Not yet acquired: the three platform observations
+### The three platform observations (revised 2026-08-15)
 
-`unit-platform-hardening-spikes` is **not complete**. Its acceptance requires
-observations from a real Windows console and a real agent session, and neither
-was available where this landed. Nothing was guessed in their place:
+This section previously said all three needed hardware that was not available,
+and left the Windows paths unimplemented. That was too quick a conclusion: two
+of the three were reachable, and the third was reachable *as a test* even where
+it cannot run.
 
-| Observation | State | What the code does meanwhile |
+| Observation | State | Evidence |
 |---|---|---|
-| evidence-windows-console-behavior | not acquired | Raw entry and restore go through `golang.org/x/term`, which has a Windows implementation, so they are shared with the Unix path. `DiscardInputQueue` returns `ErrUnsupportedPlatform` rather than pretending: the console host owns the input buffer and there is no terminal-driver queue to flush. |
-| evidence-windows-resize-source | not acquired | `watchSize` installs no observer on Windows, so `SizeChanges` never yields there and an attached session keeps the geometry it declared at subscribe time. A polling interval chosen without measuring either loses resizes or wakes an idle process. |
-| evidence-detach-key-chord-collision | not acquired | `Ctrl-]` (`0x1D`) remains the default, and `--detach-key` exists so the escape hatch is available before the answer is. `ver-configured-detach-byte-only` already pins that only the configured byte detaches. |
+| evidence-detach-key-chord-collision | **acquired — no collision** | `TestE2E_DetachByteIsNotBoundByRealAgents` drives the real `claude` and `codex` binaries in a pty. Both react visibly to a control key (140 and 670 bytes of redraw) and emit **nothing** for `0x1D`. The control is what makes it an answer rather than an absence. |
+| evidence-windows-console-behavior | **implemented and covered; awaiting a run on Windows** | `DiscardInputQueue` now calls `FlushConsoleInputBuffer`. `TestE2E_WindowsDiscardInputQueueEmptiesTheConsoleBuffer` and `TestE2E_WindowsRawModeChangesAndRestoresConsoleMode` assert both halves against a real console via `CONIN$`/`CONOUT$`. |
+| evidence-windows-resize-source | **decided and covered; the source is polling** | `watchSize` polls `term.GetSize` every 250 ms. Reading `WINDOW_BUFFER_SIZE_EVENT` was rejected on a stated ground: it consumes from the same console input buffer the input pump reads keystrokes from, so the observer would race the user's typing. |
 
-The BSD input-queue flush is in the same position and is marked the same way:
-`flush_other.go` returns `ErrUnsupportedPlatform` because the `TIOCFLUSH`/`FREAD`
-spelling has not been run against a real terminal here. Linux is implemented and
-tested.
+The claim that Windows has "no terminal driver queue to flush — the console host
+owns the input buffer" was simply **wrong**. The console input buffer is exactly
+what `FlushConsoleInputBuffer` discards, and discarding it is the same act the
+Unix path performs with `TCIFLUSH`.
+
+What backs the Windows code without a Windows machine: two documented console
+APIs, a clean `GOOS=windows` build and `vet` on amd64 and arm64, unit coverage
+of the polling decision that runs everywhere (`size_poll_test.go`), and a
+registered e2e file that asserts the rest wherever a console exists. That is
+weaker than an observed run and much stronger than an unimplemented stub.
+
+The polling decision is deliberately **not** in the platform file. `pollSize`
+takes a size source and an interval, so "poll, compare, notify only on change,
+stop synchronously and idempotently" is tested on Linux; only the one call that
+reads the geometry is Windows-specific. Writing it that way immediately caught a
+real defect: the first version's stop function panicked when called twice, which
+`localTerminal.Close` does on a signal exit.
+
+The BSD input-queue flush is genuinely still open: `flush_other.go` returns
+`ErrUnsupportedPlatform` because the `TIOCFLUSH`/`FREAD` spelling has not been
+run against a real terminal here, and unlike the Windows case there is no second
+documented API to reach for. Linux is implemented and tested.
 
 ### Acceptance-to-verification coverage
 

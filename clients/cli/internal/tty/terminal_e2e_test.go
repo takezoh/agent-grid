@@ -30,8 +30,8 @@ import (
 // than to the operator, so raw mode is never entered on a console someone is
 // looking at.
 //
-// What this still does not observe is a Windows console, which has no termios
-// at all; that remains evidence-windows-console-behavior.
+// A Windows console has no termios and no pty to allocate, so it is observed
+// by its own file, terminal_windows_e2e_test.go, through the console API.
 //
 // It skips unless AG_E2E_REAL_TTY is set, which is the expected state on a
 // pull-request runner.
@@ -83,7 +83,8 @@ func openRealTerminal(t *testing.T) Terminal {
 	master, slave, err := pty.Open()
 	if err != nil {
 		if errors.Is(err, pty.ErrUnsupported) {
-			t.Skipf("this platform cannot allocate a pty: %v", err)
+			t.Skipf("this platform cannot allocate a pty: %v; "+
+				"its console is covered by terminal_windows_e2e_test.go", err)
 		}
 		t.Fatalf("allocate a pty: %v", err)
 	}
