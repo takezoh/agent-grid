@@ -120,14 +120,53 @@ The four CLI-side checks of contracts realized by `change-20260814-cli-prerequis
 
 Both backstops are registered and runnable:
 
-| Boundary | Registry id | Backstop | Opt-in |
-|---|---|---|---|
-| gateway | `cli-gateway` | `TestE2E_FakeVsRealGatewayAdmission` | `AG_E2E_SERVER_BIN` |
-| local terminal | `cli-local-terminal` | `TestE2E_FakeVsRealTerminalRestore` | `AG_E2E_REAL_TTY` |
+| Boundary | Registry id | Backstop | Opt-in | Last observed |
+|---|---|---|---|---|
+| gateway | `cli-gateway` | `TestE2E_FakeVsRealGatewayAdmission` | `AG_E2E_SERVER_BIN` | not yet passed — see below |
+| local terminal | `cli-local-terminal` | `TestE2E_FakeVsRealTerminalRestore`, `TestE2E_RealTerminalGeometryIsReadBack` | `AG_E2E_REAL_TTY` | PASS, 2026-08-14 |
 
 `scripts/run-go-e2e.sh` now groups suites by module, because `clients/cli` is a
 separate Go module and a package pattern from `services` cannot reach it. A
 suite that names no module still belongs to `services`.
+
+#### The terminal backstop was unreachable through its own entry point
+
+As first written it required `os.Stdin` to be a terminal. No invocation of
+`go test` can satisfy that — the go command hands the test binary a null device
+— so the backstop could only ever skip, including on a machine with a real
+console. A registered backstop that cannot run is worse than an absent one,
+because the registry reads as coverage.
+
+It now allocates its own pty (`github.com/creack/pty`, already pinned in the
+services module) and opens the production `localTerminal` over it through
+`openTerminal`, the named-files form of `Open`. A fresh pty is a real terminal
+as far as termios is concerned, which is the entire fact under test, and it
+belongs to the test rather than to the operator — so raw mode is never entered
+on a console someone is looking at. `AG_E2E_REAL_TTY` remains the only gate, so
+the suite stays T3.
+
+A second case came with it: `TestE2E_RealTerminalGeometryIsReadBack` sets the
+pty size behind the terminal's back and requires `Size()` to report the new
+geometry. Nothing else in the suite could tell a `Size()` that queries the
+kernel from one that returns a remembered constant, because the fake answers
+from its own record either way.
+
+What this still does not observe is a Windows console, which has no termios at
+all. That remains `evidence-windows-console-behavior`.
+
+#### The gateway backstop is blocked by the environment, not by the code
+
+`TestE2E_FakeVsRealGatewayAdmission` was run with `AG_E2E_SERVER_BIN` pointing
+at a freshly built `dist/bin/server` and reached `the real server never became
+reachable`. The cause is in the server's own start-up, not in the test: the
+sandbox this landed in denies `socket(AF_UNIX)`, so the daemon exits with
+
+```
+server: ipc: runtime: listen …/server.sock: socket: operation not permitted
+```
+
+before it binds an HTTP port. The backstop therefore remains **never observed
+passing**. It needs a host where a unix socket can be created.
 
 ### Not yet acquired: the three platform observations
 
@@ -183,3 +222,33 @@ Five acceptance criteria of the shared plan are owned by `change-20260814-cli-pr
 | AC-config-parity-across-languages | — (fully discharged there) |
 
 Until the prerequisite change lands, five CLI-side checks read a contract that does not exist yet and are expected to be red: `ver-cli-maps-each-close-reason-to-its-exit-class`, `ver-invalid-entry-is-a-third-vocabulary-in-discovery`, `ver-invalid-entry-is-never-connected-to`, `ver-qualifier-precedence-unusable-outranks-ambiguous`, and `ver-cli-never-drops-a-published-session` for the ended-session case. That redness is the dependency edge made visible, not a defect in this change.
+
+### Full local verification run, 2026-08-14
+
+Everything below was executed in this repository on the date given; the two
+failing groups are named with their cause rather than folded into a pass.
+
+| Leg | Result |
+|---|---|
+| `make lint` (services, clients/cli) | 0 issues in both modules |
+| `make build-all` | 6 binaries, including `dist/bin/agent-grid` |
+| `cd clients/cli && go test ./...` | all packages ok |
+| `cd clients/cli && go list -deps` filtered for `services` | 0 matches |
+| `services/gorules`, `services/internal/harnesspolicy` | ok |
+| `scripts/check-harness-dependencies.sh` | 16 external dependencies admitted |
+| `scripts/check-test-skips.sh` | ok |
+| `scripts/vet-go-e2e.sh` | ok (both modules, `-tags e2e`) |
+| `scripts/check-client-config-parity.sh` | Go, TypeScript **and C#** all green — 28 C# cases, the first run of that leg here |
+| `clients/cli` `cli-local-terminal` T3 with `AG_E2E_REAL_TTY=1` | 2 tests PASS |
+| `clients/ui` `npm run test:unit` | 135 files, 1911 tests pass |
+| `clients/ui` `npm run test:e2e` (Playwright) | 19 passed, 5 skipped |
+| `clients/workspace` `npm run typecheck` | pass |
+| `clients/workspace` vitest | 186 pass, 1 skip, **1 fail** — `control-endpoint.test.ts` cannot `listen` on a unix socket here |
+| `cd services && go test ./...` | **10 packages fail**, every one on `socket: operation not permitted` or an outbound network call |
+| `clients/cli` `cli-gateway` T3 with `AG_E2E_SERVER_BIN` | **fails to start the backend** — same unix-socket denial |
+| `docs lint --conformance` | this change and the prerequisite change are clean; two July changes still need HARD approval evidence |
+
+The environment denies `socket(AF_UNIX)`. That single fact accounts for every
+failure in the last three rows, and it is why `cli-gateway` remains unobserved
+rather than green: a run that cannot start the server has not compared the fake
+to anything.

@@ -554,7 +554,7 @@ The complete disposition ledger for the shared plan is `design-plan/spine.yaml` 
 | esc-no-presence-field | confirmed by measurement; adopted as a display prohibition |
 | esc-status-vocabulary | adopted, pinned for the CLI consumer only |
 | esc-sessioninfo-fields | adopted as the column bound; display name pinned to `view.card.title`; shape gated by a golden vector |
-| handoff-cli-binary-canonical-name | carried unresolved (packaging), with a recorded name-collision boundary question |
+| handoff-cli-binary-canonical-name | **resolved at packaging**: `agent-grid`, no installed alias (`adr-20260814-cli-canonical-binary-name`) |
 | handoff-shared-pty-geometry-resolution | carried unresolved; owned by the execution plane |
 | handoff-exit-code-numeric-assignment | **closed by design** with a fixed numeric assignment |
 | handoff-input-transport-batching | partially taken — the boundary rule is contracted, the granularity delegated |
@@ -570,13 +570,13 @@ The complete disposition ledger for the shared plan is `design-plan/spine.yaml` 
 
 `candidate-fleet-session-identity-reuse` is split across the two changes: the configuration half (canonical URL, derived server id) is carried by the prerequisite change, and the wire and single-construction-owner half is `contract-identity-single-origin` here.
 
-### Promotion manifest (proposed — to be applied to `change.md` by the change owner)
+### Promotion manifest (applied 2026-08-14)
 
-This run's mutation scope does not include `change.md`, so the promotion entries are recorded here for the change owner to apply. The configuration-contract, execution-plane and gateway entries moved to `change-20260814-cli-prerequisite-contracts/implementation.md`.
+Applied to `change.md`. `design-clients-cli` now exists at `docs/design/design-clients-cli.md`. The configuration-contract, execution-plane and gateway entries moved to `change-20260814-cli-prerequisite-contracts/implementation.md`.
 
 | Action | Design | Reason |
 |---|---|---|
 | upsert | `design-clients-cli` (new, component) | New client host. Responsibility: a terminal client of the public wire contract. Boundary: `clients/cli/`. Forbidden: any `services/*` dependency, PTY ownership, ownership/takeover control, a replay store. Capability: terminal session attach presentation. |
 | none | `design-clients-ui`, `design-workspace-desktop` | Untouched by this change. The Workspace design's reference to "the CLI" as a paired consumer of its control endpoint is a recorded boundary question on the binary name (`handoff-cli-binary-canonical-name`), not a change to that design. |
 
-Governing relation for the change: `conformsTo` `design-host` (id `design-client`) is **not** correct for the CLI — its `source_paths` are `services/host/`, `services/server/api/`, `services/cmd/server/`, `clients/web-host/` and do not govern clients in general [measured]. Until `design-clients-cli` exists, this change has no governing design.
+Governing relation for the change: `conformsTo` `design-host` (id `design-client`) is **not** correct for the CLI — its `source_paths` are `services/host/`, `services/server/api/`, `services/cmd/server/`, `clients/web-host/` and do not govern clients in general [measured]. `design-clients-cli` was created for that reason, and `change.md` now carries `conformsTo design-clients-cli`.
