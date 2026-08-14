@@ -363,7 +363,7 @@ Per-unit objectives, acceptance items, output format, tool guidance and boundari
 | unit-fake-gateway | `clients/cli/internal/gateway/fakegateway/fakegateway.go`, `test-harness/dependencies.json` |
 | unit-attach-runtime | `clients/cli/internal/attach/runtime.go`, `input.go`, `output.go`, `pump.go` |
 | unit-lifecycle-commands | `clients/cli/internal/lifecycle/create.go`, `clients/cli/internal/lifecycle/terminate.go` |
-| unit-platform-hardening-spikes | `clients/cli/internal/tty/tty_windows.go`, `docs/changes/change-20260812-cli-terminal-client/verification.md` |
+| unit-platform-hardening-spikes | `clients/cli/internal/tty/tty_windows.go`, `clients/cli/internal/tty/size_poll.go`, `clients/cli/internal/tty/size_poll_test.go`, `clients/cli/internal/tty/terminal_windows_e2e_test.go`, `clients/cli/internal/attach/detach_key_probe_e2e_test.go`, `test-harness/skips.json`, `docs/changes/change-20260812-cli-terminal-client/verification.md` |
 
 `services/gorules/static_enforcement_test.go` is touched by both changes — here to register the CLI module and the SessionInfo golden vector, there to register the close-reason vocabulary. Neither change owns the file.
 

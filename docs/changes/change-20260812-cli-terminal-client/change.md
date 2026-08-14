@@ -194,3 +194,10 @@ design closure passed; 11 ADR accepted via consultation-20260814-cli-terminal-cl
 {% transition from="ready" to="active" date="2026-08-14" %}
 main session implementation; twelve of the thirteen units landed. unit-platform-hardening-spikes is outstanding: its three observations need a real Windows console and a real agent session, and the Windows paths are explicitly unimplemented rather than guessed (verification.md "Not yet acquired").
 {% /transition %}
+
+That transition's assessment was superseded on 2026-08-15 and its pointer no
+longer resolves: the verification section it names is now "The three platform
+observations (revised 2026-08-15)", which opens by correcting it. Two of the
+three observations were not blocked on hardware at all. The record above is left
+as written, because a dated assessment that gets edited to match later findings
+stops being evidence of anything.
