@@ -71,6 +71,11 @@ invariants:
   statement: Credentials reach the Authorization header and the per-dial ticket mint
     and nothing else — never a URL, never a diagnostic, never persisted state.
   enforcement: test
+- id: INV-011
+  statement: The REST calls and the lifecycle socket share one transport policy — trust
+    store, proxy and timeouts — so a server reachable over REST is reachable over its
+    socket. The two halves may not be configured independently.
+  enforcement: test
 boundaries:
   provides:
   - The terminal session surface — list, attach, create, terminate — and its machine-readable
@@ -175,6 +180,10 @@ Four absences are load-bearing rather than incidental:
 - Both external boundaries — the gateway and the local terminal — carry the full
   dependency triple (seam, fake, invariant contract test, `FakeVsReal*`
   backstop) in `test-harness/dependencies.json` and `test-harness/e2e-suites.json`.
+  Both backstops have been observed passing, which is a separate fact from being
+  registered: the gateway one found INV-011's violation on its first real run,
+  and no test built on the fake could have, because the fake supplies both
+  transport halves itself.
 
 ## Known gaps
 
