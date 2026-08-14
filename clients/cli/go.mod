@@ -17,4 +17,6 @@ require (
 	golang.org/x/sys v0.42.0
 )
 
+require github.com/creack/pty v1.1.24
+
 replace github.com/takezoh/agent-grid/clients/goclient => ../goclient

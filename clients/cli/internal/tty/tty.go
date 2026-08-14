@@ -80,17 +80,26 @@ func IsTerminal(file *os.File) bool {
 // invoking terminal untouched, and a function that switched to raw mode and
 // then discovered the problem would already have violated it.
 func Open() (Terminal, error) {
-	if !IsTerminal(os.Stdin) {
+	return openTerminal(os.Stdin, os.Stdout)
+}
+
+// openTerminal is Open with the two files named rather than taken from the
+// process. The production path passes standard input and output; the fidelity
+// backstop passes a terminal it allocated itself, so it can observe the real
+// implementation against real terminal settings without depending on what the
+// test runner happened to leave on standard input.
+func openTerminal(in, out *os.File) (Terminal, error) {
+	if !IsTerminal(in) {
 		return nil, ErrNotATerminal
 	}
-	descriptor := int(os.Stdin.Fd())
+	descriptor := int(in.Fd())
 	state, err := term.GetState(descriptor)
 	if err != nil {
 		return nil, err
 	}
 	local := &localTerminal{
-		in:         os.Stdin,
-		out:        os.Stdout,
+		in:         in,
+		out:        out,
 		descriptor: descriptor,
 		original:   state,
 		changes:    make(chan struct{}, 1),

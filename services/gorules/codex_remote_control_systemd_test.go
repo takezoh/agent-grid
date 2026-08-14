@@ -37,14 +37,27 @@ func TestCodexRemoteControlSystemdContract(t *testing.T) {
 		}
 	}
 
+	// The pairing guidance is asserted where it is written, not where it once
+	// was. baf6a20a moved it out of README.md into a dedicated note, and this
+	// check kept naming README.md — so it failed while the guidance was intact
+	// and would have passed if the note were deleted. Both halves are needed:
+	// the note must carry the guidance, and the README must still reach it,
+	// because guidance nothing links to is guidance nobody finds.
+	const guide = "docs/note/note-20260715-user-codex-remote-control.md"
+
 	readme := readText(t, filepath.Join(root, "README.md"))
+	if !strings.Contains(readme, guide) {
+		t.Errorf("README no longer links to %s", guide)
+	}
+
+	note := readText(t, filepath.Join(root, filepath.FromSlash(guide)))
 	for _, want := range []string{
 		"make install-codex-remote-control-systemd",
 		"codex remote-control pair",
-		"再ペアリングは不要です",
+		"再ペアリングが不要な場合",
 	} {
-		if !strings.Contains(readme, want) {
-			t.Errorf("README missing pairing guidance %q", want)
+		if !strings.Contains(note, want) {
+			t.Errorf("%s missing pairing guidance %q", guide, want)
 		}
 	}
 }
