@@ -149,6 +149,37 @@ must remain race-free under IPC fan-out.
 Adding a subtree: audit it under `-race` locally, fix anything that surfaces,
 then append it to the `test-race` recipe in the Makefile in the same PR.
 
+**A fake must be as concurrency-safe as the thing it replaces.** If production
+calls the real dependency from several goroutines, the fake is called the same
+way, and an unsynchronised recording slice makes `-race` report a race the real
+implementation does not have. Guard the recordings and expose them through
+accessors that copy. Fixed in `gitclone.FakeGitClone` on 2026-08-15.
+
+## Tests that cannot answer the question they ask
+
+Three failure modes, all found in this repository, all worth recognising by
+shape. The first two are worse than a red test, because they report success.
+
+**Vacuous assertion.** A wait helper whose condition is satisfied by input it
+was never meant to accept. `waitForSessionAbsent` waited for a frame that did
+not carry the session — and any frame without a `sessions` array qualified, so
+it returned on the first heartbeat having checked nothing. Write the helper so
+that the wrong state cannot satisfy it; if a passing run and an empty run are
+indistinguishable, the helper is not asserting.
+
+**Racing your own subject.** A concurrency test that begins observing before the
+state it is about has been reached, or that asserts a scheduling detail the
+component never promised. Wait for the observable outcome — poll the thing that
+actually changes — rather than broadcasting a count that "should" be enough.
+Assert the contract's bound, not the number one run happened to produce.
+
+**Process-global measurement in a shared binary.** RSS, open file descriptors,
+goroutine counts: `go test` runs a whole package in one process, so any of these
+includes every other test. The result passes alone and fails under load, which
+reads as flakiness in the code under test and is not. Re-exec the measurement
+alone in a child process (guarded by an env var so it does not recurse) and keep
+the bound exactly as strict.
+
 ## Coverage Tiers
 
 Coverage targets are tiered by architectural blast radius. A regression in `state` corrupts every session; a regression in `lib/github` typically surfaces as one connector misbehaving.
