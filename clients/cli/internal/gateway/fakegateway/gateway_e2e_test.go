@@ -4,6 +4,7 @@ package fakegateway
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -108,8 +109,8 @@ func TestE2E_FakeVsRealGatewayAdmission(t *testing.T) {
 	fake := New(gateway.SessionInfo{ID: "s1"})
 	fromFake := probeSequence(t, fake.Doer(), fake.Dialer(), "https://gateway.test")
 
-	base := startRealServer(t, binary)
-	fromReal := probeSequence(t, &http.Client{Timeout: 5 * time.Second}, nil, base)
+	base, client := startRealServer(t, binary)
+	fromReal := probeSequence(t, client, gateway.NewWebSocketDialer(client), base)
 
 	if fromReal.AdmitErr != "" || fromReal.DialErr != "" || fromReal.ReadErr != "" {
 		t.Fatalf("the real server could not be probed: %+v", fromReal)
@@ -137,8 +138,17 @@ func TestE2E_FakeVsRealGatewayAdmission(t *testing.T) {
 }
 
 // startRealServer launches the real backend on a loopback port with
-// authentication disabled and returns its base URL.
-func startRealServer(t *testing.T, binary string) string {
+// authentication disabled, and returns its base URL together with an HTTP
+// client that trusts the certificate the server minted for itself.
+//
+// TLS is left on, which is the server's default. The `-insecure` flag would
+// make this simpler and would test less: the CLI derives the socket scheme from
+// the configured URL, so a plaintext run never exercises the https -> wss
+// mapping every real deployment takes. An earlier version of this helper built
+// an `http://` URL against that TLS listener and got a 400 back — which the CLI
+// classified, correctly, as a bad request. The fake was never wrong; the
+// harness was.
+func startRealServer(t *testing.T, binary string) (string, *http.Client) {
 	t.Helper()
 	const address = "127.0.0.1:18873"
 	command := exec.Command(binary, "-no-auth", "-addr", address)
@@ -150,16 +160,28 @@ func startRealServer(t *testing.T, binary string) string {
 		_ = command.Process.Kill()
 		_ = command.Wait()
 	})
-	base := "http://" + address
+
+	// The server generates a self-signed certificate at startup and this test
+	// is the process that started it, so there is no authority to check it
+	// against. Confined to this loopback child process; the module proper never
+	// relaxes verification.
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // self-signed cert minted by the child process this test starts
+		},
+	}
+
+	base := "https://" + address
 	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
-		response, err := http.Get(base + "/api/capabilities")
+		response, err := client.Get(base + "/api/capabilities")
 		if err == nil {
 			_ = response.Body.Close()
-			return base
+			return base, client
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatal("the real server never became reachable")
-	return ""
+	return "", nil
 }

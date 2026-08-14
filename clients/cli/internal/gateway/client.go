@@ -323,16 +323,37 @@ func (client *Client) Dial(ctx context.Context) (Socket, string, error) {
 	return socket, minted.ClientInstanceID, nil
 }
 
-// dialWebSocket is the production Dialer.
-func dialWebSocket(ctx context.Context, endpoint string) (Socket, error) {
-	connection, _, err := websocket.Dial(ctx, endpoint, nil)
-	if err != nil {
-		return nil, err
+// NewWebSocketDialer builds the production Dialer over a specific HTTP client,
+// so the socket and the REST calls can share one transport policy — trust
+// store, proxy and timeouts included.
+//
+// Without this the two halves disagree. New takes a Doer for REST but installed
+// a dialer that always used http.DefaultClient, so a server reachable over REST
+// through a private certificate authority or a proxy would admit successfully
+// and then fail to attach, with nothing in the failure naming the asymmetry.
+//
+// A nil client means http.DefaultClient, which is the behaviour New still
+// installs when no dialer is supplied.
+func NewWebSocketDialer(client *http.Client) Dialer {
+	return func(ctx context.Context, endpoint string) (Socket, error) {
+		var options *websocket.DialOptions
+		if client != nil {
+			options = &websocket.DialOptions{HTTPClient: client}
+		}
+		connection, _, err := websocket.Dial(ctx, endpoint, options)
+		if err != nil {
+			return nil, err
+		}
+		// The lifecycle socket carries terminal snapshots, which are far larger
+		// than the library's 32KiB default.
+		connection.SetReadLimit(8 << 20)
+		return &websocketSocket{conn: connection}, nil
 	}
-	// The lifecycle socket carries terminal snapshots, which are far larger
-	// than the library's 32KiB default.
-	connection.SetReadLimit(8 << 20)
-	return &websocketSocket{conn: connection}, nil
+}
+
+// dialWebSocket is the production Dialer over the default HTTP client.
+func dialWebSocket(ctx context.Context, endpoint string) (Socket, error) {
+	return NewWebSocketDialer(nil)(ctx, endpoint)
 }
 
 // websocketSocket adapts coder/websocket to Socket and remembers what the peer

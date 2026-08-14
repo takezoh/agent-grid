@@ -38,6 +38,16 @@ type Fake struct {
 	ClientInstanceID string
 	// Sessions is the session list the hello frame carries.
 	Sessions []gateway.SessionInfo
+	// Features, Capabilities and ServerTime are the three hello fields the CLI
+	// reads none of — they exist because the real server always sends them, and
+	// a fake whose hello frame is missing keys is a fake that would hide a
+	// decoder which broke on their presence. TestE2E_FakeVsRealGatewayAdmission
+	// caught exactly that. Their values are deterministic placeholders; the
+	// contract under test is that the key is there and carries the right JSON
+	// type, not what a particular build happens to advertise.
+	Features     []string
+	Capabilities []string
+	ServerTime   int64
 	// RejectTicketMint answers the mint route with the published
 	// unauthenticated rejection body.
 	RejectTicketMint bool
@@ -73,6 +83,10 @@ type Fake struct {
 	sockets []*Socket
 }
 
+// fixedServerTime is the epoch-millisecond instant every fake hello frame
+// carries: 2026-08-14T00:00:00Z.
+const fixedServerTime int64 = 1786752000000
+
 // New builds a fake that behaves like a healthy server.
 func New(sessions ...gateway.SessionInfo) *Fake {
 	return &Fake{
@@ -81,6 +95,10 @@ func New(sessions ...gateway.SessionInfo) *Fake {
 		ClientInstanceID: "ci-1",
 		Sessions:         sessions,
 		DeleteStatus:     http.StatusNoContent,
+		// A fixed instant rather than the clock: a fake that changed its hello
+		// frame between two runs would make every byte-level assertion over it
+		// flaky for a reason that has nothing to do with the code under test.
+		ServerTime: fixedServerTime,
 	}
 }
 
@@ -217,12 +235,27 @@ func newSocket(fake *Fake) *Socket {
 func (socket *Socket) pushHello() {
 	socket.fake.mu.Lock()
 	sessions := socket.fake.Sessions
+	features := socket.fake.Features
+	capabilities := socket.fake.Capabilities
+	serverTime := socket.fake.ServerTime
 	socket.fake.mu.Unlock()
+	// The real server replaces nil slices with empty ones so a client always
+	// receives arrays. A fake that emitted JSON null here would be a laxer
+	// counterparty than the thing it stands for.
+	if features == nil {
+		features = []string{}
+	}
+	if capabilities == nil {
+		capabilities = []string{}
+	}
 	frame, _ := json.Marshal(map[string]any{
 		"k":                "h",
 		"sessions":         sessions,
 		"protocolVersion":  gateway.ProtocolVersion,
 		"clientInstanceId": socket.fake.ClientInstanceID,
+		"features":         features,
+		"capabilities":     capabilities,
+		"serverTime":       serverTime,
 	})
 	socket.Push(frame)
 }

@@ -122,7 +122,7 @@ Both backstops are registered and runnable:
 
 | Boundary | Registry id | Backstop | Opt-in | Last observed |
 |---|---|---|---|---|
-| gateway | `cli-gateway` | `TestE2E_FakeVsRealGatewayAdmission` | `AG_E2E_SERVER_BIN` | not yet passed — see below |
+| gateway | `cli-gateway` | `TestE2E_FakeVsRealGatewayAdmission` | `AG_E2E_SERVER_BIN` | PASS, 2026-08-15, after two defects it found |
 | local terminal | `cli-local-terminal` | `TestE2E_FakeVsRealTerminalRestore`, `TestE2E_RealTerminalGeometryIsReadBack` | `AG_E2E_REAL_TTY` | PASS, 2026-08-14 |
 
 `scripts/run-go-e2e.sh` now groups suites by module, because `clients/cli` is a
@@ -154,19 +154,38 @@ from its own record either way.
 What this still does not observe is a Windows console, which has no termios at
 all. That remains `evidence-windows-console-behavior`.
 
-#### The gateway backstop is blocked by the environment, not by the code
+#### The gateway backstop found two defects on its first real run
 
-`TestE2E_FakeVsRealGatewayAdmission` was run with `AG_E2E_SERVER_BIN` pointing
-at a freshly built `dist/bin/server` and reached `the real server never became
-reachable`. The cause is in the server's own start-up, not in the test: the
-sandbox this landed in denies `socket(AF_UNIX)`, so the daemon exits with
+It first reported `the real server never became reachable`. That was the
+environment: the sandbox it ran in denies `socket(AF_UNIX)`, so the daemon
+exited on `listen …/server.sock: operation not permitted` before binding an HTTP
+port. Run on a host that permits unix sockets, it got past start-up and found
+two things nothing else could have.
 
-```
-server: ipc: runtime: listen …/server.sock: socket: operation not permitted
-```
+**The harness spoke the wrong scheme.** The server serves HTTPS by default
+(`tls=true`, self-signed). `startRealServer` built `http://` and got a 400 back,
+which the CLI classified — correctly — as `invalid_request`. The fake was never
+wrong. Fixed by keeping TLS on and trusting the child process's own certificate,
+rather than by passing `-insecure`: the CLI derives the socket scheme from the
+configured URL, so a plaintext run never exercises the `https` → `wss` mapping
+every real deployment takes.
 
-before it binds an HTTP port. The backstop therefore remains **never observed
-passing**. It needs a host where a unix socket can be created.
+**The two transport halves disagreed.** `New` accepts a `Doer` for REST but
+installed a dialer that always used `http.DefaultClient`, so a server reachable
+over REST through a private certificate authority or a proxy would admit and
+then fail to attach, with nothing in the failure naming the asymmetry. This is a
+production defect the backstop surfaced, not a test artifact.
+`gateway.NewWebSocketDialer` now builds the production dialer over a named HTTP
+client, and the two halves can share one transport policy.
+
+**Then the assertion that survived was the real one.** The fake's hello frame
+was missing `features`, `capabilities` and `serverTime` — three keys the real
+server always sends and the CLI reads none of. A decoder that broke on their
+presence would have passed every test in this repository. The fake now carries
+them, as arrays rather than JSON null (the server replaces nil slices with empty
+ones, and a fake must not be the laxer counterparty) and with a fixed
+`serverTime`, because a hello frame that changed between runs would make every
+byte-level assertion over it flaky for reasons unrelated to the code under test.
 
 ### Not yet acquired: the three platform observations
 
@@ -252,3 +271,23 @@ The environment denies `socket(AF_UNIX)`. That single fact accounts for every
 failure in the last three rows, and it is why `cli-gateway` remains unobserved
 rather than green: a run that cannot start the server has not compared the fake
 to anything.
+
+### Re-run with unix sockets available, 2026-08-15
+
+The same legs, on a host where `socket(AF_UNIX)` is permitted.
+
+| Leg | Result |
+|---|---|
+| `clients/cli` `cli-gateway` T3 | **PASS** — after the three defects above were fixed |
+| `cd services && go test ./cmd/... ./host/... ./platform/...` | all green; every one of the ten earlier failures was the socket denial and nothing else |
+| `clients/workspace` `control-endpoint.test.ts` | PASS |
+| `make lint` | 0 issues in both modules |
+| `scripts/vet-go-e2e.sh` | ok |
+
+Two failures remain in `services/server/api` and are **not** environmental:
+`TestE2E_GatewayScenarioWorkspaceFileWrite` and
+`TestE2E_GatewayScenarioFakeCodexSurfaceAndSessionState` both time out waiting
+for a session to appear. They fail identically at `bcf6d844`, the commit before
+any CLI work, verified in a separate worktree — so they are pre-existing and
+outside this change. They are deterministic rather than flaky, which makes them
+worth their own investigation.
