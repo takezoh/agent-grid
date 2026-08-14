@@ -350,16 +350,26 @@ func waitForSessionFrame(t *testing.T, c *websocket.Conn, sessionID string, pred
 	return nil
 }
 
-func waitForSessionAbsent(t *testing.T, c *websocket.Conn, timeout time.Duration, sessionID string) {
+// waitForSessionTerminal pins the retention contract end to end
+// (contract-session-terminal-state-retention /
+// adr-20260814-session-terminal-state-retention): a session that is explicitly
+// terminated is not removed. Its terminal state is published on the lifecycle
+// socket, and the row survives in the REST listing.
+//
+// It replaces waitForSessionAbsent, which waited for a frame that did not carry
+// the session. Any frame without a sessions array satisfied that — a heartbeat,
+// an output frame — so it returned on the first one and asserted nothing. That
+// is why two scenarios stayed green on it after retention landed while the two
+// that checked the REST listing failed honestly: a vacuous assertion sitting
+// next to a real one, both encoding the contract retention replaced.
+func waitForSessionTerminal(
+	t *testing.T, daemon daemonInstance, c *websocket.Conn, sessionID string,
+) {
 	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		frame := readJSONFrame(t, c)
-		if sessionFromFrame(frame, sessionID) == nil {
-			return
-		}
-	}
-	t.Fatalf("timed out waiting for session %q disappearance", sessionID)
+	waitForSessionFrame(t, c, sessionID, func(session map[string]any) bool {
+		return sessionLifecycle(session) == "stopped"
+	})
+	waitForSessionListed(t, daemon, sessionID, 5*time.Second, true)
 }
 
 func waitForOutputFrame(t *testing.T, c *websocket.Conn, timeout time.Duration) []any {
@@ -581,7 +591,7 @@ func TestE2E_GatewayScenarioFakeClaudeLifecycleAndSurface(t *testing.T) {
 	assertSessionView(t, waiting, sessionID, "idle")
 
 	deleteSessionViaAPI(t, daemon, sessionID)
-	waitForSessionAbsent(t, lifecycle, 5*time.Second, sessionID)
+	waitForSessionTerminal(t, daemon, lifecycle, sessionID)
 }
 
 func TestE2E_GatewayScenarioFakeCodexSurfaceAndSessionState(t *testing.T) {
@@ -615,7 +625,7 @@ func TestE2E_GatewayScenarioFakeCodexSurfaceAndSessionState(t *testing.T) {
 		"implement wire test", "method=turn/started")
 
 	deleteSessionViaAPI(t, daemon, sessionID)
-	waitForSessionListed(t, daemon, sessionID, 5*time.Second, false)
+	waitForSessionTerminal(t, daemon, lifecycle, sessionID)
 }
 
 func TestE2E_GatewayScenarioWorkspaceFileWrite(t *testing.T) {
@@ -696,6 +706,11 @@ func TestE2E_GatewayScenarioWorkspaceFileWrite(t *testing.T) {
 		t.Fatalf("content = %q, want after", file.Content)
 	}
 
+	// Dialed here rather than at the top: the retention observation is the only
+	// thing this scenario needs the lifecycle socket for, and a socket opened
+	// earlier would queue every frame the workspace exchange produced.
+	lifecycle := dialGatewayWS(t, daemon, "")
+	readJSONFrame(t, lifecycle) // hello
 	deleteSessionViaAPI(t, daemon, sessionID)
-	waitForSessionListed(t, daemon, sessionID, 5*time.Second, false)
+	waitForSessionTerminal(t, daemon, lifecycle, sessionID)
 }

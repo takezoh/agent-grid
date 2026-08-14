@@ -143,12 +143,16 @@ Outstanding before `closing`:
   Windows console and a real agent session. The Windows size-change source and
   input-queue discard stay explicitly unimplemented until they exist.
 - `open-ambiguous-candidate-breadth` is still with the user.
-- `TestE2E_GatewayScenarioWorkspaceFileWrite` and
-  `TestE2E_GatewayScenarioFakeCodexSurfaceAndSessionState` in
-  `services/server/api` fail deterministically on a host that permits unix
-  sockets. They fail identically at `bcf6d844`, before any CLI work, so they are
-  pre-existing rather than caused here — but they are red, and this change
-  should not close while claiming a green repository.
+- `TestTerminalRelay_SeversSlowSubscriberWithoutBlockingOthers` in
+  `services/host/runtime` is flaky — it fails intermittently in isolation at
+  `bcf6d844` as well, so it predates every CLI commit. Not caused here, not
+  fixed here, but the repository is not reliably green until it is.
+
+The four gateway scenario failures that were listed here are fixed: they
+asserted the pre-retention contract that
+`change-20260814-cli-prerequisite-contracts` replaced, and two of them were
+passing vacuously. Recorded in that change's verification member, where the
+missed regression sweep belongs.
 
 Both fidelity backstops have now been observed passing.
 `cli-gateway` found three defects on its first real run — a wrong scheme in the

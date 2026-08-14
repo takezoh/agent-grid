@@ -42,5 +42,5 @@ func TestE2E_GatewayScenarioFakeClaudeLifecycleAndSurface_SanitizesAmbientRoostE
 	assertSessionView(t, waiting, sessionID, "idle")
 
 	deleteSessionViaAPI(t, daemon, sessionID)
-	waitForSessionAbsent(t, lifecycle, 5*time.Second, sessionID)
+	waitForSessionTerminal(t, daemon, lifecycle, sessionID)
 }

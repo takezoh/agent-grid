@@ -93,6 +93,31 @@ cd clients/workspace && npm run test:unit
 ./scripts/run-verification-profile.sh pr schema
 ```
 
+#### The guard was run, and four scenario tests were missed (fixed 2026-08-15)
+
+Group A changed a published behaviour: a session that is explicitly terminated
+is retained with a terminal state instead of being removed. Four gateway
+scenario tests in `services/server/api` still asserted the behaviour it
+replaced, and the regression sweep above did not catch it — because the sweep
+was never run on a host that permits `socket(AF_UNIX)`, and those scenarios need
+a real daemon.
+
+Two of the four failed honestly, on the REST listing. The other two were green
+for the wrong reason: `waitForSessionAbsent` waited for a frame that did not
+carry the session, and any frame without a `sessions` array satisfied it — a
+heartbeat, an output frame — so it returned on the first one and asserted
+nothing at all. A vacuous assertion and a real one, side by side, encoding the
+same replaced contract.
+
+All four now use `waitForSessionTerminal`, which requires the lifecycle socket
+to publish the session's terminal state and then requires the row to still be
+listed. `waitForSessionAbsent` is gone; nothing should wait for a session to
+vanish, because sessions no longer do.
+
+The lesson is about the sweep, not the tests: a regression command that cannot
+run in the environment where the change is made is not a guard, and this one
+was recorded as run.
+
 ### T3 residue
 
 None owned here. This change introduces no external boundary, so it adds no `test-harness/dependencies.json` entry and no `FakeVsReal*` backstop; the gateway and local-terminal boundary registrations belong to `change-20260812-cli-terminal-client`. The real-terminal and Windows-console residue is likewise the CLI change's.
