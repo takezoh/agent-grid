@@ -44,6 +44,14 @@ cd services && go test ./path/to/pkg         # One package
 cd services && go test -run TestName ./...   # One test
 ```
 
+Two more Go modules live under `clients/` and are not reached by `cd services`.
+`make vet` covers all three; tests are per module:
+
+```sh
+cd clients/goclient  && GOWORK=off go test ./...   # the one Go loader of clients/config
+cd clients/web-host  && GOWORK=off go test ./...   # imports clients/goclient via replace
+```
+
 Layer-scoped test run for orchestrator changes:
 
 ```sh

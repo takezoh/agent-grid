@@ -134,3 +134,12 @@ Active consumer は source/tests、Makefile・CI・scripts、AGENTS.md・ARCHITE
 ## Closure Notes
 
 HARD approval、全proposed ADR採否、promotion適用、services/Web-host module gates、top-level ownership、host parity、active-reference audit、docs conformanceのevidenceが揃ってからclosingへ進める。
+
+## Downstream sharpening (2026-08-14)
+
+`change-20260814-cli-prerequisite-contracts` が `boundary-client-config-owner` を宣言から**機械的に強制される契約**へ進めた。この change の outcome を変えるものではなく、その到達点を具体化するもの。
+
+- `clients/config` の Go projection は `clients/web-host/internal/clientconfig` から新 module `clients/goclient/clientconfig` へ移動した。web-host はそれを `replace` 経由で import する **consumer** であり、owner ではない。CLI も同じ loader を読む。non_goal「clients/web-host から services module への dependency」は変わらず守られている（`clients/goclient` は services module ではない）。
+- 言語ごとに loader は 1 つだけで、2 つ目が現れると `cd services && go test ./gorules/ -run TestClientConfigHasExactlyOneLoaderPerLanguage` が落ちる。
+- 3 言語の一致は README の主張ではなく `clients/config/fixtures/servers-corpus.json` の期待結果 corpus で担保される（`scripts/check-client-config-parity.sh`）。
+- 契約自体も変わった: admission は per-entry になり、不正な 1 entry が fleet 全体を落とさなくなった。詳細は `adr-20260814-shared-go-client-config-module` と `adr-20260814-server-display-name-naming-contract`。

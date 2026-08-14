@@ -182,7 +182,7 @@ public static class DesktopConfigLoader
     // a violation (adr-20260814-server-display-name-naming-contract).
     private static List<ServerConfig> AdmitServers(JsonElement[] raw)
     {
-        var servers = raw.Select(AdmitEntry).ToList();
+        var servers = raw.Select((entry, index) => AdmitEntry(entry, index)).ToList();
         MarkCollisions(
             servers,
             server => string.IsNullOrEmpty(server.Id) ? null : server.Id,

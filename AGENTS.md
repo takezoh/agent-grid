@@ -10,6 +10,8 @@ make lint                    # golangci-lint (depguard, funlen, staticcheck, etc
 cd services && go test ./...          # Run all tests
 cd services && go test ./path/to/pkg  # Run tests for a specific package
 cd services && go test -run TestName ./...  # Run a specific test
+cd clients/goclient && GOWORK=off go test ./...  # separate module: the Go client-config loader
+cd clients/web-host && GOWORK=off go test ./...  # separate module
 make test-race               # Race detector on concurrency-sensitive subtrees
 ```
 
@@ -96,7 +98,7 @@ One Go module, three top-level trees under `src/` and three binaries:
 | `orchestrator` | `services/cmd/orchestrator/` | `orchestrator/` | Symphony SPEC implementation — autonomous poll/dispatch/reconcile + observability HTTP |
 | `claude-app-server` | `services/cmd/claude-app-server/` | `platform/` + `orchestrator/` | Codex app-server stdio shim for Claude; enables agent-switch via `codex.command` in WORKFLOW.md |
 
-`services/platform/` is shared service infrastructure; `services/host/` is agent-grid's session daemon and `services/server/` is its HTTP/WS gateway, both shipped as `dist/bin/server`. The SPA lives at `clients/ui/` and its independent Go host at `clients/web-host/`; Workspace Electron lives at `clients/workspace/`. Web host and Electron are equal client hosts: both load `clients/config`'s `servers.json` contract and expose the same server-qualified fleet semantics. Their only permitted difference is delivery transport (same-origin HTTP/WS versus preload/IPC); browser-single-server or Electron-only multi-server policy is forbidden. `services/orchestrator/` is the Symphony pipeline. Import direction is enforced by `services/.golangci.yml`.
+`services/platform/` is shared service infrastructure; `services/host/` is agent-grid's session daemon and `services/server/` is its HTTP/WS gateway, both shipped as `dist/bin/server`. The SPA lives at `clients/ui/` and its independent Go host at `clients/web-host/`; Workspace Electron lives at `clients/workspace/`. Web host and Electron are equal client hosts: both load `clients/config`'s `servers.json` contract and expose the same server-qualified fleet semantics. `clients/config` is that contract and is owned by no single host; each client language holds exactly **one** loader of it — `clients/goclient/clientconfig` (its own Go module, imported by web-host via `replace`), `clients/workspace/src/main/desktop-config.ts`, and `clients/windows-shell/AgentGrid.Shell.Core/Configuration/DesktopConfig.cs`. A second parser in any of the three fails `cd services && go test ./gorules/ -run TestClientConfigHasExactlyOneLoaderPerLanguage`, and the three are held in agreement by the expected-outcome corpus (`scripts/check-client-config-parity.sh`). Their only permitted difference is delivery transport (same-origin HTTP/WS versus preload/IPC); browser-single-server or Electron-only multi-server policy is forbidden. `services/orchestrator/` is the Symphony pipeline. Import direction is enforced by `services/.golangci.yml`.
 
 Orchestrator-scoped test run: `cd services && go test ./orchestrator/... ./platform/tracker/... ./cmd/orchestrator/... ./cmd/claude-app-server/...`
 Conformance: `docs/design/design-orchestrator.md#legacy-source-component-20260624-orchestrator-symphony-conformance` — SPEC §17 ↔ test 対応表と逸脱 posture の正本。
