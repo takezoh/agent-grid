@@ -143,3 +143,5 @@ HARD approval、全proposed ADR採否、promotion適用、services/Web-host modu
 - 言語ごとに loader は 1 つだけで、2 つ目が現れると `cd services && go test ./gorules/ -run TestClientConfigHasExactlyOneLoaderPerLanguage` が落ちる。
 - 3 言語の一致は README の主張ではなく `clients/config/fixtures/servers-corpus.json` の期待結果 corpus で担保される（`scripts/check-client-config-parity.sh`）。
 - 契約自体も変わった: admission は per-entry になり、不正な 1 entry が fleet 全体を落とさなくなった。詳細は `adr-20260814-shared-go-client-config-module` と `adr-20260814-server-display-name-naming-contract`。
+
+`change-20260812-cli-terminal-client` でその「CLI も同じ loader を読む」が実際に着地した。`clients/cli` は 5 番目の Go module で、`clients/goclient` を `replace` 経由で import する 3 番目の consumer である。この change の non_goal はそのまま強くなった側にある: CLI は services module への edge を持たず、depguard・`go.mod` assertion・`go list -deps` を歩く `cli-module-boundary` の 3 つで機械的に禁じられている。web-host と同じく、client host は公開 wire contract の consumer であって内部型の consumer ではない。

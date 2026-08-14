@@ -118,6 +118,34 @@ The four CLI-side checks of contracts realized by `change-20260814-cli-prerequis
 - Whether a single `Ctrl-]` collides with Claude Code's or Codex's own key handling during real use.
 - `FakeVsReal*` backstops for the gateway and the local-terminal boundaries. If one fails, fix the fake — never weaken the assertion.
 
+Both backstops are registered and runnable:
+
+| Boundary | Registry id | Backstop | Opt-in |
+|---|---|---|---|
+| gateway | `cli-gateway` | `TestE2E_FakeVsRealGatewayAdmission` | `AG_E2E_SERVER_BIN` |
+| local terminal | `cli-local-terminal` | `TestE2E_FakeVsRealTerminalRestore` | `AG_E2E_REAL_TTY` |
+
+`scripts/run-go-e2e.sh` now groups suites by module, because `clients/cli` is a
+separate Go module and a package pattern from `services` cannot reach it. A
+suite that names no module still belongs to `services`.
+
+### Not yet acquired: the three platform observations
+
+`unit-platform-hardening-spikes` is **not complete**. Its acceptance requires
+observations from a real Windows console and a real agent session, and neither
+was available where this landed. Nothing was guessed in their place:
+
+| Observation | State | What the code does meanwhile |
+|---|---|---|
+| evidence-windows-console-behavior | not acquired | Raw entry and restore go through `golang.org/x/term`, which has a Windows implementation, so they are shared with the Unix path. `DiscardInputQueue` returns `ErrUnsupportedPlatform` rather than pretending: the console host owns the input buffer and there is no terminal-driver queue to flush. |
+| evidence-windows-resize-source | not acquired | `watchSize` installs no observer on Windows, so `SizeChanges` never yields there and an attached session keeps the geometry it declared at subscribe time. A polling interval chosen without measuring either loses resizes or wakes an idle process. |
+| evidence-detach-key-chord-collision | not acquired | `Ctrl-]` (`0x1D`) remains the default, and `--detach-key` exists so the escape hatch is available before the answer is. `ver-configured-detach-byte-only` already pins that only the configured byte detaches. |
+
+The BSD input-queue flush is in the same position and is marked the same way:
+`flush_other.go` returns `ErrUnsupportedPlatform` because the `TIOCFLUSH`/`FREAD`
+spelling has not been run against a real terminal here. Linux is implemented and
+tested.
+
 ### Acceptance-to-verification coverage
 
 Acceptance criteria owned by this change. A superscript **P** marks a verification discharged by `change-20260814-cli-prerequisite-contracts`.

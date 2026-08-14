@@ -463,6 +463,83 @@ All six evidence items are acquired in this change.
 | evidence-windows-resize-source | the Windows size-change event source | unit-platform-hardening-spikes |
 | evidence-detach-key-chord-collision | the default detach key | unit-platform-hardening-spikes |
 
+### Phase 0 observations (unit-phase0-contract-pin, acquired)
+
+Every fact below is a capture from a production handler, encoder or serializer
+in this repository, not a paraphrase of one. The captures are checked in and are
+re-derived on every `go test ./...`, so a server-side change to any of these
+shapes fails here rather than in a client at runtime.
+
+| Fixture | Produced by | Answers |
+|---|---|---|
+| `protocol/fixtures/session-info-golden.json` | `proto.SessionInfo` serializer, byte-exact | the session payload shape the CLI decodes |
+| `clients/cli/internal/gateway/testdata/session-config.json` | `handleSessionConfig` | evidence-create-request-vocabulary |
+| `clients/cli/internal/gateway/testdata/create-session-request.json` | admitted by `decodeCreateRequest` | the creation body |
+| `clients/cli/internal/gateway/testdata/create-session-response.json` | `apiSessionInfo` serializer | what a creation returns |
+| `clients/cli/internal/gateway/testdata/lifecycle-session-end.json` | `encodeFromSessionsChanged` | evidence-session-end-frame-shape |
+| `clients/cli/internal/gateway/testdata/departure-capacity.json` | `departureControlFrame` ∘ `departureReason` | the capacity refusal the CLI must classify |
+| `clients/cli/internal/gateway/testdata/rejection-unauthenticated.json` | `writeTransportRejection` | the pre-upgrade rejection body |
+
+The golden vector is generated with `go test ./host/state/view/ -run TestSessionInfoGoldenVectorIsStable -update-session-info-golden`; the six CLI fixtures with `go test ./server/api/ -run TestCLIPhase0Fixtures -update-cli-phase0`. Both then assert equality without the flag.
+
+**evidence-create-request-vocabulary — resolved.** The agent kind is a
+`command_profiles[]` entry addressed by `id` plus its server-computed
+`revision`; the working directory is `projects[].path`, an absolute directory
+the server resolved and existence-checked. A creation therefore sends
+`{version: 2, project, profile_id, profile_revision, parameters}` — `parameters`
+being the validated map the profile's `parameters[]` declares — and the server
+materialises the argv. The revision is server-validated at request time and a
+stale one is a 409 `stale_profile_revision`, which is why unit-lifecycle-commands
+reads the profile set from the target server per invocation instead of caching it.
+
+**evidence-session-end-frame-shape — resolved, positively.** A session that ends
+server-side arrives as an ordinary view update, `{"k":"v","sessions":[…]}`, in
+which the row is still present and carries `status.lifecycle == "stopped"`. The
+recorded negative branch does not fire: the prerequisite change's retention unit
+makes the row survive, so the CLI attributes a departure to the session ending
+by reading a published transition rather than by watching a row vanish or by
+keeping private memory of what it once saw.
+
+**evidence-cwd-worktree-field — resolved.** The shipping SPA presents
+`project` as the working directory: `groupSessionsByProject`
+(`clients/ui/src/store/daemon.ts:181`) keys on `s.project`, and the group header
+shows its basename with the full path in the `title` attribute
+(`clients/ui/src/components/SessionList.tsx:228`). `workspace_root` is the
+worktree root and is a different fact; `workspace` is the workspace-switcher
+bucket. The cwd column is therefore `project`, and a session created with
+`--worktree` additionally carries `workspace_root`.
+
+**Command-to-operation mapping.** Every CLI command is a client of an operation
+that already exists. No row needs a server change.
+
+| Command | Public operations | Gap |
+|---|---|---|
+| `ls` | `GET /api/capabilities` (version), `POST /api/ws-ticket`, `GET /ws?ticket=` → `k:"h"` then `k:"v"` | none — client-only |
+| `attach` | the same admission, then inbound `k:"ld"` with `correlation`+`sessionId`+`cols`/`rows`+`desired`, outbound `k:"lo"` outcome and asciicast output arrays, inbound `k:"i"`/`k:"r"` | none — client-only |
+| `new` | `GET /api/session-config`, `POST /api/sessions`, then the attach path | none — client-only |
+| `kill` | `DELETE /api/sessions/{id}` | none — client-only |
+
+The lifecycle socket is the only attach transport: `GET /ws` **without**
+`?session=` (`serveAttach`, `services/server/api/mux.go:621`). The per-session
+route shares one empty `SubscriberID` across clients, which is the measured
+disqualification recorded in `adr-20260814-cli-attach-via-lifecycle-multiplexed-ws`.
+
+**Lease shape.** `k:"ld"` carries `correlation.{clientInstanceID,connectionGeneration,clientRevision}`
+(`services/host/proto/lifecycle.go:26`). `clientRevision` is the lease revision the
+CLI must advance monotonically; the daemon answers with `k:"lo"` whose `status`
+is one of `accepted`, `waiting`, `applied`, `rejected`, `superseded`, `released`,
+`degraded`, `no_output` — of which `accepted` and `waiting` are explicitly
+non-terminal, which is what `ver-attach-never-reports-accepted-as-established`
+pins.
+
+**Reachability vocabulary.** The observation kinds are `disabled`, `checking`,
+`connected`, `unavailable`, `incompatible_protocol`, `health_unavailable`, and
+the reasons are `connection_timeout`, `connection_failed`, `http_error`,
+`websocket_failed`, `empty_ticket`, `protocol_mismatch`, `refresh_failed`,
+`delivery_lost` (`clients/web-host/internal/webhost/fleet.go:1046`). unit-fleet-reachability
+reuses them verbatim and adds `configuration_invalid` as a further non-reachability
+admission kind alongside `disabled`.
+
 ### Decision dispositions
 
 The complete disposition ledger for the shared plan is `design-plan/spine.yaml` `dispositions`; it is the single source and is not duplicated. The rows below are the ones whose ADR or contract lands here. Ten further dispositions — the retention, close-taxonomy, configuration-contract and naming ones — are carried by `change-20260814-cli-prerequisite-contracts/implementation.md`.

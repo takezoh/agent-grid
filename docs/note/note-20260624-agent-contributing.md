@@ -35,8 +35,9 @@ This expands the summary in [AGENTS.md](../../AGENTS.md). Read [ARCHITECTURE.md]
 make build-server            # Build services/ → dist/bin/server (+ bridge)
 make build-orchestrator      # → ./orchestrator
 make build-claude-app-server # → ./claude-app-server
-make build-all               # All 3 main binaries
-make vet                     # go vet ./...
+make build-cli               # → dist/bin/agent-grid (terminal client)
+make build-all               # Every binary
+make vet                     # go vet ./... in each module
 make lint                    # golangci-lint (depguard, funlen, staticcheck, etc.)
 
 cd services && go test ./...                 # All tests
@@ -44,12 +45,28 @@ cd services && go test ./path/to/pkg         # One package
 cd services && go test -run TestName ./...   # One test
 ```
 
-Two more Go modules live under `clients/` and are not reached by `cd services`.
-`make vet` covers all three; tests are per module:
+Three more Go modules live under `clients/` and are not reached by `cd services`.
+`make vet`, `make test` and `make lint` cover all four; tests are per module:
 
 ```sh
 cd clients/goclient  && GOWORK=off go test ./...   # the one Go loader of clients/config
 cd clients/web-host  && GOWORK=off go test ./...   # imports clients/goclient via replace
+cd clients/cli       && GOWORK=off go test ./...   # the terminal client
+```
+
+`make lint` builds the pinned golangci-lint into `dist/bin/` and runs it inside
+each module, because a tool dependency of the services module cannot be resolved
+with `go tool` from another one. `clients/cli` carries its own `.golangci.yml`.
+
+`clients/cli` must never gain a dependency edge to the services module — it is a
+client of the public wire contract, nothing more. Three mechanisms say so at
+three different moments: a depguard rule as the import is written, a `go.mod`
+assertion and an entry-point coverage assertion in
+`services/gorules/cli_module_registration_test.go`, and the `cli-module-boundary`
+pull-request command, which walks the real dependency graph:
+
+```sh
+cd clients/cli && GOWORK=off go list -deps ./... | grep -q 'takezoh/agent-grid/services' && exit 1 || exit 0
 ```
 
 Layer-scoped test run for orchestrator changes:
