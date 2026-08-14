@@ -175,49 +175,68 @@ func (a *DaemonAdapter) PushChannelFor(eventsCh <-chan proto.ServerEvent) <-chan
 	return a.d.PushChannelFor(eventsCh)
 }
 
-// writeTypedClose sends a WebSocket StatusGoingAway typed close frame.
-func writeTypedClose(c *websocket.Conn, reason string) {
-	_ = c.Close(websocket.StatusGoingAway, reason)
-}
-
 // AttachWS bridges one WebSocket connection to a session surface. It streams
 // output events to the client (writeOutbound) and forwards client input/resize
 // (readInbound goroutine). Returns when the connection or daemon closes.
+//
+// Every return path departs through closeWith, so the client is told why it
+// lost the socket on all of them — including the ones that used to unwind into
+// the abrupt CloseNow in serveAttach carrying nothing at all.
 func AttachWS(ctx context.Context, sess Attacher, sessionID string, c *websocket.Conn) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	write := plainFrameWriter(c)
 
 	cols, rows, err := readInitialGeometry(ctx, c)
 	if err != nil {
-		writeTypedClose(c, "invalid-geometry")
+		closeWith(c, write, departureReason(err), "")
 		return err
 	}
 	ch, err := sess.SubscribeSurface(ctx, sessionID, cols, rows)
 	if err != nil {
-		var eb *proto.ErrorBody
-		if errors.As(err, &eb) {
-			_ = c.Write(ctx, websocket.MessageText, controlFrame(0, string(eb.Code)))
-		}
-		writeTypedClose(c, "subscribe-failed")
+		closeWith(c, write, departureReason(err), legacyDepartureData(err))
 		return err
 	}
 	defer func() { _ = sess.UnsubscribeSurface(context.Background(), sessionID) }()
 
 	go func() { readInbound(ctx, sess, sessionID, c); cancel() }()
-	return writeOutbound(ctx, sessionID, c, ch)
+	err = writeOutbound(ctx, sessionID, c, ch)
+	closeWith(c, write, departureReason(err), daemonGoneLegacy(err))
+	return err
 }
 
+// daemonGoneLegacy keeps the shipped SPA's disconnected banner working while
+// the typed reason rides alongside it.
+func daemonGoneLegacy(err error) string {
+	if errors.Is(err, errDaemonGone) {
+		return legacyDaemonGoneData
+	}
+	return ""
+}
+
+// readInitialGeometry consumes the opening frame, which must declare the
+// terminal size.
+//
+// This read keeps the cancellable connection context, unlike the post-attach
+// readers. coder/websocket destroys the connection when a read context is
+// cancelled, so a server draining during the opening frame ends this socket
+// abruptly — and that is the right outcome: the handshake never completed, so
+// there is no attachment to depart from and nothing the client could attribute
+// a departure to.
 func readInitialGeometry(ctx context.Context, c *websocket.Conn) (uint16, uint16, error) {
 	_, data, err := c.Read(ctx)
 	if err != nil {
+		// The socket died before it said anything. That is not the client
+		// sending something invalid, and calling it invalid_request would
+		// attribute a dropped connection to the client.
 		return 0, 0, err
 	}
 	var msg inbound
 	if err := json.Unmarshal(data, &msg); err != nil || msg.K != "r" {
-		return 0, 0, errors.New("server/api: first terminal frame must declare geometry")
+		return 0, 0, fmt.Errorf("%w: first terminal frame must declare geometry", errClientProtocol)
 	}
 	if msg.Cols <= 0 || msg.Rows <= 0 || state.SizeHintRejectReason(msg.Cols, msg.Rows) != "" {
-		return 0, 0, errors.New("server/api: invalid initial terminal geometry")
+		return 0, 0, fmt.Errorf("%w: invalid initial terminal geometry", errClientProtocol)
 	}
 	return uint16(msg.Cols), uint16(msg.Rows), nil
 }
@@ -300,7 +319,7 @@ func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn, cl
 	}
 	ch, err := sess.SubscribeLifecycle(ctx)
 	if err != nil {
-		writeTypedClose(c, "lifecycle-subscribe-failed")
+		closeWith(c, plainFrameWriter(c), departureReason(err), legacyDepartureData(err))
 		return err
 	}
 	pushCh := sess.PushChannelFor(ch)
@@ -320,6 +339,7 @@ func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn, cl
 		cancel()
 	}()
 
+	write := lockedFrameWriter(c, writeMu)
 	helloSent := false
 	barriers := make(map[string]*runtimeTerminalBarrier)
 	heartbeat := time.NewTicker(lifecycleHeartbeatInterval)
@@ -327,7 +347,7 @@ func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn, cl
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return departLifecycle(c, write, ctx.Err())
 		case <-heartbeat.C:
 			// Hello remains the first lifecycle frame. Once the generation is
 			// established, heartbeat frames prove that a quiet socket is live
@@ -336,22 +356,18 @@ func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn, cl
 				continue
 			}
 			if err := writeLifecycleFrameLocked(ctx, c, writeMu, []byte(lifecycleHeartbeatFrame)); err != nil {
-				return err
+				return departLifecycle(c, write, err)
 			}
 		case frame, ok := <-pushCh:
 			if !ok {
-				_ = writeLifecycleFrameLocked(ctx, c, writeMu, controlFrame(0, "daemon-disconnected"))
-				writeTypedClose(c, "daemon-disconnected")
-				return errDaemonGone
+				return departLifecycle(c, write, errDaemonGone)
 			}
 			if err := writeLifecycleFrameLocked(ctx, c, writeMu, frame); err != nil {
-				return err
+				return departLifecycle(c, write, err)
 			}
 		case ev, ok := <-ch:
 			if !ok {
-				_ = writeLifecycleFrameLocked(ctx, c, writeMu, controlFrame(0, "daemon-disconnected"))
-				writeTypedClose(c, "daemon-disconnected")
-				return errDaemonGone
+				return departLifecycle(c, write, errDaemonGone)
 			}
 			frames, nextHello, ok := lifecycleFrames(ev, helloSent, clientInstanceID, subscriberID, ownerID, subs, barriers)
 			helloSent = nextHello
@@ -361,12 +377,20 @@ func AttachLifecycleWS(ctx context.Context, sess Attacher, c *websocket.Conn, cl
 			for _, frame := range frames {
 				if frame != nil {
 					if err := writeLifecycleFrameLocked(ctx, c, writeMu, frame); err != nil {
-						return err
+						return departLifecycle(c, write, err)
 					}
 				}
 			}
 		}
 	}
+}
+
+// departLifecycle ends the lifecycle socket with the published reason for err
+// and returns err unchanged, so every exit of the pump — including graceful
+// shutdown, which used to unwind carrying nothing — names its cause.
+func departLifecycle(c *websocket.Conn, write frameWriter, err error) error {
+	closeWith(c, write, departureReason(err), daemonGoneLegacy(err))
+	return err
 }
 
 func lifecycleFrames(ev proto.ServerEvent, helloSent bool, clientInstanceID, subscriberID, ownerID string, subs *lifecycleSubSet, barriers map[string]*runtimeTerminalBarrier) ([][]byte, bool, bool) {
@@ -471,8 +495,8 @@ type respErrFrame struct {
 }
 
 // writeOutbound reads proto.ServerEvent values from ch and encodes them as WS
-// frames. On daemon disconnect (ch closed) it sends the 2-step close defined
-// in ADR 0011: control frame then StatusGoingAway typed close.
+// frames. It only reports why it stopped; AttachWS owns the departure, so the
+// 2-step close of ADR 0011 happens in exactly one place per socket.
 func writeOutbound(ctx context.Context, sessionID string, c *websocket.Conn, ch <-chan proto.ServerEvent) error {
 	for {
 		select {
@@ -480,9 +504,6 @@ func writeOutbound(ctx context.Context, sessionID string, c *websocket.Conn, ch 
 			return ctx.Err()
 		case ev, ok := <-ch:
 			if !ok {
-				// Daemon disconnected: 2-step close (ADR 0011).
-				_ = c.Write(ctx, websocket.MessageText, controlFrame(0, "daemon-disconnected"))
-				writeTypedClose(c, "daemon-disconnected")
 				return errDaemonGone
 			}
 			// Filter: only forward surface-scoped events belonging to this
@@ -520,11 +541,22 @@ func writeOutbound(ctx context.Context, sessionID string, c *websocket.Conn, ch 
 }
 
 // readInbound forwards client messages (input, resize) to the session until
-// the connection or context closes. Errors are logged at warn level and cause
-// the function to return; the caller goroutine then invokes cancel().
+// the connection closes. Errors are logged at warn level and cause the
+// function to return; the caller goroutine then invokes cancel().
+//
+// The read deliberately does not carry the cancellable connection context.
+// coder/websocket tears the underlying connection down as soon as a read
+// context is cancelled (conn.go setupReadTimeout), so a reader holding ctx
+// would kill the socket at the exact moment the writer is trying to tell the
+// client why it is departing — turning a draining server back into the
+// unattributed 1006 this contract exists to remove. The goroutine instead ends
+// when the connection does, which every departure path guarantees via
+// closeWith. Forwarding still uses ctx, so a cancelled connection performs no
+// further daemon work.
 func readInbound(ctx context.Context, sess Attacher, sessionID string, c *websocket.Conn) {
+	readCtx := context.WithoutCancel(ctx)
 	for {
-		_, data, err := c.Read(ctx)
+		_, data, err := c.Read(readCtx)
 		if err != nil {
 			return
 		}

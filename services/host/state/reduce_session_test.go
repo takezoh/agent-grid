@@ -497,7 +497,12 @@ func TestSpawnFailedEvictsSession(t *testing.T) {
 
 // === reduceStopSession ===
 
-func TestStopSessionEvictsImmediately(t *testing.T) {
+// TestStopSessionRetainsATerminalRow pins the retention half of
+// adr-20260814-session-terminal-state-retention: explicit termination tears the
+// frames down but leaves the session observable with a terminal marker, so a
+// client sees "stopped" instead of a row disappearing. Deleting the record
+// again would make this fail.
+func TestStopSessionRetainsATerminalRow(t *testing.T) {
 	s := New()
 	id := SessionID("abc")
 	s.Sessions[id] = stubSession(id)
@@ -505,8 +510,18 @@ func TestStopSessionEvictsImmediately(t *testing.T) {
 		ConnID: 1, ReqID: "r", Event: "stop-session",
 		Payload: mustPayload(map[string]string{"session_id": string(id)}),
 	})
-	if _, ok := next.Sessions[id]; ok {
-		t.Error("session must be evicted immediately from state")
+	sess, ok := next.Sessions[id]
+	if !ok {
+		t.Fatal("terminated session must stay observable, not be deleted")
+	}
+	if !sess.Ended() {
+		t.Error("terminated session must carry a terminal marker")
+	}
+	if len(sess.Frames) != 0 {
+		t.Errorf("frames = %d, want 0 after termination", len(sess.Frames))
+	}
+	if sess.HeadFrameID != "" {
+		t.Errorf("HeadFrameID = %q, want empty after termination", sess.HeadFrameID)
 	}
 	if _, ok := findEff[EffKillFrame](effs); !ok {
 		t.Error("expected EffKillFrame")
@@ -530,11 +545,12 @@ func TestStopSessionThenVanishIsNoop(t *testing.T) {
 		ConnID: 1, ReqID: "r", Event: "stop-session",
 		Payload: mustPayload(map[string]string{"session_id": string(id)}),
 	})
-	if _, ok := s.Sessions[id]; ok {
-		t.Fatal("session must be evicted by stop-session")
+	if sess, ok := s.Sessions[id]; !ok || !sess.Ended() {
+		t.Fatal("stop-session must leave a terminal row behind")
 	}
 
-	// EvFrameVanished should be a no-op since session is gone
+	// EvFrameVanished must still be a no-op: the frames are gone even though
+	// the terminal row survives, so there is nothing left to evict.
 	_, effs := Reduce(s, EvFrameVanished{FrameID: frame.ID})
 	if _, ok := findEff[EffBroadcastSessionsChanged](effs); ok {
 		t.Error("EvFrameVanished after eviction should be no-op, not broadcast again")
@@ -581,8 +597,8 @@ func TestStopSessionMultiFrameKillsAllWindows(t *testing.T) {
 		ConnID: 1, ReqID: "r", Event: "stop-session",
 		Payload: mustPayload(map[string]string{"session_id": string(id)}),
 	})
-	if _, ok := next.Sessions[id]; ok {
-		t.Error("session must be evicted immediately")
+	if sess, ok := next.Sessions[id]; !ok || !sess.Ended() {
+		t.Error("multi-frame termination must still leave one terminal row")
 	}
 	// EffKillFrame must appear for every frame
 	killCount := 0
@@ -658,8 +674,12 @@ func TestFrameVanishedEvicts(t *testing.T) {
 	id := SessionID("abc")
 	s.Sessions[id] = stubSession(id)
 	next, effs := Reduce(s, EvFrameVanished{FrameID: FrameID(id)})
-	if _, ok := next.Sessions[id]; ok {
-		t.Error("session should be evicted")
+	sess, ok := next.Sessions[id]
+	if !ok || !sess.Ended() {
+		t.Error("a vanished backend frame must leave a terminal row, not delete the session")
+	}
+	if len(sess.Frames) != 0 {
+		t.Errorf("frames = %d, want 0 after the frame vanished", len(sess.Frames))
 	}
 	if _, ok := findEff[EffBroadcastSessionsChanged](effs); !ok {
 		t.Error("expected broadcast")

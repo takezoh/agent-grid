@@ -1,0 +1,1791 @@
+artifact: requirements-plan-spine
+version: 1
+mode: specify
+user_goals:
+- id: goal-find-attach-target
+- id: goal-attach-interact-detach
+- id: goal-interrupt-remote-not-cli
+- id: goal-observe-liveness
+- id: goal-reattach-after-loss
+- id: goal-create-session-and-attach
+- id: goal-explicit-terminate
+- id: goal-script-discovery
+- id: goal-disambiguate-selector
+- id: goal-diagnose-failure-class
+- id: goal-multi-server-qualification
+- id: goal-concurrent-modality-continuity
+flows:
+- id: F-001
+  goal_refs:
+  - goal-find-attach-target
+  - goal-script-discovery
+  experience_contract_refs:
+  - exp-discovery
+  acceptance_scenario_refs:
+  - UAC-001
+  - UAC-002
+  - UAC-003
+  - UAC-004
+  - UAC-005
+  - UAC-006
+  - UAC-007
+  - UAC-039
+  - UAC-040
+  - UAC-008
+  - UAC-046
+- id: F-002
+  goal_refs:
+  - goal-attach-interact-detach
+  - goal-interrupt-remote-not-cli
+  - goal-observe-liveness
+  - goal-concurrent-modality-continuity
+  experience_contract_refs:
+  - exp-attach-interactive
+  - exp-concurrent-modality
+  acceptance_scenario_refs:
+  - UAC-009
+  - UAC-010
+  - UAC-011
+  - UAC-012
+  - UAC-013
+  - UAC-041
+  - UAC-014
+  - UAC-015
+  - UAC-016
+  - UAC-017
+  - UAC-042
+  - UAC-018
+  - UAC-019
+  - UAC-020
+  - UAC-021
+- id: F-003
+  goal_refs:
+  - goal-reattach-after-loss
+  experience_contract_refs:
+  - exp-reattach-continuity
+  acceptance_scenario_refs:
+  - UAC-022
+  - UAC-023
+  - UAC-024
+- id: F-004
+  goal_refs:
+  - goal-create-session-and-attach
+  experience_contract_refs:
+  - exp-create-and-attach
+  acceptance_scenario_refs:
+  - UAC-025
+  - UAC-026
+  - UAC-027
+  - UAC-043
+  - UAC-045
+- id: F-005
+  goal_refs:
+  - goal-explicit-terminate
+  experience_contract_refs:
+  - exp-explicit-terminate
+  acceptance_scenario_refs:
+  - UAC-029
+  - UAC-030
+  - UAC-044
+- id: F-006
+  goal_refs:
+  - goal-disambiguate-selector
+  - goal-diagnose-failure-class
+  - goal-multi-server-qualification
+  experience_contract_refs:
+  - exp-selector-and-failure-diagnosis
+  acceptance_scenario_refs:
+  - UAC-031
+  - UAC-032
+  - UAC-033
+  - UAC-034
+  - UAC-035
+  - UAC-036
+  - UAC-037
+  - UAC-038
+experience_contracts:
+- id: exp-discovery
+  goal_refs:
+  - goal-find-attach-target
+  - goal-script-discovery
+  flow_refs:
+  - F-001
+  context_refs:
+  - output-modality
+  scenario_refs:
+  - UAC-001
+  - UAC-002
+  - UAC-003
+  - UAC-004
+  - UAC-005
+  - UAC-006
+  - UAC-007
+  - UAC-039
+  - UAC-040
+  - UAC-008
+  - UAC-046
+  observations:
+  - phase: entry
+  - phase: success
+  - phase: failure
+  - phase: exit
+  phase_exclusions:
+  - phase: progress
+    reason: 一覧は 1 回の応答で完結し、途中経過として観察できる区間が無い
+  - phase: recovery
+    reason: 一部 server が不調でも健康な server の行は出続けるため利用者側の復旧操作が要らない (UAC-002)。全 server 不調時の復旧は exp-selector-and-failure-diagnosis の失敗種別提示に委ねる
+  open_product_choices: []
+- id: exp-attach-interactive
+  goal_refs:
+  - goal-attach-interact-detach
+  - goal-interrupt-remote-not-cli
+  - goal-observe-liveness
+  flow_refs:
+  - F-002
+  context_refs:
+  - disconnect-class
+  scenario_refs:
+  - UAC-009
+  - UAC-010
+  - UAC-011
+  - UAC-012
+  - UAC-013
+  - UAC-041
+  - UAC-014
+  - UAC-015
+  - UAC-016
+  - UAC-017
+  - UAC-042
+  - UAC-018
+  - UAC-019
+  observations:
+  - phase: entry
+  - phase: progress
+  - phase: success
+  - phase: failure
+  - phase: recovery
+  - phase: exit
+  phase_exclusions: []
+  open_product_choices: []
+- id: exp-concurrent-modality
+  goal_refs:
+  - goal-concurrent-modality-continuity
+  flow_refs:
+  - F-002
+  context_refs: []
+  scenario_refs:
+  - UAC-020
+  - UAC-021
+  observations:
+  - phase: entry
+  - phase: success
+  - phase: exit
+  phase_exclusions:
+  - phase: progress
+    reason: exp-attach-interactive の progress を超える同時 attach 固有の途中経過は無く、本契約は entry/success/exit の同時性だけを見る
+  - phase: failure
+    reason: 同時 attach 固有の失敗経路を導入しない。失敗は exp-attach-interactive が扱う
+  - phase: recovery
+    reason: 同時 attach 固有の復旧動作を導入しない
+  open_product_choices: []
+- id: exp-reattach-continuity
+  goal_refs:
+  - goal-reattach-after-loss
+  flow_refs:
+  - F-003
+  context_refs:
+  - reattach-trigger
+  scenario_refs:
+  - UAC-022
+  - UAC-023
+  - UAC-024
+  observations:
+  - phase: entry
+  - phase: success
+  - phase: exit
+  phase_exclusions:
+  - phase: progress
+    reason: 再 attach は 1 回の接続で完結し、途中経過として観察できる区間が無い
+  - phase: failure
+    reason: 再 attach の失敗 (対象が解決できない) は exp-selector-and-failure-diagnosis が扱い、ここで重複させない
+  - phase: recovery
+    reason: 再 attach 自体が復旧操作であり、その entry 観察と同じものになる
+  open_product_choices: []
+- id: exp-create-and-attach
+  goal_refs:
+  - goal-create-session-and-attach
+  flow_refs:
+  - F-004
+  context_refs: []
+  scenario_refs:
+  - UAC-025
+  - UAC-026
+  - UAC-027
+  - UAC-043
+  - UAC-045
+  observations:
+  - phase: entry
+  - phase: success
+  - phase: failure
+  - phase: exit
+  phase_exclusions:
+  - phase: progress
+    reason: 作成と attach は 2 段の要求で完結し、entry/success を超える途中経過が観察されない
+  - phase: recovery
+    reason: 作成成功 + attach 失敗の復旧は同じ識別子での再 attach であり F-002 / F-003 が扱う
+  open_product_choices: []
+- id: exp-explicit-terminate
+  goal_refs:
+  - goal-explicit-terminate
+  flow_refs:
+  - F-005
+  context_refs: []
+  scenario_refs:
+  - UAC-029
+  - UAC-030
+  - UAC-044
+  observations:
+  - phase: entry
+  - phase: success
+  - phase: failure
+  - phase: exit
+  phase_exclusions:
+  - phase: progress
+    reason: 終了は要求と遷移確認で完結し、途中経過として観察できる区間が無い
+  - phase: recovery
+    reason: 既に発行した明示終了に対する復旧操作は存在しない
+  open_product_choices: []
+- id: exp-selector-and-failure-diagnosis
+  goal_refs:
+  - goal-disambiguate-selector
+  - goal-diagnose-failure-class
+  - goal-multi-server-qualification
+  flow_refs:
+  - F-006
+  context_refs:
+  - server-topology
+  scenario_refs:
+  - UAC-031
+  - UAC-032
+  - UAC-033
+  - UAC-034
+  - UAC-035
+  - UAC-036
+  - UAC-037
+  - UAC-038
+  observations:
+  - phase: entry
+  - phase: success
+  - phase: failure
+  - phase: exit
+  phase_exclusions:
+  - phase: progress
+    reason: selector 解決と失敗種別の判定は 1 回の応答で完結する
+  - phase: recovery
+    reason: 復旧操作は selector を絞り込んだ再実行であり、新しい実行の entry 観察と同じものになる
+  open_product_choices: []
+acceptance_scenarios:
+- id: UAC-001
+  flow_ref: F-001
+  contract_refs:
+  - exp-discovery
+  vs_legacy: must-fail
+- id: UAC-002
+  flow_ref: F-001
+  contract_refs:
+  - exp-discovery
+- id: UAC-003
+  flow_ref: F-001
+  contract_refs:
+  - exp-discovery
+- id: UAC-004
+  flow_ref: F-001
+  contract_refs:
+  - exp-discovery
+  vs_legacy: must-fail
+- id: UAC-005
+  flow_ref: F-001
+  contract_refs:
+  - exp-discovery
+  vs_legacy: must-pass
+- id: UAC-006
+  flow_ref: F-001
+  contract_refs:
+  - exp-discovery
+  vs_legacy: must-fail
+- id: UAC-007
+  flow_ref: F-001
+  contract_refs:
+  - exp-discovery
+- id: UAC-039
+  flow_ref: F-001
+  contract_refs:
+  - exp-discovery
+  vs_legacy: must-fail
+- id: UAC-040
+  flow_ref: F-001
+  contract_refs:
+  - exp-discovery
+  vs_legacy: must-fail
+- id: UAC-008
+  flow_ref: F-001
+  contract_refs:
+  - exp-discovery
+  vs_legacy: must-fail
+- id: UAC-046
+  flow_ref: F-001
+  contract_refs:
+  - exp-discovery
+- id: UAC-009
+  flow_ref: F-002
+  contract_refs:
+  - exp-attach-interactive
+- id: UAC-010
+  flow_ref: F-002
+  contract_refs:
+  - exp-attach-interactive
+  design_handoff_refs:
+  - handoff-input-transport-batching
+- id: UAC-011
+  flow_ref: F-002
+  contract_refs:
+  - exp-attach-interactive
+- id: UAC-012
+  flow_ref: F-002
+  contract_refs:
+  - exp-attach-interactive
+- id: UAC-013
+  flow_ref: F-002
+  contract_refs:
+  - exp-attach-interactive
+  vs_legacy: must-fail
+- id: UAC-041
+  flow_ref: F-002
+  contract_refs:
+  - exp-attach-interactive
+- id: UAC-014
+  flow_ref: F-002
+  contract_refs:
+  - exp-attach-interactive
+- id: UAC-015
+  flow_ref: F-002
+  contract_refs:
+  - exp-attach-interactive
+- id: UAC-016
+  flow_ref: F-002
+  contract_refs:
+  - exp-attach-interactive
+- id: UAC-017
+  flow_ref: F-002
+  contract_refs:
+  - exp-attach-interactive
+- id: UAC-042
+  flow_ref: F-002
+  contract_refs:
+  - exp-attach-interactive
+- id: UAC-018
+  flow_ref: F-002
+  contract_refs:
+  - exp-attach-interactive
+  vs_legacy: must-fail
+- id: UAC-019
+  flow_ref: F-002
+  contract_refs:
+  - exp-attach-interactive
+  vs_legacy: must-fail
+- id: UAC-020
+  flow_ref: F-002
+  contract_refs:
+  - exp-concurrent-modality
+  design_handoff_refs:
+  - handoff-shared-pty-geometry-resolution
+- id: UAC-021
+  flow_ref: F-002
+  contract_refs:
+  - exp-concurrent-modality
+  vs_legacy: must-fail
+- id: UAC-022
+  flow_ref: F-003
+  contract_refs:
+  - exp-reattach-continuity
+- id: UAC-023
+  flow_ref: F-003
+  contract_refs:
+  - exp-reattach-continuity
+- id: UAC-024
+  flow_ref: F-003
+  contract_refs:
+  - exp-reattach-continuity
+  vs_legacy: must-fail
+- id: UAC-025
+  flow_ref: F-004
+  contract_refs:
+  - exp-create-and-attach
+- id: UAC-026
+  flow_ref: F-004
+  contract_refs:
+  - exp-create-and-attach
+- id: UAC-027
+  flow_ref: F-004
+  contract_refs:
+  - exp-create-and-attach
+- id: UAC-043
+  flow_ref: F-004
+  contract_refs:
+  - exp-create-and-attach
+- id: UAC-045
+  flow_ref: F-004
+  contract_refs:
+  - exp-create-and-attach
+- id: UAC-029
+  flow_ref: F-005
+  contract_refs:
+  - exp-explicit-terminate
+  vs_legacy: must-fail
+- id: UAC-030
+  flow_ref: F-005
+  contract_refs:
+  - exp-explicit-terminate
+  vs_legacy: must-fail
+- id: UAC-044
+  flow_ref: F-005
+  contract_refs:
+  - exp-explicit-terminate
+- id: UAC-031
+  flow_ref: F-006
+  contract_refs:
+  - exp-selector-and-failure-diagnosis
+  vs_legacy: must-fail
+- id: UAC-032
+  flow_ref: F-006
+  contract_refs:
+  - exp-selector-and-failure-diagnosis
+- id: UAC-033
+  flow_ref: F-006
+  contract_refs:
+  - exp-selector-and-failure-diagnosis
+- id: UAC-034
+  flow_ref: F-006
+  contract_refs:
+  - exp-selector-and-failure-diagnosis
+- id: UAC-035
+  flow_ref: F-006
+  contract_refs:
+  - exp-selector-and-failure-diagnosis
+- id: UAC-036
+  flow_ref: F-006
+  contract_refs:
+  - exp-selector-and-failure-diagnosis
+  design_handoff_refs:
+  - handoff-exit-code-numeric-assignment
+- id: UAC-037
+  flow_ref: F-006
+  contract_refs:
+  - exp-selector-and-failure-diagnosis
+- id: UAC-038
+  flow_ref: F-006
+  contract_refs:
+  - exp-selector-and-failure-diagnosis
+experience_dimensions:
+- id: output-modality
+  values:
+  - human-readable-table
+  - machine-readable
+- id: disconnect-class
+  values:
+  - explicit-detach
+  - process-signal
+  - transport-disconnect
+  - remote-session-ended
+  - attach-not-yet-established
+- id: reattach-trigger
+  values:
+  - clean-detach
+  - abnormal-disconnect
+- id: server-topology
+  values:
+  - multi-server-qualified
+  - multi-server-collision
+coverage_claims:
+- contract_ref: exp-discovery
+  dimension_id: output-modality
+  value: human-readable-table
+  scenario_refs:
+  - UAC-001
+  - UAC-002
+  - UAC-004
+  - UAC-006
+  - UAC-007
+  - UAC-039
+  - UAC-040
+- contract_ref: exp-discovery
+  dimension_id: output-modality
+  value: machine-readable
+  scenario_refs:
+  - UAC-003
+  - UAC-008
+  - UAC-046
+- contract_ref: exp-attach-interactive
+  dimension_id: disconnect-class
+  value: explicit-detach
+  scenario_refs:
+  - UAC-013
+  - UAC-041
+- contract_ref: exp-attach-interactive
+  dimension_id: disconnect-class
+  value: process-signal
+  scenario_refs:
+  - UAC-017
+  - UAC-042
+- contract_ref: exp-attach-interactive
+  dimension_id: disconnect-class
+  value: transport-disconnect
+  scenario_refs:
+  - UAC-019
+- contract_ref: exp-attach-interactive
+  dimension_id: disconnect-class
+  value: remote-session-ended
+  scenario_refs:
+  - UAC-018
+- contract_ref: exp-attach-interactive
+  dimension_id: disconnect-class
+  value: attach-not-yet-established
+  scenario_refs:
+  - UAC-016
+- contract_ref: exp-reattach-continuity
+  dimension_id: reattach-trigger
+  value: clean-detach
+  scenario_refs:
+  - UAC-022
+- contract_ref: exp-reattach-continuity
+  dimension_id: reattach-trigger
+  value: abnormal-disconnect
+  scenario_refs:
+  - UAC-023
+  - UAC-024
+- contract_ref: exp-selector-and-failure-diagnosis
+  dimension_id: server-topology
+  value: multi-server-qualified
+  scenario_refs:
+  - UAC-032
+- contract_ref: exp-selector-and-failure-diagnosis
+  dimension_id: server-topology
+  value: multi-server-collision
+  scenario_refs:
+  - UAC-031
+  - UAC-033
+decision_points:
+- id: DP-ENTRY-DISPATCH-STYLE
+  decision_key: entry-dispatch-style
+  layer: interaction
+  subject: outcome
+  consultation_policy: must_ask
+  contract_effect: normative
+  answer_status: answered
+  validation_status: not_applicable
+  selected_option_ref: OPT-VERB-FIRST-ONLY
+  option_refs:
+  - OPT-VERB-FIRST-ONLY
+  - OPT-POSITIONAL-SHORTHAND
+  user_impact:
+  - selector が verb と同じ文字列のときの予測可能性
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: 第一引数を verb に限る。selector が subcommand 名と同じ文字列でも予測可能性が崩れない
+- id: DP-AMBIGUITY-INTERACTIVITY
+  decision_key: ambiguity-interactivity
+  layer: interaction
+  subject: outcome
+  consultation_policy: must_ask
+  contract_effect: normative
+  answer_status: answered
+  validation_status: not_applicable
+  selected_option_ref: OPT-STATIC-LIST-NONZERO
+  option_refs:
+  - OPT-STATIC-LIST-NONZERO
+  - OPT-INTERACTIVE-SELECT
+  user_impact:
+  - 往復回数と CLI 描画の境界
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: 曖昧な selector は候補を提示して非零終了する。CLI 側の描画を持たず手元と script で観察が一致する
+- id: DP-TTY-BEHAVIOR-BRANCHING
+  decision_key: tty-behavior-branching
+  layer: interaction
+  subject: outcome
+  consultation_policy: must_ask
+  contract_effect: normative
+  answer_status: answered
+  validation_status: not_applicable
+  selected_option_ref: OPT-UNIFORM-BEHAVIOR
+  option_refs:
+  - OPT-UNIFORM-BEHAVIOR
+  - OPT-TTY-ADAPTIVE
+  user_impact:
+  - 手元と script で観察が一致するか
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: TTY 検出で挙動を分岐させない。手元で見たものと script から見えるものが一致し、明示終了の確認 prompt もこの軸に従い持たない
+- id: DP-LIST-SERVER-SCOPE
+  decision_key: list-server-scope
+  layer: product
+  subject: outcome
+  consultation_policy: must_ask
+  contract_effect: normative
+  answer_status: answered
+  validation_status: not_applicable
+  selected_option_ref: OPT-ALL-CONNECTED
+  option_refs:
+  - OPT-ALL-CONNECTED
+  - OPT-DEFAULT-SERVER-ONLY
+  user_impact:
+  - 他 server の session を見落とすか
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: 接続中の全 server を母集団とする。既存 GUI の fleet 表示と同じ母集団になり server 併記が必須になる
+- id: DP-LIST-LIFECYCLE-SCOPE
+  decision_key: list-lifecycle-scope
+  layer: product
+  subject: outcome
+  consultation_policy: must_ask
+  contract_effect: normative
+  answer_status: answered
+  validation_status: not_applicable
+  selected_option_ref: OPT-INCLUDE-ENDED
+  option_refs:
+  - OPT-RUNNING-ONLY
+  - OPT-INCLUDE-ENDED
+  user_impact:
+  - 明示終了をどの観察で確かめるか
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: 停止・失敗した session も一覧に出す。明示終了の効果を行の消滅ではなく状態語の変化として観察でき、接続失敗と稼働終了を取り違えない
+- id: DP-SELECTOR-PRECEDENCE-ORDER
+  decision_key: selector-precedence-order
+  layer: product
+  subject: outcome
+  consultation_policy: must_ask
+  contract_effect: normative
+  answer_status: answered
+  validation_status: not_applicable
+  selected_option_ref: OPT-EXPLICIT-MODE-FLAGS
+  option_refs:
+  - OPT-ID-NAME-PREFIX
+  - OPT-EXPLICIT-MODE-FLAGS
+  - OPT-PREFIX-FIRST
+  user_impact:
+  - 同じ文字列が複数種別に一致したときの誤 attach
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: selector の種別を明示指定させ、同じ文字列が複数種別に一致したときの誤 attach を構造的に消す。対話利用で冗長になる代償を受け入れる
+- id: DP-SERVER-QUALIFIER-SYNTAX
+  decision_key: server-qualifier-syntax
+  layer: interaction
+  subject: outcome
+  consultation_policy: must_ask
+  contract_effect: normative
+  answer_status: answered
+  validation_status: not_applicable
+  selected_option_ref: OPT-SEPARATE-FLAG
+  option_refs:
+  - OPT-EMBEDDED-SLASH
+  - OPT-SEPARATE-FLAG
+  - OPT-NO-QUALIFIER
+  user_impact:
+  - 1 行で対象 server を一意にできるか
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: server 修飾を selector とは別の指定として与える。selector 文字列に区切り文字の意味を持たせず、種別の明示指定と揃う
+- id: DP-LS-DEFAULT-COLUMNS
+  decision_key: ls-default-columns
+  layer: presentation
+  subject: default
+  consultation_policy: may_default
+  contract_effect: default
+  answer_status: answered
+  validation_status: not_applicable
+  selected_option_ref: OPT-PLAN-MINIMUM-SET
+  option_refs:
+  - OPT-PLAN-MINIMUM-SET
+  - OPT-COMPACT-WITH-WIDE-FLAG
+  user_impact:
+  - 情報量と狭い幅での折り返し
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    - consultation-20260814-cli-terminal-client-model-column#DP-LS-DEFAULT-COLUMNS
+    - services/host/state/view/view.go 23
+    - clients/ui/src/components/SessionList.tsx 83
+    rationale: 元要件 §4.2 の候補列を既定表示とし、その候補列に model を含める。当初の除外根拠
+      (model 相当は公開されている session 情報に存在しない) は design 段階の repository 実測で偽と判明したため
+      (公開 payload の JSON tag と共有 SPA の読み取り)、除外が product decision であったことを踏まえ
+      user_consultation で model 列を含めると確定した
+- id: DP-JSON-SESSION-IDENTIFIER-SHAPE
+  decision_key: json-session-identifier-shape
+  layer: product
+  subject: outcome
+  consultation_policy: must_ask
+  contract_effect: normative
+  answer_status: answered
+  validation_status: not_applicable
+  selected_option_ref: OPT-STRUCTURED-PAIR
+  option_refs:
+  - OPT-STRUCTURED-PAIR
+  - OPT-COMPOSED-STRING
+  user_impact:
+  - 識別子から所属 server を復元できるか
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: 機械可読出力で server と session を別 field にする。所属 server を復元でき独立した server 指定へそのまま渡せる
+- id: DP-EXIT-CODE-GRANULARITY
+  decision_key: exit-code-granularity
+  layer: interaction
+  subject: outcome
+  consultation_policy: must_ask
+  contract_effect: normative
+  answer_status: answered
+  validation_status: not_applicable
+  selected_option_ref: OPT-DISTINCT-CODE-PER-CLASS
+  option_refs:
+  - OPT-DISTINCT-CODE-PER-CLASS
+  - OPT-COARSE-BUCKETS
+  user_impact:
+  - script が失敗種別で分岐できる粒度
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: 未発見・曖昧・認証や互換性の失敗・接続断を script が exit code で分岐できる粒度にする。番号の具体的な割当は本 consultation では確定していない
+- id: DP-DETACH-DEFAULT-KEY
+  decision_key: detach-default-key
+  layer: interaction
+  subject: default
+  consultation_policy: must_ask
+  contract_effect: default
+  answer_status: answered
+  validation_status: not_applicable
+  selected_option_ref: OPT-CTRL-BRACKET
+  option_refs:
+  - OPT-CTRL-BRACKET
+  - OPT-TWO-STROKE
+  user_impact:
+  - 誤発火リスクと発見しやすさ
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: 既定 detach を単発 Ctrl-] とする。Ctrl-D 案は Claude Code / Codex の終了操作と PTY 内 shell の EOF を奪うため退けた。実機の chord 衝突確認は dh-ctrl-bracket-no-collision に未検証で残る
+- id: DP-ATTACH-OBSERVABILITY-CHANNEL
+  decision_key: attach-observability-channel
+  layer: interaction
+  subject: outcome
+  consultation_policy: must_ask
+  contract_effect: normative
+  answer_status: answered
+  validation_status: not_applicable
+  selected_option_ref: OPT-TRANSPARENT-ATTACH
+  option_refs:
+  - OPT-TRANSPARENT-ATTACH
+  - OPT-STDERR-STATUS-BAND
+  user_impact:
+  - 切断に気づく時間と描画への干渉
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: raw mode 中は CLI 所有の観察出力を持たず完全透過とする。切断されたら attach を解除して端末を復元し失敗種別を伴うエラーを出すことが観察要件になる。状態の出所を別 channel にすること自体は許容される
+- id: DP-CONCURRENT-ATTACH-VISIBILITY
+  decision_key: concurrent-attach-visibility
+  layer: interaction
+  subject: outcome
+  consultation_policy: may_ask
+  contract_effect: normative
+  answer_status: answered
+  validation_status: not_applicable
+  selected_option_ref: OPT-NO-VISIBILITY
+  option_refs:
+  - OPT-SHOW-PRESENCE
+  - OPT-NO-VISIBILITY
+  user_impact:
+  - 選ぶと public wire contract 追加の費用が生じうる
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: 他 client の同時 attach を表示しない。現行 public wire contract に presence field が無く、元要件 §17 の server 変更規則を発動させない
+- id: DP-DETACHING-INPUT-DISPOSITION
+  decision_key: detaching-input-disposition
+  layer: interaction
+  subject: outcome
+  consultation_policy: must_ask
+  contract_effect: normative
+  answer_status: answered
+  validation_status: not_applicable
+  selected_option_ref: OPT-DETACHING-INPUT-DISCARDED
+  option_refs:
+  - OPT-DETACHING-INPUT-DISCARDED
+  - OPT-DETACHING-INPUT-TO-LOCAL-SHELL
+  user_impact:
+  - detach 打鍵の直後に打った文字が shell に現れるか消えるか
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client-specify#DP-DETACHING-INPUT-DISPOSITION
+    rationale: detach 打鍵を受理してから shell prompt が戻るまでに打った文字は破棄する。remote PTY へ届かないことは UAC-041 で確定済みであり、本回答は手元側の扱いを閉じる。離脱中の打鍵はどこにも現れない。
+- id: DP-CREATE-TARGET-SERVER
+  decision_key: create-target-server
+  layer: product
+  subject: outcome
+  consultation_policy: must_ask
+  contract_effect: normative
+  answer_status: answered
+  validation_status: not_applicable
+  selected_option_ref: OPT-CREATE-REQUIRE-QUALIFIER
+  option_refs:
+  - OPT-CREATE-DEFAULT-SERVER
+  - OPT-CREATE-REQUIRE-QUALIFIER
+  - OPT-CREATE-FAIL-WHEN-AMBIGUOUS
+  user_impact:
+  - 複数 server 接続時に session がどの server 上に作られるか
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client-specify#DP-CREATE-TARGET-SERVER
+    rationale: session 作成時は server 指定を常に必須とする。selector の種別明示指定 (DP-SELECTOR-PRECEDENCE-ORDER=OPT-EXPLICIT-MODE-FLAGS) と曖昧時は非零終了 (DP-AMBIGUITY-INTERACTIVITY=OPT-STATIC-LIST-NONZERO) の方針と揃い、暗黙の既定へ寄る非対称を作らない。
+- id: DP-SERVER-QUALIFIER-VALUE-VOCABULARY
+  decision_key: server-qualifier-value-vocabulary
+  layer: product
+  subject: outcome
+  consultation_policy: must_ask
+  contract_effect: normative
+  answer_status: answered
+  validation_status: not_applicable
+  selected_option_ref: OPT-QUALIFIER-ACCEPTS-DISPLAY-NAME
+  option_refs:
+  - OPT-QUALIFIER-STABLE-ID-ONLY
+  - OPT-QUALIFIER-ACCEPTS-DISPLAY-NAME
+  user_impact:
+  - 一覧の行から読み取った server 呼称をそのまま指定に使えるか
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client-specify#DP-SERVER-QUALIFIER-VALUE-VOCABULARY
+    rationale: server 修飾の値として display name を受け付ける (OPT-QUALIFIER-ACCEPTS-DISPLAY-NAME) を選択したうえで、曖昧性を CLI 側の失敗で吸収するのではなく名前側の制約で消す。すなわち (1) 設定で付ける server display name は一意であること、(2) CLI で扱える文字種に限定されること、の 2 点を confirmed constraint として保持する。この制約は clients/config の server 命名契約にかかり web-host / Electron / Windows Shell にも及ぶため、元要件 §17 の前提 contract change として design_handoff へ送る。CLI 単独では閉じない。
+- id: DP-UNREACHABLE-SERVER-SELECTOR-OUTCOME
+  decision_key: unreachable-server-selector-outcome
+  layer: product
+  subject: outcome
+  consultation_policy: must_ask
+  contract_effect: normative
+  answer_status: answered
+  validation_status: not_applicable
+  selected_option_ref: OPT-UNREACHABLE-AS-TRANSPORT-FAILURE
+  option_refs:
+  - OPT-UNREACHABLE-AS-NOT-FOUND
+  - OPT-UNREACHABLE-AS-TRANSPORT-FAILURE
+  user_impact:
+  - 到達不能 server 上の session を指したとき接続を直すのか selector を直すのかの判断
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client-specify#DP-UNREACHABLE-SERVER-SELECTOR-OUTCOME
+    rationale: 到達不能な server 上の session を指した場合は not found ではなく transport 失敗として示す。利用者は selector の誤りではなく接続を直す行動へ向かう。DP-EXIT-CODE-GRANULARITY=OPT-DISTINCT-CODE-PER-CLASS により script も両者を分岐できる。
+- id: DP-JSON-SERVER-REACHABILITY-FIELD
+  decision_key: json-server-reachability-field
+  layer: product
+  subject: outcome
+  consultation_policy: must_ask
+  contract_effect: normative
+  answer_status: answered
+  validation_status: not_applicable
+  selected_option_ref: OPT-JSON-INCLUDE-REACHABILITY
+  option_refs:
+  - OPT-JSON-INCLUDE-REACHABILITY
+  - OPT-JSON-OMIT-REACHABILITY
+  user_impact:
+  - 自動化利用者が到達不能 server と session 0 件の server を区別できるか
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client-specify#DP-JSON-SERVER-REACHABILITY-FIELD
+    rationale: 機械可読出力に server の到達可否を含める。到達不能な server と session 0 件の server を script が区別できる。confirmed constraint cc-json-field-breadth (field 集合は既定表示列と同じ広さ) に従い、表示側にも到達不能が現れることが前提になる。
+- id: DP-NON-TTY-ATTACH-BEHAVIOR
+  decision_key: non-tty-attach-behavior
+  layer: interaction
+  subject: outcome
+  consultation_policy: must_ask
+  contract_effect: normative
+  answer_status: answered
+  validation_status: not_applicable
+  selected_option_ref: OPT-NON-TTY-FAIL-FAST
+  option_refs:
+  - OPT-NON-TTY-FAIL-FAST
+  - OPT-NON-TTY-OUTPUT-ONLY
+  - OPT-NON-TTY-READ-ONLY-ATTACH
+  user_impact:
+  - pipe 越しに attach を起動したとき何が起きるか
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client-specify#DP-NON-TTY-ATTACH-BEHAVIOR
+    rationale: 非 TTY での attach は開始せず失敗種別を示して終了する。attach という語が環境により別の契約を名乗ることを避け、DP-TTY-BEHAVIOR-BRANCHING=OPT-UNIFORM-BEHAVIOR と矛盾しない。読み取り専用 attach という v1 surface も増やさない。
+product_decisions:
+- id: decision-entry-dispatch-style
+  decision_ref: DP-ENTRY-DISPATCH-STYLE
+  selected_option_ref: OPT-VERB-FIRST-ONLY
+  contract_effect: normative
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: 第一引数を verb に限る。selector が subcommand 名と同じ文字列でも予測可能性が崩れない
+- id: decision-ambiguity-interactivity
+  decision_ref: DP-AMBIGUITY-INTERACTIVITY
+  selected_option_ref: OPT-STATIC-LIST-NONZERO
+  contract_effect: normative
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: 曖昧な selector は候補を提示して非零終了する。CLI 側の描画を持たず手元と script で観察が一致する
+- id: decision-tty-behavior-branching
+  decision_ref: DP-TTY-BEHAVIOR-BRANCHING
+  selected_option_ref: OPT-UNIFORM-BEHAVIOR
+  contract_effect: normative
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: TTY 検出で挙動を分岐させない。手元で見たものと script から見えるものが一致し、明示終了の確認 prompt もこの軸に従い持たない
+- id: decision-list-server-scope
+  decision_ref: DP-LIST-SERVER-SCOPE
+  selected_option_ref: OPT-ALL-CONNECTED
+  contract_effect: normative
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: 接続中の全 server を母集団とする。既存 GUI の fleet 表示と同じ母集団になり server 併記が必須になる
+- id: decision-list-lifecycle-scope
+  decision_ref: DP-LIST-LIFECYCLE-SCOPE
+  selected_option_ref: OPT-INCLUDE-ENDED
+  contract_effect: normative
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: 停止・失敗した session も一覧に出す。明示終了の効果を行の消滅ではなく状態語の変化として観察でき、接続失敗と稼働終了を取り違えない
+- id: decision-selector-precedence-order
+  decision_ref: DP-SELECTOR-PRECEDENCE-ORDER
+  selected_option_ref: OPT-EXPLICIT-MODE-FLAGS
+  contract_effect: normative
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: selector の種別を明示指定させ、同じ文字列が複数種別に一致したときの誤 attach を構造的に消す。対話利用で冗長になる代償を受け入れる
+- id: decision-server-qualifier-syntax
+  decision_ref: DP-SERVER-QUALIFIER-SYNTAX
+  selected_option_ref: OPT-SEPARATE-FLAG
+  contract_effect: normative
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: server 修飾を selector とは別の指定として与える。selector 文字列に区切り文字の意味を持たせず、種別の明示指定と揃う
+- id: decision-ls-default-columns
+  decision_ref: DP-LS-DEFAULT-COLUMNS
+  selected_option_ref: OPT-PLAN-MINIMUM-SET
+  contract_effect: default
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    - consultation-20260814-cli-terminal-client-model-column#DP-LS-DEFAULT-COLUMNS
+    - services/host/state/view/view.go 23
+    - clients/ui/src/components/SessionList.tsx 83
+    rationale: 元要件 §4.2 の候補列を既定表示とし、その候補列に model を含める。当初の除外根拠
+      (model 相当は公開されている session 情報に存在しない) は design 段階の repository 実測で偽と判明したため
+      (公開 payload の JSON tag と共有 SPA の読み取り)、除外が product decision であったことを踏まえ
+      user_consultation で model 列を含めると確定した
+- id: decision-json-session-identifier-shape
+  decision_ref: DP-JSON-SESSION-IDENTIFIER-SHAPE
+  selected_option_ref: OPT-STRUCTURED-PAIR
+  contract_effect: normative
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: 機械可読出力で server と session を別 field にする。所属 server を復元でき独立した server 指定へそのまま渡せる
+- id: decision-exit-code-granularity
+  decision_ref: DP-EXIT-CODE-GRANULARITY
+  selected_option_ref: OPT-DISTINCT-CODE-PER-CLASS
+  contract_effect: normative
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: 未発見・曖昧・認証や互換性の失敗・接続断を script が exit code で分岐できる粒度にする。番号の具体的な割当は本 consultation では確定していない
+- id: decision-detach-default-key
+  decision_ref: DP-DETACH-DEFAULT-KEY
+  selected_option_ref: OPT-CTRL-BRACKET
+  contract_effect: default
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: 既定 detach を単発 Ctrl-] とする。Ctrl-D 案は Claude Code / Codex の終了操作と PTY 内 shell の EOF を奪うため退けた。実機の chord 衝突確認は dh-ctrl-bracket-no-collision に未検証で残る
+- id: decision-attach-observability-channel
+  decision_ref: DP-ATTACH-OBSERVABILITY-CHANNEL
+  selected_option_ref: OPT-TRANSPARENT-ATTACH
+  contract_effect: normative
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: raw mode 中は CLI 所有の観察出力を持たず完全透過とする。切断されたら attach を解除して端末を復元し失敗種別を伴うエラーを出すことが観察要件になる。状態の出所を別 channel にすること自体は許容される
+- id: decision-concurrent-attach-visibility
+  decision_ref: DP-CONCURRENT-ATTACH-VISIBILITY
+  selected_option_ref: OPT-NO-VISIBILITY
+  contract_effect: normative
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: 他 client の同時 attach を表示しない。現行 public wire contract に presence field が無く、元要件 §17 の server 変更規則を発動させない
+- id: decision-detaching-input-disposition
+  decision_ref: DP-DETACHING-INPUT-DISPOSITION
+  selected_option_ref: OPT-DETACHING-INPUT-DISCARDED
+  contract_effect: normative
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client-specify#DP-DETACHING-INPUT-DISPOSITION
+    rationale: detach 打鍵を受理してから shell prompt が戻るまでに打った文字は破棄する。remote PTY へ届かないことは UAC-041 で確定済みであり、本回答は手元側の扱いを閉じる。離脱中の打鍵はどこにも現れない。
+- id: decision-create-target-server
+  decision_ref: DP-CREATE-TARGET-SERVER
+  selected_option_ref: OPT-CREATE-REQUIRE-QUALIFIER
+  contract_effect: normative
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client-specify#DP-CREATE-TARGET-SERVER
+    rationale: session 作成時は server 指定を常に必須とする。selector の種別明示指定 (DP-SELECTOR-PRECEDENCE-ORDER=OPT-EXPLICIT-MODE-FLAGS) と曖昧時は非零終了 (DP-AMBIGUITY-INTERACTIVITY=OPT-STATIC-LIST-NONZERO) の方針と揃い、暗黙の既定へ寄る非対称を作らない。
+- id: decision-server-qualifier-value-vocabulary
+  decision_ref: DP-SERVER-QUALIFIER-VALUE-VOCABULARY
+  selected_option_ref: OPT-QUALIFIER-ACCEPTS-DISPLAY-NAME
+  contract_effect: normative
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client-specify#DP-SERVER-QUALIFIER-VALUE-VOCABULARY
+    rationale: server 修飾の値として display name を受け付ける (OPT-QUALIFIER-ACCEPTS-DISPLAY-NAME) を選択したうえで、曖昧性を CLI 側の失敗で吸収するのではなく名前側の制約で消す。すなわち (1) 設定で付ける server display name は一意であること、(2) CLI で扱える文字種に限定されること、の 2 点を confirmed constraint として保持する。この制約は clients/config の server 命名契約にかかり web-host / Electron / Windows Shell にも及ぶため、元要件 §17 の前提 contract change として design_handoff へ送る。CLI 単独では閉じない。
+- id: decision-unreachable-server-selector-outcome
+  decision_ref: DP-UNREACHABLE-SERVER-SELECTOR-OUTCOME
+  selected_option_ref: OPT-UNREACHABLE-AS-TRANSPORT-FAILURE
+  contract_effect: normative
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client-specify#DP-UNREACHABLE-SERVER-SELECTOR-OUTCOME
+    rationale: 到達不能な server 上の session を指した場合は not found ではなく transport 失敗として示す。利用者は selector の誤りではなく接続を直す行動へ向かう。DP-EXIT-CODE-GRANULARITY=OPT-DISTINCT-CODE-PER-CLASS により script も両者を分岐できる。
+- id: decision-json-server-reachability-field
+  decision_ref: DP-JSON-SERVER-REACHABILITY-FIELD
+  selected_option_ref: OPT-JSON-INCLUDE-REACHABILITY
+  contract_effect: normative
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client-specify#DP-JSON-SERVER-REACHABILITY-FIELD
+    rationale: 機械可読出力に server の到達可否を含める。到達不能な server と session 0 件の server を script が区別できる。confirmed constraint cc-json-field-breadth (field 集合は既定表示列と同じ広さ) に従い、表示側にも到達不能が現れることが前提になる。
+- id: decision-non-tty-attach-behavior
+  decision_ref: DP-NON-TTY-ATTACH-BEHAVIOR
+  selected_option_ref: OPT-NON-TTY-FAIL-FAST
+  contract_effect: normative
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client-specify#DP-NON-TTY-ATTACH-BEHAVIOR
+    rationale: 非 TTY での attach は開始せず失敗種別を示して終了する。attach という語が環境により別の契約を名乗ることを避け、DP-TTY-BEHAVIOR-BRANCHING=OPT-UNIFORM-BEHAVIOR と矛盾しない。読み取り専用 attach という v1 surface も増やさない。
+product_decisions_remaining:
+- decision_ref: ambiguous-candidate-breadth
+  contract_effect: advisory
+- decision_ref: cli-binary-canonical-name
+  contract_effect: handoff
+- decision_ref: name-and-short-id-selector-uniqueness-scope
+  contract_effect: validation_required
+- decision_ref: graceful-force-terminate-exposure
+  contract_effect: validation_required
+- decision_ref: shared-pty-geometry-resolution
+  contract_effect: handoff
+- decision_ref: exit-code-numeric-assignment
+  contract_effect: handoff
+- decision_ref: ctrl-bracket-collision-validation
+  contract_effect: validation_required
+- decision_ref: create-machine-readable-output-in-v1
+  contract_effect: advisory
+design_handoffs:
+- id: handoff-cli-binary-canonical-name
+  decision_refs: []
+  provenance:
+    source: explicit_user_requirement
+    confidence: confirmed
+    evidence_refs:
+    - plan §4.1
+    rationale: packaging 時決定と元要件に明記されており、利用者の観察を変えない
+- id: handoff-shared-pty-geometry-resolution
+  decision_refs: []
+  provenance:
+    source: critic_proposal
+    confidence: provisional
+    evidence_refs:
+    - plan §9.4
+    - dh-geometry-divergence
+    rationale: 共有 PTY は単一 geometry しか持てず、解決方法は既存 execution plane の semantics に属し CLI 側では決定しない
+- id: handoff-exit-code-numeric-assignment
+  decision_refs:
+  - DP-EXIT-CODE-GRANULARITY
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client
+    rationale: 種別ごとに専用 code を持たせることは確定したが、具体的な番号割当は本 consultation で確定していない
+- id: handoff-input-transport-batching
+  decision_refs: []
+  provenance:
+    source: critic_proposal
+    confidence: confirmed
+    evidence_refs:
+    - critique#30
+    - plan §9.3
+    rationale: 1 回の送信に載せる byte 数や結合の有無は入力順序が保たれる限り観察を変えない。paste / IME 入力の扱いを含めて design が決める
+- id: handoff-ambiguous-candidate-breadth
+  decision_refs: []
+  provenance:
+    source: repository_evidence
+    confidence: inferred
+    evidence_refs:
+    - esc-fleet-identity
+    - docs/changes/change-20260727-multi-server-session-palette/ux.md
+    rationale: 既存 GUI は session 行で所属 server を常時併記し表示名重複時のみ stable 識別子を補助表示する。曖昧候補行の併記の広さは利用者未確定のまま残り、acceptance は判別可能性だけを要求する
+- id: handoff-server-display-name-naming-contract
+  decision_refs:
+  - DP-SERVER-QUALIFIER-VALUE-VOCABULARY
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - consultation-20260813-cli-terminal-client-specify#DP-SERVER-QUALIFIER-VALUE-VOCABULARY
+    - plan §17
+    rationale: server display name を一意にし CLI で扱える文字種へ限定するという確定制約は clients/config の server 命名契約に属し、web-host / Electron / Windows Shell にも及ぶ。CLI 単独では閉じない前提 contract change であり、規則の具体形 (どの文字種を許すか、一意性をどこで強制するか、既存設定の移行) は design が決める。UAC-032 と UAC-025 はこの前提が満たされている状況を Given に置き、CLI 側 acceptance の依存を観察可能にする
+legacy_context:
+  replaced_behaviors:
+  - 同じ session 状態に対して CLI が独自の語 (running / live / connected など) を session の状態語として出し、既存 client の label と突き合わせられなくすること
+  - 複数の状態が同時に立つ session を、既存 client と異なる優先順で別の状態として提示すること
+  - session を所属 server 抜きの ID または表示名だけで示し、別 server の同名・同 prefix の session と行だけでは区別できなくすること
+  - 所属 server を復元できない識別子を出力し、その行の session がどの server のものか利用者にも後続処理にも判別させないこと
+  - server へ届かない状態と session が稼働終了した状態を同じ 1 語へ潰し、接続を直すべきか再 attach すべきかを判別させないこと
+  - detach・terminal を閉じる・回線断のいずれかを session の終了として観察させ、既存 client の一覧からも session が消えること
+  - 他 client の同時 attach を、それを示す観察源の裏付けなしに CLI が推測して表示すること
+  - 既存 client と異なる規則で session の display name を導出し、GUI の行と CLI の行を同じ session として突き合わせられなくすること
+legacy_behavior_traces:
+- behavior: 同じ session 状態に対して CLI が独自の語 (running / live / connected など) を session の状態語として出し、既存 client の label と突き合わせられなくすること
+  scenario_refs:
+  - UAC-006
+- behavior: 複数の状態が同時に立つ session を、既存 client と異なる優先順で別の状態として提示すること
+  scenario_refs:
+  - UAC-039
+- behavior: session を所属 server 抜きの ID または表示名だけで示し、別 server の同名・同 prefix の session と行だけでは区別できなくすること
+  scenario_refs:
+  - UAC-001
+  - UAC-031
+- behavior: 所属 server を復元できない識別子を出力し、その行の session がどの server のものか利用者にも後続処理にも判別させないこと
+  scenario_refs:
+  - UAC-008
+- behavior: server へ届かない状態と session が稼働終了した状態を同じ 1 語へ潰し、接続を直すべきか再 attach すべきかを判別させないこと
+  scenario_refs:
+  - UAC-040
+  - UAC-018
+  - UAC-019
+- behavior: detach・terminal を閉じる・回線断のいずれかを session の終了として観察させ、既存 client の一覧からも session が消えること
+  scenario_refs:
+  - UAC-013
+  - UAC-024
+  - UAC-029
+  - UAC-030
+- behavior: 他 client の同時 attach を、それを示す観察源の裏付けなしに CLI が推測して表示すること
+  scenario_refs:
+  - UAC-021
+- behavior: 既存 client と異なる規則で session の display name を導出し、GUI の行と CLI の行を同じ session として突き合わせられなくすること
+  scenario_refs:
+  - UAC-004
+edge_cases:
+- id: edge-non-tty-stdin
+  scenario_refs:
+  - UAC-015
+- id: edge-raw-mode-transition-disconnect
+  scenario_refs:
+  - UAC-016
+  - UAC-017
+  - UAC-018
+  - UAC-019
+- id: edge-os-signal-during-attach
+  scenario_refs:
+  - UAC-017
+  - UAC-042
+  - UAC-024
+- id: edge-fullscreen-resize
+  scenario_refs:
+  - UAC-011
+- id: edge-lifecycle-transition-during-attach
+  scenario_refs:
+  - UAC-018
+- id: edge-create-success-attach-fail
+  scenario_refs:
+  - UAC-026
+- id: edge-create-request-failure
+  scenario_refs:
+  - UAC-043
+- id: edge-terminate-request-failure
+  scenario_refs:
+  - UAC-044
+- id: edge-detach-key-collision
+  scenario_refs:
+  - UAC-014
+- id: edge-detaching-input-boundary
+  scenario_refs:
+  - UAC-041
+- id: edge-geometry-mismatch-concurrent-attach
+  scenario_refs:
+  - UAC-020
+- id: edge-partial-server-unavailable-discovery
+  scenario_refs:
+  - UAC-002
+  - UAC-040
+  - UAC-046
+assumptions:
+- id: assumption-script-consumers-prefer-json
+  validation: Phase 0 で既存自動化利用者の消費形態を確認する
+  invalidation_behavior: table 出力自体が互換性契約になり DP-LS-DEFAULT-COLUMNS が normative 化する
+  scenario_refs:
+  - UAC-003
+  - UAC-008
+- id: assumption-fleet-collision-real
+  validation: 実 fleet の session 一覧で衝突頻度を測定する
+  invalidation_behavior: server 修飾と selector 解決の decision の優先度が下がる
+  scenario_refs:
+  - UAC-031
+  - UAC-032
+- id: assumption-gui-vocabulary-transfers
+  validation: 既存 GUI 利用者に CLI 出力を提示し同じ状態を同じ語で読めるか確認する
+  invalidation_behavior: CLI 固有語彙の是非が新しい decision point になる
+  scenario_refs:
+  - UAC-006
+  - UAC-039
+- id: assumption-display-name-derivation-shared
+  validation: Phase 0 contract audit で既存 client の display name 導出規則と、CLI から同じ値を導ける公開情報を確認する
+  invalidation_behavior: 同じ値を導けなければ display name 列自体の是非と、行の識別に何を使うかが新しい decision point になる
+  scenario_refs:
+  - UAC-004
+- id: assumption-ctrl-bracket-no-collision
+  validation: 実機で Claude Code / Codex 使用中に単発 Ctrl-] が chord と衝突しないか確認する
+  invalidation_behavior: 衝突が確認されれば既定 key の再検討が必要になるが、config/flag による変更手段 (cc-detach-key-configurable) は維持する
+  scenario_refs:
+  - UAC-014
+- id: assumption-stable-name-field-unknown
+  validation: Phase 0 contract audit で stable name field の実在と、短縮 ID の一意性判定範囲を確認する
+  invalidation_behavior: 存在しなければ selector 種別は完全 ID と prefix の 2 段に縮み、name selector の一意性範囲という未決定事項自体が消える
+  scenario_refs:
+  - UAC-034
+- id: assumption-geometry-divergence-unmeasured
+  validation: 異なる geometry での同時 attach を実機で観察し描画結果を記録する
+  invalidation_behavior: 解決方法が判明すれば handoff-shared-pty-geometry-resolution は具体的な decision point へ格上げされる
+  scenario_refs:
+  - UAC-020
+  - UAC-011
+- id: assumption-lifecycle-contract-sufficient
+  validation: Phase 0 contract audit で lifecycle の作成・終了要求の公開 field と、要求結果の観察手段を確認する
+  invalidation_behavior: 不足が見つかれば元要件 §17 の server-change rule に従い最小限の public-contract 変更を検討する
+  scenario_refs:
+  - UAC-025
+  - UAC-029
+  - UAC-043
+  - UAC-044
+critique_resolutions:
+- issue_ref: critique#01 DP-AMBIGUOUS-CANDIDATE-BREADTH の無権限な昇格 (blocker)
+  change_class: clarify_existing_contract
+  disposition: patch_contract
+  provenance:
+    source: repository_evidence
+    confidence: confirmed
+    evidence_refs:
+    - critique#01
+    - pass2#01
+    - explore product_decisions_remaining
+    rationale: patch hint を採用し decision_points と product_decisions から削除した。explore の軸文言 (所属 server と display name を併記するか ID だけか) をそのまま product_decisions_remaining へ戻し、option を起こさないことで軸の幅も狭めない。contract_effect は explore の default ではなく advisory とした。既定値を一切置かない状態を表すのは advisory であり、かつ remaining に normative/default を残すことは approval blocker として fail-closed に拒否されるためである
+- issue_ref: critique#02 UAC-031 の counterexample が未確定 option を拘束 (major)
+  change_class: clarify_existing_contract
+  disposition: patch_contract
+  provenance:
+    source: critic_proposal
+    confidence: confirmed
+    evidence_refs:
+    - critique#02
+    - pass2#02
+    rationale: patch hint を採用し、UAC-031 の Then と counterexample から所属 server 併記の名指しを外して「候補同士が各行だけで判別でき、その行の値で次の実行を一意に指定できる」へ一般化した。どの breadth option でも pass/fail が変わらない
+- issue_ref: critique#03 UAC-035 が非判別的 (blocker)
+  change_class: clarify_existing_contract
+  disposition: patch_contract
+  provenance:
+    source: critic_proposal
+    confidence: confirmed
+    evidence_refs:
+    - critique#03
+    - pass2#03
+    rationale: patch hint を採用。Given を「第一引数が実在 session の完全 ID と一致する」へ変え、Then に「その session へ attach しない」と「4 失敗種別と異なる exit code」を加えた。位置引数 shorthand 実装は attach してしまい fail する。name への言及は未測定 field を避けて ID に限定した
+- issue_ref: critique#04 UAC-010 が非判別的 (blocker)
+  change_class: clarify_existing_contract
+  disposition: patch_contract
+  provenance:
+    source: critic_proposal
+    confidence: confirmed
+    evidence_refs:
+    - critique#04
+    - pass2#04
+    rationale: patch hint を採用。Given に「打鍵文字列そのものとは異なる固有の応答が返る状態」を置き、Then から echo の選択肢を外した。local echo だけの実装は remote 由来の応答を再現できず fail する
+- issue_ref: critique#05 UAC-025 が非判別的 (blocker)
+  change_class: clarify_existing_contract
+  disposition: patch_contract
+  provenance:
+    source: critic_proposal
+    confidence: confirmed
+    evidence_refs:
+    - critique#05
+    - pass2#05
+    rationale: patch hint を採用。Given に進行中の画面を持つ既存 session を置き、Then に「attach 直後の画面が新規作成 session の起動直後の画面であり既存 session の途中経過ではない」を加えた。透過 attach 下でも attach 先の同一性が画面内容から観察できる
+- issue_ref: critique#06 UAC-031 の attach 非実行が観察源を持たない (blocker)
+  change_class: clarify_existing_contract
+  disposition: patch_contract
+  provenance:
+    source: repository_evidence
+    confidence: confirmed
+    evidence_refs:
+    - critique#06
+    - pass2#06
+    - esc-no-presence-field
+    rationale: patch hint を採用。goal-disambiguate-selector と UAC-031 から attach 非実行の一覧確認を外し、観察できる終了操作の非実行 (lifecycle state 不変) と非零終了へ置き換えた。同時 attach を公開する field が現行に存在しないという実測と矛盾しなくなった
+- issue_ref: critique#07 UAC-014 が非判別的 (blocker)
+  change_class: clarify_existing_contract
+  disposition: patch_contract
+  provenance:
+    source: critic_proposal
+    confidence: confirmed
+    evidence_refs:
+    - critique#07
+    - pass2#07
+    rationale: patch hint を採用。Given に入力バイトを可視化する remote 状態を置き、Then を「Ctrl-] に対応する可視表示が現れて attach が継続する」へ変えた。判別が Claude Code / Codex 固有の未検証挙動に依存しなくなった
+- issue_ref: critique#08 detaching と detached-clean を区別する観察が無い (blocker)
+  change_class: close_required_failure_path
+  disposition: patch_contract
+  provenance:
+    source: explicit_user_requirement
+    confidence: confirmed
+    evidence_refs:
+    - critique#08
+    - explore states[detaching]
+    - phase-input
+    rationale: 上流 state 定義が確定している「detach 受理以後の打鍵は remote PTY へ届かない」を UAC-041 として scenario 化し、再 attach 後の画面に detach 後の打鍵が現れないことで観察可能にした。7 state のうち detaching だけが未束縛という欠落が閉じた
+- issue_ref: pass2#08 detaching 中に打鍵したバイト列の局所的な帰着先
+  change_class: new_product_capability
+  disposition: create_decision_point
+  provenance:
+    source: critic_proposal
+    confidence: provisional
+    evidence_refs:
+    - pass2#08
+    rationale: 破棄するか shell の入力として現れるかは上流で確定しておらず利用者未確定である。DP-DETACHING-INPUT-DISPOSITION として開いたまま残し、確定要求へ昇格させない
+- issue_ref: critique#09 確定 rationale の末尾節を落として適用範囲を狭めた (major)
+  change_class: clarify_existing_contract
+  disposition: patch_contract
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - critique#09
+    - pass2#09
+    - explore-plan r2 DP-ATTACH-OBSERVABILITY-CHANNEL
+    rationale: patch hint を採用。確定 rationale の「状態の出所を別 channel にすること自体は許容される」を復元し、exp-attach-interactive と UAC-019 の判別条件を「文言の不在」から「復元後の表示が失敗理由と一致しないこと」へ広げた
+- issue_ref: critique#10 cc-json-field-breadth の脱落 (major)
+  change_class: clarify_existing_contract
+  disposition: patch_contract
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - critique#10
+    - pass2#10
+    - explore confirmed_constraints
+    rationale: patch hint を採用。逐語確定の制約を §2 と exp-discovery の interaction rules へ復元し、UAC-008 の Then に display name・cwd/worktree・lifecycle state の field を加えた。識別子だけを返す実装は fail する
+- issue_ref: critique#11 UAC-028 が元要件の許容表現を必須化 (major)
+  change_class: clarify_existing_contract
+  disposition: patch_contract
+  provenance:
+    source: explicit_user_requirement
+    confidence: confirmed
+    evidence_refs:
+    - critique#11
+    - pass2#11
+    - plan §13
+    rationale: patch hint を採用。cc-v1-scope を §2 へ転記し、UAC-028 を確定 acceptance から外して「作成側の機械可読出力を v1 で必須にするか」を product_decisions_remaining の advisory 項目として残した
+- issue_ref: critique#12 ag new の作成先 server が未定義 (major)
+  change_class: new_product_capability
+  disposition: create_decision_point
+  provenance:
+    source: critic_proposal
+    confidence: provisional
+    evidence_refs:
+    - critique#12
+    - pass2#12
+    rationale: DP-CREATE-TARGET-SERVER を起こし、F-004 の entry 観察と UAC-025/026/027/043 の Given を接続 1 台の前提へ限定して、軸の解に acceptance が依存しないようにした
+- issue_ref: critique#13 server 修飾が受理する値の語彙が未定義 (major)
+  change_class: new_product_capability
+  disposition: create_decision_point
+  provenance:
+    source: critic_proposal
+    confidence: provisional
+    evidence_refs:
+    - critique#13
+    - pass2#13
+    rationale: DP-SERVER-QUALIFIER-VALUE-VOCABULARY を起こし、UAC-032 と UAC-008 を機械可読出力から得た server 識別子の値だけに限定した。表示名を受理するかの解に acceptance が依存しない
+- issue_ref: critique#14 短縮 ID の意味論が未定義 (major)
+  change_class: clarify_existing_contract
+  disposition: patch_contract
+  provenance:
+    source: critic_proposal
+    confidence: confirmed
+    evidence_refs:
+    - critique#14
+    - pass2#14
+    rationale: patch hint を採用。UAC-004 の「ID (または短縮 ID)」を「完全な ID、または prefix 種別を宣言すれば解決できる短縮 ID」へ言い換え、一意性判定範囲は既存の validation_required 項目 (name および短縮 ID の一意性範囲) へ束ねた
+- issue_ref: critique#15 display name の派生規則が追跡されていない (major)
+  change_class: close_required_failure_path
+  disposition: patch_contract
+  provenance:
+    source: repository_evidence
+    confidence: confirmed
+    evidence_refs:
+    - critique#15
+    - pass2#15
+    - esc-sessioninfo-fields
+    rationale: patch hint を採用。display name が client 側の派生値である実測に基づき inherited / replaced behavior を追加し、UAC-004 を must-fail にして既存 GUI の label 一致を Then へ加え、legacy trace を張った
+- issue_ref: critique#16 UAC-001 の無条件 stable identity が §0 と矛盾 (major)
+  change_class: clarify_existing_contract
+  disposition: patch_contract
+  provenance:
+    source: repository_evidence
+    confidence: confirmed
+    evidence_refs:
+    - critique#16
+    - pass2#16
+    rationale: patch hint を採用。UAC-001 を「表示名優先・重複時のみ stable 識別子」の既存規律へ合わせ、counterexample に過剰識別子側 (常に不透明 ID を出す実装) を加えた
+- issue_ref: critique#17 disconnect-class に回線断の値が無い (major)
+  change_class: clarify_existing_contract
+  disposition: patch_contract
+  provenance:
+    source: critic_proposal
+    confidence: confirmed
+    evidence_refs:
+    - critique#17
+    - pass2#17
+    rationale: patch hint を採用。dimension へ transport-disconnect を追加し、UAC-019 を束ねる coverage claim を張った。remote-session-ended とは別の値として保つ
+- issue_ref: critique#18 異常離脱の理由文言が 1 語へ潰せる (major)
+  change_class: close_required_failure_path
+  disposition: patch_contract
+  provenance:
+    source: critic_proposal
+    confidence: confirmed
+    evidence_refs:
+    - critique#18
+    - pass2#18
+    rationale: patch hint を採用。UAC-018 と UAC-019 を must-fail にし、接続喪失と session 終了で理由文言が異なることを Then へ加え、既存の legacy trace (接続不能と稼働終了を同じ語へ潰す) へ両者を追加した
+- issue_ref: critique#19 F-003 / F-004 / F-006 に legacy delta が無い (major)
+  change_class: close_required_failure_path
+  disposition: patch_contract
+  provenance:
+    source: critic_proposal
+    confidence: confirmed
+    evidence_refs:
+    - critique#19
+    - pass2#19
+    rationale: patch hint を採用。UAC-031 を must-fail にして候補提示の drift を、UAC-024 を must-fail にして transport 消失を終了と観察させる drift を追跡した。F-004 は作成失敗 (UAC-043) の追加で failure 面を閉じたが、既存 8 behavior に対応する drift を持たないため vs_legacy は付けない
+- issue_ref: critique#20 解決後の終了要求そのものの失敗が未定義 (major)
+  change_class: close_required_failure_path
+  disposition: patch_contract
+  provenance:
+    source: explicit_user_requirement
+    confidence: confirmed
+    evidence_refs:
+    - critique#20
+    - pass2#20
+    - plan §14 Phase 4
+    rationale: patch hint を採用。UAC-044 を追加し、exp-explicit-terminate の failure 除外を解いて observation phase へ failure を宣言した
+- issue_ref: critique#21 宣言した failure phase に作成失敗の scenario が無い (major)
+  change_class: close_required_failure_path
+  disposition: patch_contract
+  provenance:
+    source: critic_proposal
+    confidence: confirmed
+    evidence_refs:
+    - critique#21
+    - pass2#21
+    rationale: patch hint を採用。UAC-043 を追加し、作成失敗では session が存在せず一覧にも現れないこと、attach 失敗とは異なる文言であることを固定した
+- issue_ref: critique#22 明示終了の成功観察が固定されていない (major)
+  change_class: clarify_existing_contract
+  disposition: patch_contract
+  provenance:
+    source: critic_proposal
+    confidence: confirmed
+    evidence_refs:
+    - critique#22
+    - pass2#22
+    rationale: patch hint を採用。UAC-029 の Then と F-005 の exit 観察へ「lifecycle state の遷移を確かめてから戻る」を加え、直後の一覧実行タイミングに依存する非決定性を消した
+- issue_ref: critique#23 UAC-016 の前提が実現不能 (major)
+  change_class: new_product_capability
+  disposition: create_decision_point
+  provenance:
+    source: critic_proposal
+    confidence: provisional
+    evidence_refs:
+    - critique#23
+    - pass2#23
+    rationale: DP-UNREACHABLE-SERVER-SELECTOR-OUTCOME を起こし、UAC-016 の Given を「到達可能な server 上で画面への接続段階だけが失敗する」へ書き換えて実現可能にした。到達不能 server 上の selector 解決は軸の解に委ねる
+- issue_ref: critique#24 接続不能 server が script modality から観察できない (major)
+  change_class: new_product_capability
+  disposition: create_decision_point
+  provenance:
+    source: critic_proposal
+    confidence: provisional
+    evidence_refs:
+    - critique#24
+    - pass2#24
+    rationale: DP-JSON-SERVER-REACHABILITY-FIELD を起こした。UAC-040 は人間向け表示だけを対象とし、機械可読側の観察は軸の解を待つ。output-modality dimension の coverage は識別子と field 広さで閉じ、到達可能性は claim に含めない
+- issue_ref: critique#25 非 TTY stdin での attach 結果が未定義 (major)
+  change_class: new_product_capability
+  disposition: create_decision_point
+  provenance:
+    source: critic_proposal
+    confidence: provisional
+    evidence_refs:
+    - critique#25
+    - pass2#25
+    rationale: DP-NON-TTY-ATTACH-BEHAVIOR を起こした。UAC-015 は Given を「stdin だけが pipe で shell の terminal は残る」へ具体化し、どの option でも守るべき terminal 非破壊を判別可能な形で固定した
+- issue_ref: critique#26 UAC-015 と DP-TTY-BEHAVIOR-BRANCHING の衝突 (major)
+  change_class: clarify_existing_contract
+  disposition: patch_contract
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - critique#26
+    - pass2#26
+    rationale: patch hint を採用。確定判断の適用範囲 (CLI が選べる挙動の一様性であり、端末能力に従う raw mode 移行の可否は対象外) を §7 の該当項へ明記した。確定内容そのものは変更していない
+- issue_ref: critique#27 UAC-011 の前提が同時 attach を排除していない (major)
+  change_class: clarify_existing_contract
+  disposition: patch_contract
+  provenance:
+    source: critic_proposal
+    confidence: confirmed
+    evidence_refs:
+    - critique#27
+    - pass2#27
+    rationale: patch hint を採用。UAC-011 の Given に「同時 attach している他 client は無い」を加え、exp-concurrent-modality が観察対象外と宣言する状況と重ならないようにした
+- issue_ref: critique#28 attach 中の Stopped/Failed 遷移が閉じていない (major)
+  change_class: close_required_failure_path
+  disposition: patch_contract
+  provenance:
+    source: critic_proposal
+    confidence: confirmed
+    evidence_refs:
+    - critique#28
+    - pass2#28
+    rationale: patch hint を採用。UAC-018 を lifecycle が Stopped / Failed へ遷移する場合に特化させ、離脱理由が既存 client の語彙と対応することと、一覧に終了状態の行として残ることを Then へ加えた
+- issue_ref: critique#29 suspend 経路が復元義務から漏れている (major)
+  change_class: close_required_failure_path
+  disposition: patch_contract
+  provenance:
+    source: explicit_user_requirement
+    confidence: confirmed
+    evidence_refs:
+    - critique#29
+    - pass2#29
+    - plan §9.7
+    rationale: patch hint を採用。UAC-017 を process を終了させる catchable signal に限定し、suspend と復帰を UAC-042 として追加した。§1 は suspend を attached-live からの一時離脱として記述し、8 番目の state は作らない
+- issue_ref: critique#30 1 バイトずつ転送が実装契約になっている (major)
+  change_class: implementation_detail
+  disposition: handoff_to_design
+  provenance:
+    source: critic_proposal
+    confidence: confirmed
+    evidence_refs:
+    - critique#30
+    - pass2#30
+    rationale: patch hint を採用。interaction rules を「入力順序を保ったまま remote PTY へ届く」へ書き換え、送信単位は handoff-input-transport-batching として design へ渡した。Ctrl-C の 0x03 転送要求は確定制約として残す
+- issue_ref: critique#31 UAC-034 の前提が未測定 field に依存 (major)
+  change_class: clarify_existing_contract
+  disposition: patch_contract
+  provenance:
+    source: critic_proposal
+    confidence: confirmed
+    evidence_refs:
+    - critique#31
+    - pass2#31
+    rationale: patch hint を採用。Given を「完全 ID かつ別 session の ID prefix でもある文字列」へ変え、prefix 宣言では 2 件一致で候補提示、ID 宣言では 1 件解決という差で判別できるようにした。name field の実在に依存しない
+- issue_ref: critique#32 UAC-020 の geometry 前提が欠けている (minor)
+  change_class: clarify_existing_contract
+  disposition: patch_contract
+  provenance:
+    source: critic_proposal
+    confidence: confirmed
+    evidence_refs:
+    - critique#32
+    - pass2#32
+    rationale: patch hint を採用。Given に geometry 一致を加え、テキスト内容の一致要求がその条件下でだけ適用されることを Then で書き分けた
+- issue_ref: critique#33 UAC-024 の counterexample が CLI 実装差を指していない (minor)
+  change_class: clarify_existing_contract
+  disposition: patch_contract
+  provenance:
+    source: critic_proposal
+    confidence: confirmed
+    evidence_refs:
+    - critique#33
+    - pass2#33
+    rationale: patch hint を採用。counterexample を「attach 開始時に transport 消失で session も終了させる要求を登録する実装」へ書き換え、CLI 側が選びうる誤実装を指すようにした
+- issue_ref: critique#graft-5 draft-1 DEC-8 recommendation (OPT-STATUS-BAND) の移植
+  change_class: clarify_existing_contract
+  disposition: reject
+  provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs:
+    - critique#graft-5
+    rationale: 移植は明示的に禁じられている。raw mode 中の観察行と lifecycle の逐次通知は本 plan へ持ち込まない
+dispositions:
+- decision_input_ref: ALT-TWO-STEP-EXPLICIT
+  disposition: adopted_as_primary_flow_topology
+  contract_refs:
+  - F-001
+  - F-002
+  - F-003
+  - F-004
+  - F-005
+  - F-006
+- decision_input_ref: ALT-ADAPTIVE-SINGLE-ENTRY
+  disposition: deferred_not_revived
+- decision_input_ref: candidate-cross-platform-terminal-runtime
+  disposition: informs_architecture_not_ux_contract
+- decision_input_ref: candidate-existing-public-wire-contract-reuse
+  disposition: adopted_as_constraint
+  contract_refs:
+  - exp-discovery
+  - exp-attach-interactive
+  - exp-reattach-continuity
+- decision_input_ref: candidate-fleet-session-identity-reuse
+  disposition: adopted_as_identifier_shape
+  contract_refs:
+  - UAC-008
+  - UAC-032
+- decision_input_ref: dh-ctrl-bracket-no-collision
+  disposition: kept_provisional_pending_hardware_validation
+  contract_refs:
+  - UAC-014
+- decision_input_ref: dh-lifecycle-contract-sufficient
+  disposition: handoff_to_phase0_contract_audit
+  contract_refs:
+  - UAC-043
+  - UAC-044
+- decision_input_ref: dh-stable-name-field-unknown
+  disposition: handoff_to_phase0_validation_required
+  contract_refs:
+  - UAC-034
+  - UAC-004
+- decision_input_ref: dh-geometry-divergence
+  disposition: handoff_to_execution_plane
+  contract_refs:
+  - UAC-020
+  - UAC-011
+- decision_input_ref: esc-no-presence-field
+  disposition: adopted_as_observation_source_limit
+  contract_refs:
+  - UAC-021
+  - UAC-031
+- decision_input_ref: esc-fleet-identity
+  disposition: adopted_as_row_identity_discipline
+  contract_refs:
+  - UAC-001
+  - UAC-031
+- decision_input_ref: esc-status-vocabulary
+  disposition: adopted_as_state_vocabulary
+  contract_refs:
+  - UAC-006
+  - UAC-039
+  - UAC-018
+- decision_input_ref: esc-sessioninfo-fields
+  disposition: adopted_as_column_existence_bound
+  contract_refs:
+  - UAC-004

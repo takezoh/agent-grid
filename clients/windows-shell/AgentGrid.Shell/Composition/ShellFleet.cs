@@ -52,11 +52,12 @@ public sealed class ShellFleet : IAsyncDisposable
     public static ShellFleet Build(DesktopConfig config, Action quit)
     {
         var roots = new Dictionary<string, ShellCompositionRoot>(StringComparer.Ordinal);
-        foreach (var server in config.Servers.Where(server => server.Enabled))
+        foreach (var server in config.Servers.Where(server => server.IsUsable))
         {
             roots.Add(server.Id, ShellCompositionRoot.Build(new ShellHostOptions
             {
-                GatewayBaseUri = server.Url,
+                // Filtered to usable entries above, so the canonical URL is present.
+                GatewayBaseUri = server.Url!,
                 Auth = server.Auth,
                 WorkspaceExePath = ResolveWorkspaceExecutable(config.Shell.WorkspaceExecutable),
                 WorkspaceArguments = WorkspaceLaunchArguments(config.ConfigDirectory),

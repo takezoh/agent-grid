@@ -115,7 +115,7 @@ public sealed class DesktopConfigTests : IDisposable
     }
 
     [Fact]
-    public void Invalid_default_execution_server_is_rejected()
+    public void Ambiguous_default_execution_marker_invalidates_only_the_marked_group()
     {
         DesktopConfigLoader.LoadOrCreate(_directory);
         var path = Path.Combine(_directory, "servers.json");
@@ -143,10 +143,17 @@ public sealed class DesktopConfigTests : IDisposable
             },
         }));
 
-        var error = Assert.Throws<DesktopConfigException>(
-            () => DesktopConfigLoader.LoadOrCreate(_directory));
+        // An ambiguous marker is entry-scoped under per-entry admission
+        // (adr-20260814-server-display-name-naming-contract): it invalidates the
+        // marked group and leaves the host running. The assertion is restated
+        // against the state those entries must reach, not weakened.
+        var config = DesktopConfigLoader.LoadOrCreate(_directory);
 
-        Assert.Contains("at most one", error.Message);
+        Assert.All(config.Servers, server =>
+        {
+            Assert.Equal(AdmissionStates.ConfigurationInvalid, server.Admission);
+            Assert.Equal(ServerRules.AtMostOneDefault, server.Violation!.Rule);
+        });
     }
 
     [Fact]
@@ -200,11 +207,16 @@ public sealed class DesktopConfigTests : IDisposable
         Assert.Equal(before, File.ReadAllText(path));
     }
 
+    // A query and a fragment are no longer folded away on the way to an
+    // identifier — validation rejects an entry carrying them before this is
+    // reached (adr-20260814-shared-go-client-config-module). What remains is
+    // the folding every loader must agree on: scheme and host case, a default
+    // port, and trailing path slashes.
     [Fact]
     public void Identifier_is_derived_from_the_cross_client_canonical_url_contract()
     {
         var canonical = DesktopConfigLoader.CanonicalServerUrl(
-            new Uri("HTTP://Example.TEST:80/api///?token=ignored#fragment"));
+            new Uri("HTTP://Example.TEST:80/api///"));
 
         Assert.Equal("http://example.test/api", canonical);
         Assert.Equal(
@@ -227,19 +239,37 @@ public sealed class DesktopConfigTests : IDisposable
         Assert.Equal(expected, server.Auth.Mode);
     }
 
-    [Theory]
-    [InlineData("servers-invalid-v1-token-path.json")]
-    [InlineData("servers-invalid-empty-bearer.json")]
-    public void Shared_invalid_auth_fixtures_are_rejected(string fixture)
+    // The two shared invalid fixtures now separate along the admission
+    // partition: a v1 document names no entry and stops the host, while an
+    // empty bearer token names one and costs only that entry. The corpus in
+    // ConfigCorpusTests covers the full partition.
+    [Fact]
+    public void Shared_v1_token_path_fixture_stops_the_host()
     {
         DesktopConfigLoader.LoadOrCreate(_directory);
         File.Copy(
-            Path.Combine(AppContext.BaseDirectory, "Fixtures", fixture),
+            Path.Combine(AppContext.BaseDirectory, "Fixtures", "servers-invalid-v1-token-path.json"),
             Path.Combine(_directory, "servers.json"),
             overwrite: true);
 
         Assert.Throws<DesktopConfigException>(
             () => DesktopConfigLoader.LoadOrCreate(_directory));
+    }
+
+    [Fact]
+    public void Shared_empty_bearer_fixture_is_admitted_as_configuration_invalid()
+    {
+        DesktopConfigLoader.LoadOrCreate(_directory);
+        File.Copy(
+            Path.Combine(AppContext.BaseDirectory, "Fixtures", "servers-invalid-empty-bearer.json"),
+            Path.Combine(_directory, "servers.json"),
+            overwrite: true);
+
+        var config = DesktopConfigLoader.LoadOrCreate(_directory);
+
+        Assert.Contains(
+            config.Servers,
+            server => server.Admission == AdmissionStates.ConfigurationInvalid);
     }
 
     public void Dispose()

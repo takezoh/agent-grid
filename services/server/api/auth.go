@@ -19,7 +19,11 @@ func TokenAuth(want string, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if want == "" || !tokenOK(r, want) {
 			w.Header().Set("WWW-Authenticate", "Bearer")
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			// The same published vocabulary a post-upgrade departure carries,
+			// so a client reads one value whichever side of the upgrade it
+			// was rejected on (protocol/transport-close.schema.json).
+			writeTransportRejection(w, http.StatusUnauthorized,
+				CloseUnauthenticated, "missing or invalid bearer token")
 			return
 		}
 		h.ServeHTTP(w, r)

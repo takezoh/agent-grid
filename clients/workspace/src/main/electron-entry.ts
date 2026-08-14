@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { startWorkspaceApp } from "./app-entry.js";
 import {
+  isUsable,
   loadEditableDesktopSettings,
   saveEditableDesktopSettings,
   type DesktopConfig,
@@ -275,7 +276,7 @@ ipcMain.handle("agent-grid:session-fleet-configs", async () => {
   if (!desktopConfig) throw new Error("desktop config is not ready");
   return Promise.all(
     desktopConfig.servers
-      .filter((server) => server.enabled)
+      .filter(isUsable)
       .map(async (server) => {
         try {
           const capabilitiesResponse = await fleetFetch(
@@ -345,7 +346,7 @@ ipcMain.handle(
   async (_event, serverId: string, payload: unknown) => {
     if (!desktopConfig) throw new Error("desktop config is not ready");
     const server = desktopConfig.servers.find(
-      (candidate) => candidate.enabled && candidate.id === serverId,
+      (candidate) => isUsable(candidate) && candidate.id === serverId,
     );
     if (!server) throw new Error(`unknown or disabled server '${serverId}'`);
     const response = await fleetFetch(server, "/api/sessions", {
@@ -370,7 +371,7 @@ ipcMain.handle(
   async (_event, serverId: string, payload: unknown) => {
     if (!desktopConfig) throw new Error("desktop config is not ready");
     const server = desktopConfig.servers.find(
-      (candidate) => candidate.enabled && candidate.id === serverId,
+      (candidate) => isUsable(candidate) && candidate.id === serverId,
     );
     if (!server) throw new Error(`unknown or disabled server '${serverId}'`);
     const repository = parseRepositoryCreatePayload(payload);
@@ -444,7 +445,7 @@ ipcMain.handle(
       throw new Error("unsupported routed API method");
     }
     const server = desktopConfig.servers.find(
-      (candidate) => candidate.enabled && candidate.id === serverId,
+      (candidate) => isUsable(candidate) && candidate.id === serverId,
     );
     if (!server) throw new Error(`unknown or disabled server '${serverId}'`);
     const response = await fleetFetch(server, pathname, {
@@ -459,7 +460,7 @@ ipcMain.handle(
 ipcMain.handle("agent-grid:session-channel-open", async (event, serverId: string) => {
   if (!desktopConfig) throw new Error("desktop config is not ready");
   const server = desktopConfig.servers.find(
-    (candidate) => candidate.enabled && candidate.id === serverId,
+    (candidate) => isUsable(candidate) && candidate.id === serverId,
   );
   if (!server) throw new Error(`unknown or disabled server '${serverId}'`);
   const ticketResponse = await fleetFetch(server, "/api/ws-ticket", { method: "POST" });

@@ -7,6 +7,7 @@
 import { ControlEndpoint, defaultControlPath } from "./control-endpoint.js";
 import { DaemonConfigResolver } from "./daemon-config.js";
 import {
+  isUsable,
   loadOrCreateDesktopConfig,
   resolveConfigDirectory,
   type DesktopConfig,
@@ -104,7 +105,7 @@ export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
     trackWindowDisplay: (window) => displays?.track(window),
   });
   const registry = new WindowRegistry(factory, store);
-  let defaultServer = desktopConfig.servers.find((server) => server.enabled);
+  let defaultServer = desktopConfig.servers.find(isUsable);
   let home: ReturnType<typeof factory.createHome> | null = null;
   let settings: ReturnType<typeof factory.createSettings> | null = null;
   const openHome = () => {
@@ -178,7 +179,7 @@ export async function startWorkspaceApp(opts: AppEntryOptions): Promise<{
     setDesktopConfig: (next) => {
       desktopConfig = next;
       config = DaemonConfigResolver.fromServers(next.servers);
-      defaultServer = next.servers.find((server) => server.enabled);
+      defaultServer = next.servers.find(isUsable);
       idle.setIdleMs(next.workspace.idle_quit_seconds * 1000);
     },
     openSettings,

@@ -88,8 +88,12 @@ func readLifecycleInbound(ctx context.Context, sess Attacher, c *websocket.Conn,
 			}
 		}
 	}()
+	// Read without cancellation: coder/websocket closes the connection when a
+	// read context is cancelled, which would destroy the socket before the
+	// writer can name the departure. See readInbound for the full rationale.
+	readCtx := context.WithoutCancel(ctx)
 	for {
-		_, data, err := c.Read(ctx)
+		_, data, err := c.Read(readCtx)
 		if err != nil {
 			return
 		}

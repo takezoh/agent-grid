@@ -18,17 +18,61 @@ export type Density = "compact" | "comfortable";
 export type ServerAuth =
   | { mode: "none" }
   | { mode: "bearer"; token: string };
+/**
+ * How an entry may be used. A malformed entry costs that entry and the entries
+ * it collides with, not the fleet
+ * (adr-20260814-server-display-name-naming-contract).
+ */
+export type AdmissionState = "usable" | "disabled" | "configuration_invalid";
+
+/** Why an entry is unusable: the rule it broke, and enough detail to find it. */
+export interface ServerViolation {
+  rule: string;
+  detail: string;
+}
+
+// Rule identifiers, shared with clients/config/servers.schema.json
+// x-contract-rules and with the expected-outcome corpus.
+export const RULE_DISPLAY_NAME_REQUIRED = "display-name-required";
+export const RULE_DISPLAY_NAME_CHARSET = "display-name-charset";
+export const RULE_DISPLAY_NAME_UNIQUE = "display-name-unique";
+export const RULE_ENTRY_FIELD_TYPES = "entry-field-types";
+export const RULE_UNKNOWN_ENTRY_FIELD = "unknown-entry-field-rejected";
+export const RULE_URL_SCHEME = "url-http-or-https";
+export const RULE_URL_BARE_AUTHORITY = "url-carries-no-credentials-query-or-fragment";
+export const RULE_DUPLICATE_URL = "duplicate-url-rejected";
+export const RULE_AUTH_VARIANT = "auth-variant-exact";
+export const RULE_AT_MOST_ONE_DEFAULT = "at-most-one-default-execution";
+export const RULE_DEFAULT_MUST_BE_ENABLED = "default-execution-must-be-enabled";
+
 export interface ServerConfig {
-  /** Deterministic routing identifier derived from the canonical gateway URL. */
+  /**
+   * Deterministic routing identifier derived from the canonical gateway URL.
+   * Empty on an entry whose URL could not be canonicalised.
+   */
   id: string;
+  /** Position in the file's servers array, so an unnamed entry is still findable. */
+  index: number;
   display_name: string;
   enabled: boolean;
   default_execution: boolean;
   url: string;
   auth: ServerAuth;
+  admission: AdmissionState;
+  /** Absent on an admissible entry. */
+  violation?: ServerViolation;
 }
 
-type ServerDocument = Omit<ServerConfig, "id" | "auth"> & {
+/** An entry a client may connect to. Invalid and disabled entries are not. */
+export function isUsable(server: ServerConfig): boolean {
+  return server.admission === "usable";
+}
+
+type ServerDocument = {
+  display_name: string;
+  enabled: boolean;
+  default_execution?: boolean;
+  url: string;
   auth: unknown;
   id?: unknown;
 };
@@ -115,10 +159,7 @@ export function loadOrCreateDesktopConfig(configDirectory: string): DesktopConfi
   checkVersion(workspaceDoc, "workspace.json");
   checkVersion(githubDoc, "github.json");
 
-  validateServers(serversDoc.servers);
-  const servers = serversDoc.servers.map((server, index) =>
-    mapServer(server, index, serversDoc.servers),
-  );
+  const servers = admitServers(serversDoc.servers);
   validateAppearance(appearanceDoc);
   validateShell(shellDoc);
   validateWorkspace(workspaceDoc);
@@ -204,7 +245,7 @@ export function saveEditableDesktopSettings(
     client_id: settings.github.client_id.trim(),
     scopes: [...settings.github.scopes],
   };
-  validateServers([...serversDoc.servers]);
+  assertSavedServersAreAdmissible([...serversDoc.servers]);
   validateAppearance(appearanceDoc);
   validateShell(shellDoc);
   validateWorkspace(workspaceDoc);
@@ -263,66 +304,215 @@ function checkVersion(
   }
 }
 
-function validateServers(servers: unknown): asserts servers is ServerDocument[] {
-  if (!Array.isArray(servers) || servers.length === 0) {
-    throw new Error("servers.json: at least one server is required");
-  }
-  const ids = new Set<string>();
-  let enabled = 0;
-  let defaultExecution = 0;
-  for (const raw of servers) {
-    if (!isRecord(raw)) throw new Error("servers.json: every server must be an object");
-    const server = raw as unknown as ServerDocument;
-    const extraKeys = Object.keys(raw).filter(
-      (key) =>
-        !["id", "display_name", "enabled", "default_execution", "url", "auth"].includes(key),
-    );
-    if (extraKeys.length > 0) {
-      throw new Error(`servers.json: server contains unsupported field '${extraKeys[0]}'`);
-    }
-    const label = typeof server.display_name === "string" && server.display_name.trim()
-      ? server.display_name
-      : "unnamed server";
-    if (typeof server.display_name !== "string" || !server.display_name.trim()) {
-      throw new Error("servers.json: every server needs display_name");
-    }
-    if (typeof server.enabled !== "boolean") {
-      throw new Error(`servers.json: server '${label}' enabled must be boolean`);
-    }
-    if (server.enabled) enabled++;
-    if (server.default_execution === true) {
-      if (!server.enabled) {
-        throw new Error(`servers.json: default execution server '${label}' must be enabled`);
-      }
-      defaultExecution++;
-    } else if (server.default_execution !== undefined && server.default_execution !== false) {
-      throw new Error(`servers.json: server '${label}' default_execution must be boolean`);
-    }
-    assertHttpUrl(server.url, `servers.json: server '${label}' url`);
-    const id = serverIdentifier(server.url);
-    if (ids.has(id)) throw new Error(`servers.json: duplicate server url '${server.url}'`);
-    ids.add(id);
-    validateServerAuth(server.auth, label);
-  }
-  if (enabled === 0) throw new Error("servers.json: at least one server must be enabled");
-  if (defaultExecution > 1) {
-    throw new Error("servers.json: exactly one enabled server may be the default execution server");
+// Admission is per entry. A malformed entry costs that entry and the entries it
+// collides with, not the fleet: an operator's typo in a server they are not
+// using must not take away every other server on every host
+// (adr-20260814-server-display-name-naming-contract). Only an unreadable entry
+// list stops the host, because that is the one case where no entry can be
+// named. Nothing here renames, normalises, suffixes, disables or drops an entry
+// to resolve a violation.
+const ENTRY_FIELDS = ["id", "display_name", "enabled", "default_execution", "url", "auth"];
+
+function assertServerList(servers: unknown): asserts servers is unknown[] {
+  if (!Array.isArray(servers)) {
+    throw new Error("servers.json: servers must be an array");
   }
 }
 
-function mapServer(server: ServerDocument, index: number, servers: readonly ServerDocument[]): ServerConfig {
-  const hasExplicitDefault = servers.some((candidate) => candidate.default_execution === true);
-  const firstEnabledIndex = servers.findIndex((candidate) => candidate.enabled);
-  return {
-    id: serverIdentifier(server.url),
-    display_name: server.display_name,
-    enabled: server.enabled,
-    default_execution: hasExplicitDefault
-      ? server.default_execution === true
-      : server.enabled && index === firstEnabledIndex,
-    url: canonicalServerUrl(server.url),
-    auth: mapServerAuth(server.auth),
+function displayNameKey(name: string): string {
+  return name.trim();
+}
+
+function checkDisplayName(name: string): ServerViolation | null {
+  const trimmed = displayNameKey(name);
+  if (!trimmed) {
+    return { rule: RULE_DISPLAY_NAME_REQUIRED, detail: "display_name must not be blank" };
+  }
+  for (const character of trimmed) {
+    const code = character.codePointAt(0) ?? 0;
+    if (code <= 0x1f || code === 0x7f) {
+      return {
+        rule: RULE_DISPLAY_NAME_CHARSET,
+        detail: `display_name contains control character U+${code.toString(16).padStart(4, "0").toUpperCase()}`,
+      };
+    }
+  }
+  if (trimmed.startsWith("-")) {
+    return {
+      rule: RULE_DISPLAY_NAME_CHARSET,
+      detail: "display_name must not begin with '-', which a command line reads as a flag",
+    };
+  }
+  return null;
+}
+
+function admitEntry(raw: unknown, index: number): ServerConfig {
+  const blank: ServerConfig = {
+    id: "",
+    index,
+    display_name: "",
+    enabled: false,
+    default_execution: false,
+    url: "",
+    auth: { mode: "none" },
+    admission: "configuration_invalid",
   };
+  if (!isRecord(raw)) {
+    return { ...blank, violation: { rule: RULE_ENTRY_FIELD_TYPES, detail: "entry must be an object" } };
+  }
+  const extraKeys = Object.keys(raw).filter((key) => !ENTRY_FIELDS.includes(key));
+  const named = typeof raw.display_name === "string" ? raw.display_name : "";
+  if (extraKeys.length > 0) {
+    return {
+      ...blank,
+      display_name: named,
+      violation: {
+        rule: RULE_UNKNOWN_ENTRY_FIELD,
+        detail: `unsupported field '${extraKeys[0]}'`,
+      },
+    };
+  }
+  if (
+    typeof raw.display_name !== "string" ||
+    typeof raw.url !== "string" ||
+    typeof raw.enabled !== "boolean" ||
+    (raw.default_execution !== undefined && typeof raw.default_execution !== "boolean")
+  ) {
+    return {
+      ...blank,
+      display_name: named,
+      violation: {
+        rule: RULE_ENTRY_FIELD_TYPES,
+        detail: "display_name and url must be strings; enabled and default_execution must be booleans",
+      },
+    };
+  }
+
+  const entry: ServerConfig = {
+    ...blank,
+    display_name: raw.display_name,
+    enabled: raw.enabled,
+    default_execution: raw.default_execution === true,
+    url: raw.url,
+  };
+
+  const nameViolation = checkDisplayName(raw.display_name);
+  if (nameViolation) return { ...entry, violation: nameViolation };
+
+  const urlViolation = checkServerUrl(raw.url);
+  if (urlViolation) return { ...entry, violation: urlViolation };
+
+  const authViolation = checkServerAuth(raw.auth);
+  if (authViolation) return { ...entry, violation: authViolation };
+
+  const canonical = canonicalServerUrl(raw.url);
+  const admitted: ServerConfig = {
+    ...entry,
+    id: serverIdentifier(raw.url),
+    url: canonical,
+    auth: mapServerAuth(raw.auth),
+    admission: raw.enabled ? "usable" : "disabled",
+  };
+  if (admitted.default_execution && !admitted.enabled) {
+    return {
+      ...admitted,
+      admission: "configuration_invalid",
+      violation: {
+        rule: RULE_DEFAULT_MUST_BE_ENABLED,
+        detail: "a default execution entry must be enabled",
+      },
+    };
+  }
+  return admitted;
+}
+
+// markCollisions invalidates every member of a collision group. No winner is
+// chosen: a duplicate is a property of a pair, so blaming one member requires
+// choosing which, and every choice rule silently redirects an operator's
+// existing reference to a different machine.
+function markCollisions(
+  servers: ServerConfig[],
+  key: (server: ServerConfig) => string | null,
+  rule: string,
+  detail: string,
+): void {
+  const groups = new Map<string, number[]>();
+  servers.forEach((server, index) => {
+    if (server.violation) return;
+    const value = key(server);
+    if (!value) return;
+    groups.set(value, [...(groups.get(value) ?? []), index]);
+  });
+  for (const members of groups.values()) {
+    if (members.length < 2) continue;
+    for (const index of members) {
+      servers[index] = {
+        ...servers[index]!,
+        admission: "configuration_invalid",
+        violation: { rule, detail },
+      };
+    }
+  }
+}
+
+function markDefaultExecution(servers: ServerConfig[]): void {
+  const marked = servers
+    .map((server, index) => ({ server, index }))
+    .filter((item) => !item.server.violation && item.server.default_execution)
+    .map((item) => item.index);
+  if (marked.length > 1) {
+    for (const index of marked) {
+      servers[index] = {
+        ...servers[index]!,
+        admission: "configuration_invalid",
+        violation: {
+          rule: RULE_AT_MOST_ONE_DEFAULT,
+          detail: "more than one entry is marked as the default execution server",
+        },
+      };
+    }
+    // Every marker is now unusable, so the legacy fallback below applies.
+  } else if (marked.length === 1) {
+    return;
+  }
+  const first = servers.findIndex((server) => server.admission === "usable");
+  if (first >= 0) {
+    servers[first] = { ...servers[first]!, default_execution: true };
+  }
+}
+
+// assertSavedServersAreAdmissible keeps the settings UI from writing a document
+// that would come back configuration-invalid. Saving is the one moment an
+// operator is editing the entries directly, so a violation is reported to them
+// rather than admitted silently.
+function assertSavedServersAreAdmissible(servers: readonly ServerDocument[]): void {
+  const admitted = admitServers(servers);
+  const offender = admitted.find((server) => server.violation);
+  if (offender) {
+    throw new Error(
+      `servers.json: server #${offender.index + 1} '${offender.display_name}' ` +
+        `violates ${offender.violation!.rule}: ${offender.violation!.detail}`,
+    );
+  }
+}
+
+function admitServers(raw: unknown): ServerConfig[] {
+  assertServerList(raw);
+  const servers = raw.map((entry, index) => admitEntry(entry, index));
+  markCollisions(
+    servers,
+    (server) => server.id || null,
+    RULE_DUPLICATE_URL,
+    "two entries resolve to the same canonical url",
+  );
+  markCollisions(
+    servers,
+    (server) => (server.enabled ? displayNameKey(server.display_name) : null),
+    RULE_DISPLAY_NAME_UNIQUE,
+    "two enabled entries share a display name",
+  );
+  markDefaultExecution(servers);
+  return servers;
 }
 
 export function canonicalServerUrl(value: string): string {
@@ -397,11 +587,51 @@ function validateGitHub(value: Versioned<GitHubAppConfig>): void {
 
 function assertHttpUrl(value: unknown, label: string): void {
   if (typeof value !== "string") throw new Error(`${label} must be a URL`);
+  let url: URL;
   try {
-    const url = new URL(value);
+    url = new URL(value);
     if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("bad scheme");
   } catch {
     throw new Error(`${label} must be an absolute HTTP(S) URL`);
+  }
+  // Rejected, not stripped. All three are things an operator wrote on purpose;
+  // discarding them silently leaves the operator believing the client is doing
+  // something it is not — most sharply for a credential, where the belief is
+  // that authentication is configured
+  // (adr-20260814-shared-go-client-config-module).
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error(`${label} must not contain credentials, a query, or a fragment`);
+  }
+}
+
+// checkServerUrl and checkServerAuth are the entry-scoped forms of the two
+// assertions above: they name a rule instead of throwing, so one bad entry
+// costs one entry.
+function checkServerUrl(value: string): ServerViolation | null {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return { rule: RULE_URL_SCHEME, detail: "url must be an absolute HTTP(S) URL" };
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return { rule: RULE_URL_SCHEME, detail: `unsupported scheme '${url.protocol}'` };
+  }
+  if (url.username || url.password || url.search || url.hash) {
+    return {
+      rule: RULE_URL_BARE_AUTHORITY,
+      detail: "url must not contain credentials, a query, or a fragment",
+    };
+  }
+  return null;
+}
+
+function checkServerAuth(value: unknown): ServerViolation | null {
+  try {
+    validateServerAuth(value, "server");
+    return null;
+  } catch (error) {
+    return { rule: RULE_AUTH_VARIANT, detail: (error as Error).message };
   }
 }
 

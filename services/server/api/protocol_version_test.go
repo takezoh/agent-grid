@@ -95,9 +95,12 @@ func TestNoAuthWSProtocolVersionRejectsDuplicateQueryValues(t *testing.T) {
 		"/ws?protocolVersion="+ProtocolVersion+"&protocolVersion="+ProtocolVersion,
 		nil,
 	)
-	actual, ok := noAuthWSProtocolVersion(req)
+	actual, supplied, ok := wsProtocolVersion(req)
 	if ok {
 		t.Fatal("duplicate protocolVersion unexpectedly admitted")
+	}
+	if !supplied {
+		t.Fatal("duplicate protocolVersion must count as a declaration, not as silence")
 	}
 	if actual != ProtocolVersion+","+ProtocolVersion {
 		t.Fatalf("actual = %q", actual)

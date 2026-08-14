@@ -339,6 +339,9 @@ func (r *Runtime) buildSessionInfos() []proto.SessionInfo {
 }
 
 func (r *Runtime) buildOneSessionInfo(sess state.Session) (proto.SessionInfo, bool) {
+	if sess.Ended() {
+		return r.buildEndedSessionInfo(sess), true
+	}
 	frame, ok := sessionRootFrame(sess)
 	if !ok {
 		return proto.SessionInfo{}, false
@@ -404,6 +407,33 @@ func (r *Runtime) buildOneSessionInfo(sess state.Session) (proto.SessionInfo, bo
 		FrameGeneration:    sess.FrameGeneration,
 	}
 	return info, true
+}
+
+// buildEndedSessionInfo projects a session that has reached its terminal
+// state. Such a session has no frames left, so the live path — which needs a
+// root frame to reach a driver — cannot describe it. The row is still carried
+// on the wire with lifecycle=stopped so an ended session is distinguishable
+// from an identifier that never existed
+// (adr-20260814-session-terminal-state-retention).
+//
+// Identity fields come from the session record rather than a frame: Command is
+// the session's own durable command, and the frame list is empty by
+// construction. No driver is consulted — the driver state died with the frame.
+func (r *Runtime) buildEndedSessionInfo(sess state.Session) proto.SessionInfo {
+	view := state.View{Status: state.StatusStopped}
+	view.Card.Title = wireCardTitle(view.Card.Title)
+	endedAt := *sess.EndedAt
+	return proto.SessionInfo{
+		ID:              string(sess.ID),
+		Project:         sess.Project,
+		Workspace:       r.workspaceResolver.Resolve(sess.Project),
+		Command:         sess.Command,
+		CreatedAt:       sess.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		Status:          stateview.CompositeStatus(view.Status, endedAt, false, false, nil),
+		View:            view,
+		Frames:          []proto.FrameInfo{},
+		FrameGeneration: sess.FrameGeneration,
+	}
 }
 
 func wireCardTitle(title string) string {

@@ -7,15 +7,26 @@ import {
 import type { ServerConfig } from "../src/main/desktop-config.js";
 import { decodeFleetHealthSnapshotV1 } from "../src/main/server-health.js";
 
+// Loaded entries carry an admission state; a runtime only works on usable ones
+// (adr-20260814-server-display-name-naming-contract).
 const servers: ServerConfig[] = [
-  { id: "a", display_name: "Same", enabled: true, url: "http://a", auth: { mode: "none" } },
-  { id: "b", display_name: "Same", enabled: true, url: "http://b", auth: { mode: "none" } },
+  {
+    id: "a", index: 0, display_name: "Same", enabled: true, default_execution: true,
+    url: "http://a", auth: { mode: "none" }, admission: "usable",
+  },
+  {
+    id: "b", index: 1, display_name: "Same", enabled: true, default_execution: false,
+    url: "http://b", auth: { mode: "none" }, admission: "usable",
+  },
   {
     id: "disabled",
+    index: 2,
     display_name: "Disabled",
     enabled: false,
+    default_execution: false,
     url: "http://disabled",
     auth: { mode: "none" },
+    admission: "disabled",
   },
 ];
 
@@ -679,10 +690,13 @@ describe("FleetSessionRuntime health authority", () => {
       [
         {
           id: "secret-server",
+          index: 0,
           display_name: "Secret",
           enabled: true,
+          default_execution: true,
           url: "https://user:pass@example.test/path?token=abc",
           auth: { mode: "bearer", token: "super-secret-token" },
+          admission: "usable",
         },
       ],
       { hostInstanceId: "host-redact" },

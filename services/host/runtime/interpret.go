@@ -374,9 +374,21 @@ func oscEventLogLine(source, title, body string) string {
 // snapshotSessions converts the current state.Sessions map into the
 // on-disk snapshot format. Driver bag is filled by calling each
 // driver's Persist method.
+//
+// Ended sessions are skipped. They are retained in memory only so clients can
+// observe the terminal lifecycle state
+// (adr-20260814-session-terminal-state-retention); they cannot be resumed, so
+// writing them would resurrect dead rows on the next cold start. This
+// exclusion is what bounds the retention window — a terminal row lives until
+// the process restarts, and this writer is its single reclaimer. How long such
+// a row *should* remain visible is a product choice left open upstream
+// (open-terminate-observability) and is deliberately not decided here.
 func (r *Runtime) snapshotSessions() []SessionSnapshot {
 	out := make([]SessionSnapshot, 0, len(r.state.Sessions))
 	for _, sess := range r.state.Sessions {
+		if sess.Ended() {
+			continue
+		}
 		frames := make([]SessionFrameSnapshot, 0, len(sess.Frames))
 		for _, frame := range sess.Frames {
 			drv := state.GetDriver(frame.Command)

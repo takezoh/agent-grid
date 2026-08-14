@@ -37,7 +37,7 @@ public static class Program
         await using var root = ShellFleet.Build(config, () => Environment.Exit(0));
 
         Console.WriteLine(
-            $"Agent Grid Shell Host — {config.Servers.Count(server => server.Enabled)} server(s)");
+            $"Agent Grid Shell Host — {config.Servers.Count(server => server.IsUsable)} server(s)");
         await root.StartAsync().ConfigureAwait(false);
 
         using var healthTimer = new PeriodicTimer(

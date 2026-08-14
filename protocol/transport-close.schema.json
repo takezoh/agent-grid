@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-grid.dev/schema/transport-close.schema.json",
+  "title": "TransportClose",
+  "description": "Why the server ended a client connection. One closed vocabulary spans both sides of the WebSocket upgrade: after the upgrade it is carried in the close frame's reason slot and in the departure control frame; before the upgrade — where no close frame exists — it is carried in the JSON rejection body's code field.",
+  "type": "object",
+  "$defs": {
+    "closeReason": {
+      "title": "TransportCloseReason",
+      "description": "The closed vocabulary. A client-side sentinel for a departure that carried nothing is deliberately absent: by construction nothing arrives, so it cannot be a server value, and making it one would invite a server to send it. A departure carrying no reason is an unattributed loss the client classifies locally and never dresses as one of these.",
+      "type": "string",
+      "enum": [
+        "going_away",
+        "backend_unavailable",
+        "unauthenticated",
+        "incompatible_protocol",
+        "capacity",
+        "invalid_request",
+        "internal_error"
+      ]
+    },
+    "departureControlFrame": {
+      "title": "DepartureControlFrame",
+      "description": "The application-level half of the two-step close adr-20260624-0011 established: sent whenever the connection is still writable, immediately before the close frame, carrying the same reason. This is the first published shape of the {\"k\":\"c\"} frame; before it, the June ADR recorded the cause as a string in `code` while the implementation put it in `data` and left `code` an always-omitted int, and nothing could catch the divergence.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["k", "reason"],
+      "properties": {
+        "k": {
+          "const": "c"
+        },
+        "reason": {
+          "$ref": "#/$defs/closeReason"
+        },
+        "data": {
+          "description": "Pre-taxonomy free-form payload, retained verbatim so shipped clients that match literals against it keep working. Not a vocabulary: new readers use `reason`.",
+          "type": "string"
+        },
+        "code": {
+          "description": "Legacy numeric slot. Always absent in production — every call site passes 0 and the encoder omits it. Retained only because the encoder can still emit it.",
+          "type": "integer"
+        },
+        "sessionId": {
+          "description": "Routing for server-initiated surface severance. Absent on connection-level departures.",
+          "type": "string"
+        }
+      }
+    },
+    "preUpgradeRejection": {
+      "title": "PreUpgradeRejection",
+      "description": "A rejection that happens before websocket.Accept cannot carry a close reason, so it carries the same vocabulary in its body. This is what makes a rejected credential distinguishable from a dropped connection, which are both a failed handshake to a client that has nothing to read.",
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["code"],
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/closeReason"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "properties": {
+    "reason": {
+      "$ref": "#/$defs/closeReason"
+    }
+  }
+}

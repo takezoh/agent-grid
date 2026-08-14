@@ -70,7 +70,7 @@ type CreateSessionReply struct {
 
 func reduceSpawnFailed(s State, e EvSpawnFailed) (State, []Effect) {
 	var effs []Effect
-	if next, evictEffs, ok := evictFrame(s, e.FrameID, false); ok {
+	if next, evictEffs, ok := evictFrame(s, e.FrameID, false, dropUnstartedSession); ok {
 		s = next
 		effs = evictEffs
 	}

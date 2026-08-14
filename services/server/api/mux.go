@@ -188,22 +188,39 @@ func newMux(d *DaemonClient, token string, noAuth bool, dependencies muxDependen
 	// The WebSocket attach endpoint authenticates with a single-use ticket (a
 	// browser WebSocket cannot carry an Authorization header), never the bearer
 	// token, so the token never appears in a URL.
+	// A rejection here happens before websocket.Accept, so it cannot carry a
+	// close reason. It carries the same published vocabulary in its JSON body
+	// instead, which is what separates a rejected credential from a dropped
+	// connection — both of which are otherwise just a failed handshake
+	// (protocol/transport-close.schema.json).
 	mux.HandleFunc("GET /ws", func(w http.ResponseWriter, r *http.Request) {
 		if !d.Health() {
-			http.Error(w, "daemon unavailable", http.StatusServiceUnavailable)
+			writeTransportRejection(w, http.StatusServiceUnavailable,
+				CloseBackendUnavailable, "daemon unavailable")
 			return
 		}
+		version, supplied, versionOK := wsProtocolVersion(r)
 		var clientInstanceID string
 		if !noAuth {
+			// The ticket was minted over the version-gated REST API, so a
+			// mismatched build cannot hold one. A version supplied here is
+			// still checked, so a mismatch is named rather than ignored.
+			if supplied && !versionOK {
+				writeProtocolVersionError(w, version)
+				return
+			}
 			ci, ok := tickets.consume(r.URL.Query().Get("ticket"))
 			if !ok {
 				w.Header().Set("WWW-Authenticate", "Bearer")
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				writeTransportRejection(w, http.StatusUnauthorized,
+					CloseUnauthenticated, "missing, unknown, already-used or expired ticket")
 				return
 			}
 			clientInstanceID = ci
 		} else {
-			if version, ok := noAuthWSProtocolVersion(r); !ok {
+			// No-auth mode has no ticket mint to gate the version, so the
+			// upgrade itself must require one.
+			if !versionOK {
 				writeProtocolVersionError(w, version)
 				return
 			}

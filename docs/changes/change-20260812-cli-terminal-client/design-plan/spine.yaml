@@ -1,0 +1,1417 @@
+artifact: design-plan-spine
+version: 2
+granularity_profile: algorithm-bound
+
+requirements:
+- id: fr-001
+  type: invariant
+  priority: must
+  statement: The CLI shall not emit a session-termination request on any code path other than the explicit terminate command, including detach, Ctrl-C, terminal close, stdin EOF, catchable signals, uncatchable process kill, WebSocket close, and post-raw-mode auth or protocol failure.
+- id: fr-002
+  type: invariant
+  priority: must
+  statement: While the CLI holds raw mode, the CLI shall restore the invoking terminal's echo and line editing before the process exits, suspends, or returns control to the shell, on every exit path.
+- id: fr-003
+  type: invariant
+  priority: must
+  statement: The CLI shall not create, modify, or delete any file under the client configuration directory or under the daemon data directory.
+- id: fr-004
+  type: event
+  priority: must
+  statement: When attach is invoked and stdin is not a terminal, the CLI shall not apply any terminal mode change to the controlling terminal, shall not open a surface subscription, and shall exit with the non-TTY failure class and a non-zero code.
+- id: fr-005
+  type: state
+  priority: must
+  statement: While attached, the CLI shall deliver every stdin byte to the remote PTY in read order without local echo, forwarding Ctrl-C as 0x03 rather than taking it as a local interrupt.
+- id: fr-006
+  type: state
+  priority: must
+  statement: The CLI shall not place a partial UTF-8 sequence in a surface input frame, and shall hold an incomplete trailing sequence until the remaining bytes are read or the input stream ends.
+- id: fr-007
+  type: event
+  priority: must
+  statement: When a surface subscription is established, the CLI shall write the first output payload it receives to stdout before any subsequent payload, so the session's current screen appears without local reconstruction.
+- id: fr-008
+  type: state
+  priority: must
+  statement: The CLI shall base64-decode surface output payloads to raw bytes and write those bytes to stdout unmodified, and shall not parse, render, or re-encode terminal escape sequences.
+- id: fr-009
+  type: invariant
+  priority: must
+  statement: The CLI shall drop every surface output frame whose carried session id differs from the attached session id.
+- id: fr-010
+  type: event
+  priority: must
+  statement: When the detach key byte is consumed, the CLI shall discard every subsequent input byte, shall discard the terminal input queue before restoring cooked mode, and shall not forward any of those bytes to the remote PTY.
+- id: fr-011
+  type: state
+  priority: must
+  statement: The CLI shall treat exactly the configured detach byte as the detach trigger and shall forward every other byte, including the default 0x1D when it is not configured as the trigger, to the remote PTY.
+- id: fr-012
+  type: state
+  priority: must
+  statement: The CLI shall declare its terminal geometry when the subscription is established and shall forward every subsequent local size change, clamping columns and rows into the accepted range before sending.
+- id: fr-013
+  type: state
+  priority: must
+  statement: While attached, the CLI shall renew its terminal lifecycle lease on a schedule that cannot be delayed by stdout write backpressure or by surface output volume.
+- id: fr-014
+  type: event
+  priority: must
+  statement: When the CLI leaves the attached state, it shall restore the terminal first and then present a reason that distinguishes explicit detach, transport loss, and server-side session end from one another.
+- id: fr-015
+  type: ubiquitous
+  priority: must
+  statement: The CLI shall list sessions from every enabled configured server, shall not filter by creator, and shall not itself remove or hide any session the server publishes, including sessions whose lifecycle state indicates they have ended.
+- id: fr-016
+  type: event
+  priority: must
+  statement: When one or more configured servers are unreachable or protocol-incompatible, the CLI shall still present the sessions of the healthy servers and shall present the connection-side condition in a vocabulary disjoint from session lifecycle state.
+- id: fr-017
+  type: invariant
+  priority: must
+  statement: The CLI shall derive every session state label and the precedence used to collapse simultaneous conditions from the checked-in shared status display matrix, and shall not introduce a CLI-specific state word.
+- id: fr-018
+  type: state
+  priority: must
+  statement: The CLI shall render the session display name as the server-provided card title verbatim, with no client-side fallback, derivation, or truncation.
+- id: fr-019
+  type: invariant
+  priority: must
+  statement: The CLI shall present the owning server on every session row, shall emit server identity and session identity as separate machine-readable fields, and shall not emit any single concatenated identifier as the only way to name a session.
+- id: fr-020
+  type: state
+  priority: must
+  statement: The CLI shall resolve a session selector only under an explicitly declared selector kind, shall never fall back to another kind, and shall present mutually distinguishable candidates with a non-zero exit and no side effect when more than one session matches.
+- id: fr-021
+  type: state
+  priority: must
+  statement: The CLI shall accept a server qualifier supplied independently of the selector string, accepting both the user-configured display name and the derived stable server identifier as its value.
+- id: fr-022
+  type: event
+  priority: must
+  statement: When session creation is invoked without an explicit target server, the CLI shall create no session and shall exit with the usage-error class, regardless of how many servers are configured or reachable.
+- id: fr-023
+  type: event
+  priority: must
+  statement: When explicit terminate is invoked, the CLI shall report success only after the server has acknowledged that the termination was applied, shall exit non-zero when the request was rejected, and shall leave the target's observable state unchanged in that case.
+- id: fr-024
+  type: ubiquitous
+  priority: must
+  statement: The CLI shall exit 0 on success, 1 on an internal fault, 2 on a usage error, 3 on not-found, 4 on an ambiguous selector, 5 on an authentication-or-compatibility failure, and 6 on a transport failure; shall reproduce the same output and exit code for the same input; and shall classify both a selector that matches only on an unreachable server and a capacity refusal of attach establishment as transport failure, separating the latter by its stated reason.
+- id: fr-025
+  type: ubiquitous
+  priority: must
+  statement: The CLI shall produce identical output content and exit codes for the same input whether or not stdout is a terminal, and shall not add a confirmation prompt or a candidate-selection prompt in any environment.
+- id: fr-026
+  type: invariant
+  priority: must
+  statement: The execution plane shall keep a session observable with a terminal lifecycle state after it ends by explicit termination, by clean or signalled self-exit, or by its backend frame vanishing, and shall publish that transition on the lifecycle socket; the CLI shall never reconstruct that observation from local memory.
+- id: fr-027
+  type: invariant
+  priority: must
+  statement: The CLI shall not place the bearer credential, a minted WebSocket ticket, or any URL carrying either into a failure reason, a diagnostic line, a log, or a process argument.
+- id: fr-028
+  type: event
+  priority: must
+  statement: When a client host loads a configuration entry whose display name duplicates another entry's or falls outside the declared CLI-safe character set, it shall start, shall place that entry and every entry it collides with in the configuration-invalid admission state, shall not connect to any of them, and shall not rename, normalise, deduplicate, or silently drop any of them.
+- id: fr-029
+  type: event
+  priority: must
+  statement: When a server-qualifier value matches configured entries of which every match is unusable, the CLI shall exit with the usage-error class naming each matching entry and the rule it violates; when more than one usable entry matches, the CLI shall present those entries as mutually distinguishable candidates and exit with the ambiguous-selector class without selecting one; and it shall report neither case as not-found nor as a transport failure.
+- id: fr-030
+  type: event
+  priority: must
+  statement: When a client host loads a client configuration whose entry list is readable, it shall start and admit every entry independently, placing each entry that violates a per-entry rule — and every member of a colliding group — in the configuration-invalid admission state rather than refusing the whole configuration; it shall stop at load only when the entry list itself cannot be read.
+- id: fr-031
+  type: state
+  priority: must
+  statement: The CLI shall present every configured server entry including entries in the configuration-invalid admission state, shall express configuration invalidity in a vocabulary disjoint from both server reachability and session lifecycle state, and shall name each such entry by its position in the entry list and by its display name as written together with the rule it violates.
+- id: fr-032
+  type: invariant
+  priority: must
+  statement: Every server-initiated close of a client socket shall carry a reason drawn from a closed published vocabulary, and the CLI shall derive both its transport failure classification and its presented reason from that value rather than from the close code alone or from a client-authored string.
+- id: nfr-001
+  type: compatibility
+  priority: must
+  statement: The CLI shall carry exactly one compiled protocol version, shall treat any difference, absence, or malformation as incompatible protocol, and shall not enter any operational REST handler or WebSocket application frame for that server.
+- id: nfr-002
+  type: invariant
+  priority: must
+  statement: The CLI module shall not require, replace, or import the repository's services module, and this shall be enforced by the module graph rather than by review.
+- id: nfr-003
+  type: portability
+  priority: must
+  statement: The CLI shall resolve its configuration directory to the same location the existing client hosts use on the same platform, and shall accept the same explicit directory override.
+- id: nfr-004
+  type: invariant
+  priority: must
+  statement: The CLI shall not persist, reconstruct, or replay terminal screen state; the subscribe-time snapshot delivered by the execution plane shall be the only recovery mechanism.
+- id: nfr-005
+  type: maintainability
+  priority: must
+  statement: The CLI module shall be registered in the repository's build, test, vet, lint, verification-profile, and protocol-version-projection entry points at introduction time.
+- id: nfr-006
+  type: invariant
+  priority: must
+  statement: The CLI shall not present any indication of other clients attached to the same session.
+- id: nfr-007
+  type: invariant
+  priority: must
+  statement: Server-qualified session identity construction and outbound frame serialization shall each have exactly one owning package inside the CLI module, enforced by a test that fails when another package performs either.
+- id: nfr-008
+  type: compatibility
+  priority: must
+  statement: The session payload fields the CLI reads shall be pinned by a checked-in golden vector that the server's own serialization is tested against, so that renaming or moving one of those fields fails a repository gate.
+- id: nfr-009
+  type: compatibility
+  priority: must
+  statement: The client configuration contract shall have exactly one loader implementation per client language, and the accept-or-reject decision, the per-entry admission state, the canonical URL and the derived server identifier produced by the Go, TypeScript and C# loaders shall be pinned to one shared fixture corpus in which every fixture carries its own expected outcome.
+
+components:
+- id: comp-entry
+  kind: planned
+  contract_refs: [contract-exit-classification, contract-module-boundary]
+  paths: [clients/cli/cmd/agent-grid/main.go, clients/cli/internal/app/]
+- id: comp-goclient-config
+  kind: planned
+  contract_refs: [contract-config-and-fleet-identity, contract-client-config-parity, contract-server-naming-prerequisite, contract-config-entry-admission]
+  paths: [clients/goclient/go.mod, clients/goclient/clientconfig/]
+- id: comp-fleet
+  kind: planned
+  contract_refs: [contract-protocol-admission, contract-discovery-projection]
+  paths: [clients/cli/internal/fleet/]
+- id: comp-transport
+  kind: planned
+  contract_refs: [contract-protocol-admission, contract-attach-transport-topology, contract-exit-classification]
+  paths: [clients/cli/internal/gateway/client.go, clients/cli/internal/gateway/auth.go]
+- id: comp-wire
+  kind: planned
+  contract_refs: [contract-wire-shape-conformance, contract-identity-single-origin, contract-input-passthrough, contract-output-passthrough]
+  paths: [clients/cli/internal/gateway/wire.go, clients/cli/internal/gateway/identity.go]
+- id: comp-selector
+  kind: planned
+  contract_refs: [contract-selector-resolution, contract-server-naming-prerequisite]
+  paths: [clients/cli/internal/selector/]
+- id: comp-view
+  kind: planned
+  contract_refs: [contract-discovery-projection, contract-status-vocabulary]
+  paths: [clients/cli/internal/view/]
+- id: comp-attach
+  kind: planned
+  contract_refs: [contract-attach-transport-topology, contract-attach-lease-progress, contract-detach-boundary, contract-input-passthrough, contract-output-passthrough, contract-geometry-propagation, contract-exit-classification]
+  paths: [clients/cli/internal/attach/]
+- id: comp-tty
+  kind: planned
+  contract_refs: [contract-terminal-mode-lifecycle, contract-geometry-propagation]
+  paths: [clients/cli/internal/tty/]
+- id: comp-lifecycle
+  kind: planned
+  contract_refs: [contract-create-and-attach, contract-explicit-terminate, contract-identity-single-origin]
+  paths: [clients/cli/internal/lifecycle/]
+- id: comp-fakegateway
+  kind: planned
+  contract_refs: [contract-external-dependency-registration]
+  paths: [clients/cli/internal/gateway/fakegateway/]
+- id: comp-config-contract
+  kind: existing
+  contract_refs: [contract-config-and-fleet-identity, contract-client-config-parity, contract-server-naming-prerequisite, contract-config-entry-admission]
+  paths:
+  - clients/config/servers.schema.json
+  - clients/config/README.md
+  - clients/config/fixtures
+  - clients/web-host/internal/clientconfig/config.go
+  - clients/web-host/internal/clientconfig/projection.go
+  - clients/workspace/src/main/desktop-config.ts
+  - clients/windows-shell/AgentGrid.Shell.Core/Configuration/DesktopConfig.cs
+- id: comp-gateway-transport
+  kind: existing
+  contract_refs: [contract-transport-close-taxonomy]
+  paths:
+  - services/server/api/gateway.go
+  - services/server/api/mux.go
+  - services/server/api/auth.go
+  - services/server/api/protocol_version.go
+  - services/server/api/push_wire.go
+  - protocol/events.schema.json
+- id: comp-execution-plane-lifecycle
+  kind: existing
+  contract_refs: [contract-session-terminal-state-retention]
+  paths:
+  - services/host/state/reduce_session.go
+  - services/host/state/reduce_frame_evict.go
+  - services/host/state/reduce_tick.go
+  - services/host/state/view/status.go
+  - services/server/api/gateway.go
+- id: comp-enforcement
+  kind: existing
+  contract_refs: [contract-module-boundary, contract-external-dependency-registration, contract-protocol-admission, contract-wire-shape-conformance]
+  paths:
+  - Makefile
+  - test-harness/profiles.json
+  - test-harness/dependencies.json
+  - services/gorules/static_enforcement_test.go
+  - protocol/session-status-display.json
+
+contracts:
+- id: contract-attach-transport-topology
+  dimension: transport-topology
+  owner: comp-attach
+  requirement_refs: [fr-007, fr-009, fr-014, nfr-006]
+  unit_refs: [unit-attach-runtime, unit-wire-codec, unit-transport-admission, unit-phase0-contract-pin]
+  adr_refs: [adr-cli-attach-via-lifecycle-multiplexed-ws, adr-transport-close-reason-taxonomy]
+  partition:
+    outcomes: [determinate, unknown, inconclusive, conflicting]
+    default_policy: A subscription outcome of accepted or waiting is non-terminal and must never be reported as established; absence of a terminal outcome before the apply deadline is unknown and fails attach without touching the terminal; a subscribe-time capacity refusal is inconclusive, arrives on an open socket as an error frame carrying the code resource_exhausted, exits with the transport code, and presents that code as its reason rather than a client-authored capacity sentence; a connection-level refusal or departure is inconclusive and takes its reason from contract-transport-close-taxonomy, so a capacity refusal, a going-away shutdown and an unexplained loss are never presented alike.
+  verification:
+  - id: ver-attach-topology-snapshot-two-clients
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestConcurrentAttachEachReceivesSnapshot
+  - id: ver-attach-capacity-refusal-is-transport-with-the-published-reason
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestCapacityRefusalExitsTransportWithThePublishedReason
+  - id: ver-attach-topology-no-per-session-route
+    tier: T2
+    command: cd clients/cli && GOWORK=off go test ./internal/gateway/ -run TestAttachNeverUsesPerSessionRoute
+  - id: ver-attach-never-reports-accepted-as-established
+    tier: T0
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestNonTerminalOutcomesAreNotEstablished
+- id: contract-attach-lease-progress
+  dimension: progress-bound
+  owner: comp-attach
+  requirement_refs: [fr-013, fr-001]
+  unit_refs: [unit-attach-runtime]
+  verification:
+  - id: ver-lease-renews-under-stdout-backpressure
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestLeaseRenewsWhileStdoutBlocked
+  - id: ver-lease-revision-monotonic
+    tier: T0
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestLeaseRevisionIsMonotonic
+  discretion:
+  - id: discretion-pump-goroutine-topology
+    unit_ref: unit-attach-runtime
+    question: How are the input pump, output pump, and lease renewal arranged across goroutines and channels?
+    scope:
+      files: [clients/cli/internal/attach/pump.go, clients/cli/internal/attach/runtime.go]
+      component: comp-attach
+      visibility: private
+    constraints:
+    - Lease renewal must not be sequenced behind a stdout write.
+    - Exactly one code path may restore the terminal.
+    escalate_when:
+    - Only a topology in which renewal depends on output progress can be made to work.
+    - More than one code path ends up able to restore the terminal.
+    - Cancellation requires a change to the gateway frame vocabulary.
+    preserves:
+      contract_refs: [contract-attach-lease-progress, contract-terminal-mode-lifecycle]
+      invariant_refs: [fr-002, fr-013]
+    verification_refs: [ver-lease-renews-under-stdout-backpressure]
+    difficulty_inputs:
+      decision_reasoning: local_tradeoff
+      boundary_reach: private
+      context_scope: files
+      reversibility: bounded
+      verification_strength: discriminating
+      runtime_risk: concurrency
+      coupling: coupled_within_unit
+      grounding: evidenced
+- id: contract-terminal-mode-lifecycle
+  dimension: resource-lifecycle
+  owner: comp-tty
+  requirement_refs: [fr-002, fr-004, fr-001]
+  unit_refs: [unit-tty-adapter, unit-attach-runtime, unit-platform-hardening-spikes]
+  adr_refs: [adr-cli-raw-mode-critical-section]
+  verification:
+  - id: ver-restore-on-every-exit-path
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestTerminalRestoredOnEveryExitPath
+  - id: ver-pre-subscribe-failure-leaves-terminal-untouched
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestPreSubscribeFailureNeverTouchesTerminal
+  - id: ver-restore-is-idempotent
+    tier: T0
+    command: cd clients/cli && GOWORK=off go test ./internal/tty/ -run TestRestoreIsIdempotent
+  - id: ver-non-tty-stdin-fails-without-mode-change
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestNonTTYStdinFailsWithoutModeChange
+- id: contract-detach-boundary
+  dimension: failure-semantics
+  owner: comp-attach
+  requirement_refs: [fr-010, fr-011, fr-001]
+  unit_refs: [unit-attach-runtime, unit-tty-adapter, unit-platform-hardening-spikes]
+  adr_refs: [adr-cli-raw-mode-critical-section]
+  verification:
+  - id: ver-post-detach-bytes-surface-nowhere
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestBytesAfterDetachKeySurfaceNowhere
+  - id: ver-input-queue-flushed-before-restore
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestInputQueueFlushedBeforeRestore
+  - id: ver-configured-detach-byte-only
+    tier: T0
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestOnlyConfiguredDetachByteTriggersDetach
+  - id: ver-detach-sends-no-terminate
+    tier: T2
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestNoTerminateRequestOnAnyAttachShutdownPath
+- id: contract-input-passthrough
+  dimension: data-fidelity
+  owner: comp-attach
+  requirement_refs: [fr-005, fr-006]
+  unit_refs: [unit-attach-runtime, unit-wire-codec]
+  verification:
+  - id: ver-utf8-sequence-never-split
+    tier: T0
+    command: cd clients/cli && GOWORK=off go test ./internal/gateway/ -run TestInputFramesNeverSplitUTF8
+  - id: ver-input-fuzz-order-and-bytes
+    tier: T2
+    command: cd clients/cli && GOWORK=off go test ./internal/gateway/ -run FuzzInputFraming
+  - id: ver-ctrl-c-forwarded-as-0x03
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestCtrlCForwardedNotTrapped
+  discretion:
+  - id: discretion-input-read-buffering
+    unit_ref: unit-attach-runtime
+    question: What stdin read buffer size and frame-coalescing granularity are used?
+    scope:
+      files: [clients/cli/internal/attach/input.go]
+      component: comp-attach
+      visibility: private
+    constraints:
+    - No frame may contain a partial UTF-8 sequence.
+    - Read order must be preserved across coalescing.
+    - The detach byte split position must be honoured before coalescing.
+    escalate_when:
+    - Preserving UTF-8 boundaries requires relaxing the boundary rule.
+    - The server turns out to bound the byte count per input frame.
+    - Coalescing changes observable input ordering.
+    preserves:
+      contract_refs: [contract-input-passthrough, contract-detach-boundary]
+      invariant_refs: [fr-005, fr-006]
+    verification_refs: [ver-utf8-sequence-never-split, ver-input-fuzz-order-and-bytes]
+    difficulty_inputs:
+      decision_reasoning: mechanical
+      boundary_reach: private
+      context_scope: files
+      reversibility: trivial
+      verification_strength: discriminating
+      runtime_risk: normal
+      coupling: coupled_within_unit
+      grounding: evidenced
+- id: contract-output-passthrough
+  dimension: data-fidelity
+  owner: comp-attach
+  requirement_refs: [fr-007, fr-008, fr-009, nfr-004]
+  unit_refs: [unit-attach-runtime, unit-wire-codec]
+  verification:
+  - id: ver-output-bytes-are-byte-faithful
+    tier: T0
+    command: cd clients/cli && GOWORK=off go test ./internal/gateway/ -run TestSurfaceOutputDecodesToExactBytes
+  - id: ver-foreign-session-output-dropped
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestForeignSessionOutputNeverReachesStdout
+  - id: ver-first-payload-written-first
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestSubscribeSnapshotWrittenBeforeLiveOutput
+- id: contract-wire-shape-conformance
+  dimension: integration-contract
+  owner: comp-wire
+  requirement_refs: [nfr-008, fr-018]
+  unit_refs: [unit-wire-codec, unit-phase0-contract-pin]
+  adr_refs: [adr-cli-sessioninfo-golden-vector-conformance]
+  verification:
+  - id: ver-server-serialization-matches-golden-vector
+    tier: T2
+    command: cd services && GOWORK=off go test ./host/state/view/ -run TestSessionInfoGoldenVectorIsStable
+  - id: ver-cli-decodes-the-same-golden-vector
+    tier: T0
+    command: cd clients/cli && GOWORK=off go test ./internal/gateway/ -run TestDecodesCheckedInSessionInfoGoldenVector
+  - id: ver-golden-vector-renaming-fails-a-gate
+    tier: T2
+    command: cd services && GOWORK=off go test ./gorules/ -run TestSessionInfoGoldenVectorIsRegistered
+- id: contract-identity-single-origin
+  dimension: ownership
+  owner: comp-wire
+  requirement_refs: [nfr-007, fr-019]
+  unit_refs: [unit-wire-codec, unit-lifecycle-commands]
+  verification:
+  - id: ver-identity-construction-has-one-owner
+    tier: T2
+    command: cd clients/cli && GOWORK=off go test ./internal/gateway/ -run TestServerQualifiedIdentityHasExactlyOneConstructor
+  - id: ver-outbound-serialization-has-one-owner
+    tier: T2
+    command: cd clients/cli && GOWORK=off go test ./internal/gateway/ -run TestOutboundFrameSerializationHasExactlyOneSite
+  - id: ver-ownership-gate-fails-on-synthesized-violation
+    tier: T2
+    command: cd clients/cli && GOWORK=off go test ./internal/gateway/ -run TestIdentityOwnershipGateFailsOnInjectedSecondOwner
+- id: contract-geometry-propagation
+  dimension: state-propagation
+  owner: comp-attach
+  requirement_refs: [fr-012]
+  unit_refs: [unit-attach-runtime, unit-tty-adapter, unit-platform-hardening-spikes]
+  verification:
+  - id: ver-initial-geometry-is-first-frame
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestGeometryDeclaredAtSubscribe
+  - id: ver-geometry-clamped-into-range
+    tier: T0
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestGeometryClampedBeforeSend
+  - id: ver-resize-burst-coalesces-to-latest
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestResizeBurstCoalescesToLatestValue
+- id: contract-exit-classification
+  dimension: failure-semantics
+  owner: comp-entry
+  requirement_refs: [fr-014, fr-024, fr-025, fr-027, fr-029, fr-032]
+  unit_refs: [unit-attach-runtime, unit-module-skeleton, unit-selector, unit-transport-admission, unit-phase0-contract-pin]
+  adr_refs: [adr-cli-failure-class-exit-codes, adr-transport-close-reason-taxonomy]
+  partition:
+    outcomes: [determinate, inconclusive]
+    default_policy: A departure is determinate when it carries a published transport close reason, a locally observed detach byte, or a published session-end transition, and the class follows the value rather than a client guess — unauthenticated and incompatible_protocol exit 5, capacity and going_away and backend_unavailable exit 6, invalid_request exits 1, and a qualifier naming only unusable configuration entries exits 2; a departure carrying no reason at all is inconclusive, is presented as an unattributed transport loss, and is never presented as not-found, as a clean detach, or as one of the named reasons.
+  verification:
+  - id: ver-departure-classes-follow-the-published-reason
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestDepartureReasonsFollowThePublishedCloseReason
+  - id: ver-exit-codes-match-the-fixed-assignment
+    tier: T0
+    command: cd clients/cli && GOWORK=off go test ./internal/app/ -run TestFailureClassesMapToTheFixedExitCodes
+  - id: ver-tty-and-non-tty-identical
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/app/ -run TestInteractiveAndPipedInvocationsAgree
+  - id: ver-credential-never-reaches-diagnostics
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/app/ -run TestAuthFailureDiagnosticsCarryNoCredentialTicketOrURL
+- id: contract-transport-close-taxonomy
+  dimension: contract-evolution
+  owner: comp-gateway-transport
+  requirement_refs: [fr-032, fr-014, fr-024]
+  unit_refs: [unit-transport-close-taxonomy-prerequisite, unit-transport-admission, unit-attach-runtime]
+  adr_refs: [adr-transport-close-reason-taxonomy]
+  partition:
+    outcomes: [determinate, unknown, inconclusive]
+    default_policy: A departure the server initiated is determinate and carries exactly one reason from the published closed vocabulary, delivered in the close frame's reason slot and, whenever the connection is still writable, in a control frame first; a rejection that happens before the socket is accepted is determinate and carries the same vocabulary in the JSON error body's code field, because a pre-upgrade rejection cannot carry a close reason; a departure that carries no reason is inconclusive, is the only case a client may classify locally, and is presented as an unattributed loss rather than being guessed into one of the named reasons; a reason outside the vocabulary is unknown, is rejected by the decoder, and is never presented as a known cause.
+  verification:
+  - id: ver-every-server-initiated-close-carries-a-published-reason
+    tier: T1
+    command: cd services && GOWORK=off go test ./server/api/ -run TestEveryServerInitiatedCloseCarriesAPublishedReason
+  - id: ver-pre-upgrade-rejections-carry-the-same-vocabulary
+    tier: T1
+    command: cd services && GOWORK=off go test ./server/api/ -run TestTicketAndVersionRejectionsCarryTheSameReasonVocabulary
+  - id: ver-close-reason-vocabulary-is-closed-and-registered
+    tier: T2
+    command: cd services && GOWORK=off go test ./gorules/ -run TestTransportCloseReasonVocabularyIsRegisteredAndExhaustive
+  - id: ver-cli-maps-each-close-reason-to-its-exit-class
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestEachPublishedCloseReasonMapsToItsExitClass
+- id: contract-protocol-admission
+  dimension: compatibility
+  owner: comp-transport
+  requirement_refs: [nfr-001, fr-016, nfr-005]
+  unit_refs: [unit-transport-admission, unit-fleet-reachability, unit-module-skeleton]
+  partition:
+    outcomes: [determinate, unknown, inconclusive]
+    default_policy: Any version that is not byte-equal to the compiled version, including missing and malformed values, is incompatible protocol; no operational work is attempted for that server and no other server's result is affected.
+  verification:
+  - id: ver-mismatch-blocks-operational-work
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/gateway/ -run TestMismatchedServerPerformsNoOperationalWork
+  - id: ver-mismatch-does-not-disable-peers
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/fleet/ -run TestOneMismatchedServerDoesNotDisableOthers
+  - id: ver-version-projection-registered
+    tier: T2
+    command: cd services && GOWORK=off go test ./gorules/ -run TestProtocolVersionManifestMatchesEveryShippedProjection
+- id: contract-config-and-fleet-identity
+  dimension: configuration-and-identity
+  owner: comp-config-contract
+  requirement_refs: [fr-003, fr-019, fr-021, fr-022, nfr-003]
+  unit_refs: [unit-shared-goclient-config, unit-client-config-parity]
+  adr_refs: [adr-shared-go-client-config-module]
+  verification:
+  - id: ver-every-go-host-loads-through-one-owner
+    tier: T2
+    command: cd services && GOWORK=off go test ./gorules/ -run TestClientConfigHasExactlyOneLoaderPerLanguage
+  - id: ver-server-id-digest-golden-vector
+    tier: T0
+    command: cd clients/goclient && GOWORK=off go test ./clientconfig/ -run TestServerIdMatchesCrossLanguageGoldenVector
+  - id: ver-config-never-written-and-directory-per-platform
+    tier: T2
+    command: cd clients/goclient && GOWORK=off go test ./clientconfig/ -run 'TestConfigDirectoryMatchesExistingHostsPerPlatform|TestConfigDirectoryIsNeverWritten'
+  - id: ver-default-execution-never-infers-a-create-target
+    tier: T0
+    command: cd clients/cli && GOWORK=off go test ./internal/lifecycle/ -run TestDefaultExecutionIsNeverReadAsACreateTarget
+- id: contract-client-config-parity
+  dimension: cross-language-conformance
+  owner: comp-config-contract
+  requirement_refs: [nfr-009, nfr-003, fr-021]
+  unit_refs: [unit-client-config-parity, unit-shared-goclient-config, unit-server-naming-contract]
+  adr_refs: [adr-shared-go-client-config-module]
+  verification:
+  - id: ver-expected-outcome-corpus-agrees-in-three-languages
+    tier: T1
+    command: ./scripts/run-verification-profile.sh pr schema
+  - id: ver-go-loader-matches-the-expected-outcome-corpus
+    tier: T1
+    command: cd clients/goclient && GOWORK=off go test ./clientconfig/ -run TestExpectedOutcomeCorpus
+  - id: ver-corpus-covers-every-per-entry-and-file-level-rule
+    tier: T2
+    command: cd clients/goclient && GOWORK=off go test ./clientconfig/ -run TestExpectedOutcomeCorpusCoversEveryDeclaredRule
+  - id: ver-measured-divergences-are-closed-by-the-corpus
+    tier: T1
+    command: cd clients/goclient && GOWORK=off go test ./clientconfig/ -run 'TestUnknownFieldIsRejected|TestUrlCredentialsAreRejectedNotStripped'
+- id: contract-config-entry-admission
+  dimension: configuration-admission
+  owner: comp-config-contract
+  requirement_refs: [fr-030, fr-028, fr-031]
+  unit_refs: [unit-server-naming-contract, unit-fleet-reachability, unit-discovery-render]
+  adr_refs: [adr-server-display-name-naming-contract]
+  partition:
+    outcomes: [determinate, conflicting, inconclusive]
+    default_policy: An entry that satisfies every per-entry rule is determinate and usable; an entry that violates a rule decidable from that entry alone is determinate and configuration-invalid; a rule violated by a group of entries jointly, such as a duplicated display name or a duplicated URL, is conflicting and makes every member of the group configuration-invalid with no winner chosen; a document whose entry list cannot be read at all — unreadable bytes, content that is not JSON, an absent or non-conforming schema_version, or a servers value that is absent or not an array — is inconclusive, is the only class that stops the host at load, and is reported as a file-level error because no entry can be named.
+  verification:
+  - id: ver-host-starts-and-only-the-offending-entries-are-unusable
+    tier: T1
+    command: cd clients/goclient && GOWORK=off go test ./clientconfig/ -run TestHostStartsAndOnlyOffendingEntriesAreInvalid
+  - id: ver-unreadable-entry-list-still-stops-the-host
+    tier: T0
+    command: cd clients/goclient && GOWORK=off go test ./clientconfig/ -run TestUnreadableEntryListIsAFileLevelStop
+  - id: ver-invalid-entry-is-a-third-vocabulary-in-discovery
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/view/ -run TestConfigurationInvalidIsDisjointFromReachabilityAndLifecycle
+  - id: ver-invalid-entry-is-never-connected-to
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/fleet/ -run TestConfigurationInvalidEntryIsNeverProbed
+- id: contract-server-naming-prerequisite
+  dimension: contract-evolution
+  owner: comp-config-contract
+  requirement_refs: [fr-028, fr-029, fr-021]
+  unit_refs: [unit-server-naming-contract, unit-selector]
+  adr_refs: [adr-server-display-name-naming-contract]
+  partition:
+    outcomes: [determinate, conflicting, inconclusive]
+    default_policy: Resolution runs over every configured entry, not only the usable ones, so a qualifier never reports not-found for a server that is configured. A value matching exactly one usable entry is determinate. A value matching two or more usable entries is conflicting and exits with the ambiguous-selector code without selecting one. A value whose every match is configuration-invalid is inconclusive, exits with the usage-error code, and names each matching entry by its position and written display name together with the rule it violates — unusability outranks ambiguity, because when no candidate can be chosen the only next action is editing the configuration. A stable server identifier resolves to at most one usable entry, since two entries sharing its URL are both configuration-invalid by the duplicate-URL rule.
+  verification:
+  - id: ver-duplicate-display-name-flagged-per-entry-by-every-loader
+    tier: T1
+    command: ./scripts/run-verification-profile.sh pr schema
+  - id: ver-charset-violation-flagged-identically
+    tier: T0
+    command: cd clients/goclient && GOWORK=off go test ./clientconfig/ -run TestDisplayNameCharsetRejection
+  - id: ver-qualifier-precedence-unusable-outranks-ambiguous
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/selector/ -run TestUnusableMatchesExitUsageAndAmbiguousOnlyAppliesToUsableOnes
+  - id: ver-naming-violation-names-the-entry-without-renaming
+    tier: T1
+    command: cd clients/goclient && GOWORK=off go test ./clientconfig/ -run TestNamingViolationReportsOffendingEntryWithoutRenaming
+- id: contract-discovery-projection
+  dimension: presentation-contract
+  owner: comp-view
+  requirement_refs: [fr-015, fr-016, fr-018, fr-019]
+  unit_refs: [unit-discovery-render, unit-fleet-reachability]
+  verification:
+  - id: ver-rows-carry-owning-server
+    tier: T0
+    command: cd clients/cli && GOWORK=off go test ./internal/view/ -run TestEveryRowCarriesItsServer
+  - id: ver-json-separates-unreachable-from-empty
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/view/ -run TestJSONDistinguishesUnreachableFromNoSessions
+  - id: ver-display-name-is-verbatim-card-title
+    tier: T0
+    command: cd clients/cli && GOWORK=off go test ./internal/view/ -run TestDisplayNameIsServerCardTitleVerbatim
+  - id: ver-cli-never-drops-a-published-session
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/view/ -run TestEndedSessionsArePresentedNotFiltered
+  discretion:
+  - id: discretion-table-rendering
+    unit_ref: unit-discovery-render
+    question: What column widths, alignment, and colouring does the human-readable table use?
+    scope:
+      files: [clients/cli/internal/view/table.go]
+      component: comp-view
+      visibility: private
+    constraints:
+    - The display-name column is never truncated, abbreviated, or elided.
+    - The column set and the state label strings must not change.
+    - Output content must not differ between TTY and non-TTY invocations.
+    escalate_when:
+    - A display name is too wide for the terminal and the layout cannot hold it without truncation.
+    - Colouring or width would change output content when stdout is not a terminal.
+    - A column would have to be dropped to fit.
+    preserves:
+      contract_refs: [contract-discovery-projection, contract-status-vocabulary]
+      invariant_refs: [fr-018, fr-025]
+    verification_refs: [ver-display-name-is-verbatim-card-title, ver-rows-carry-owning-server]
+    difficulty_inputs:
+      decision_reasoning: mechanical
+      boundary_reach: private
+      context_scope: files
+      reversibility: trivial
+      verification_strength: discriminating
+      runtime_risk: normal
+      coupling: independent
+      grounding: evidenced
+- id: contract-status-vocabulary
+  dimension: shared-vocabulary
+  owner: comp-view
+  requirement_refs: [fr-017]
+  unit_refs: [unit-status-vocabulary]
+  adr_refs: [adr-cli-status-display-matrix-cli-pinning]
+  verification:
+  - id: ver-matrix-copy-matches-canonical
+    tier: T2
+    command: cd clients/cli && GOWORK=off go test ./internal/view/ -run TestStatusMatrixCopyMatchesRepositoryCanonical
+  - id: ver-precedence-collapses-like-existing-clients
+    tier: T0
+    command: cd clients/cli && GOWORK=off go test ./internal/view/ -run TestStatusPrecedenceMatchesSharedMatrix
+- id: contract-selector-resolution
+  dimension: resolution-semantics
+  owner: comp-selector
+  requirement_refs: [fr-020, fr-021, fr-024]
+  unit_refs: [unit-selector]
+  adr_refs: [adr-cli-selector-kinds-reduced-to-id-and-prefix]
+  partition:
+    outcomes: [determinate, unknown, inconclusive, conflicting]
+    default_policy: Zero matches while at least one configured server is unreachable is inconclusive and is reported as transport failure, never as not-found; two or more matches is conflicting and never auto-selects.
+  verification:
+  - id: ver-declared-kind-decides-resolution
+    tier: T0
+    command: cd clients/cli && GOWORK=off go test ./internal/selector/ -run TestDeclaredKindDecidesResolution
+  - id: ver-qualifier-narrows-cross-server-collision
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/selector/ -run TestServerQualifierNarrowsCollisionByNameAndByStableId
+  - id: ver-unreachable-only-match-is-transport
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/selector/ -run TestUnreachableOnlyMatchIsTransportNotNotFound
+  - id: ver-failure-paths-have-no-side-effect
+    tier: T2
+    command: cd clients/cli && GOWORK=off go test ./internal/selector/ -run TestResolutionFailurePathsHaveNoSideEffect
+- id: contract-create-and-attach
+  dimension: lifecycle-command
+  owner: comp-lifecycle
+  requirement_refs: [fr-022, fr-024]
+  unit_refs: [unit-lifecycle-commands, unit-phase0-contract-pin]
+  partition:
+    outcomes: [determinate, unknown, inconclusive]
+    default_policy: Creation success followed by attach failure is a distinct determinate outcome that must report the created identifier; it is never collapsed into creation failure; a creation with --no-attach is a separate determinate outcome that attempts no attach, reports the identifier, and exits zero, so it is never reported as an attach failure and an attach failure is never reported as it; an unacknowledged creation is unknown and must not report an identifier; an unresolvable agent argument or a stale profile revision fails before any request that could create a session.
+  verification:
+  - id: ver-create-outcomes-are-distinct-observations
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/lifecycle/ -run TestCreateOutcomesAreDistinctObservations
+  - id: ver-create-requires-explicit-server
+    tier: T0
+    command: cd clients/cli && GOWORK=off go test ./internal/lifecycle/ -run TestCreateWithoutQualifierIsUsageErrorAndCreatesNothing
+  - id: ver-unresolvable-agent-creates-no-row
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/lifecycle/ -run TestUnresolvableAgentFailsBeforeAnyCreatingRequest
+  - id: ver-attach-follows-created-identifier
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/lifecycle/ -run TestCreateAttachesToTheSessionItJustCreated
+- id: contract-explicit-terminate
+  dimension: lifecycle-command
+  owner: comp-lifecycle
+  requirement_refs: [fr-001, fr-023]
+  unit_refs: [unit-lifecycle-commands]
+  partition:
+    outcomes: [determinate, unknown, inconclusive]
+    default_policy: Success is reported only on an acknowledgement that the termination was applied; a rejected request exits non-zero and leaves the target's observable state unchanged; an unacknowledged request is unknown and is never reported as success; the report states only what was acknowledged and never asserts a post-termination lifecycle state the CLI has not read back.
+  verification:
+  - id: ver-terminate-affects-only-target
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/lifecycle/ -run TestTerminateAffectsOnlyTheTargetedSession
+  - id: ver-rejected-terminate-exits-nonzero
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/lifecycle/ -run TestRejectedTerminateExitsNonZeroAndLeavesStateUnchanged
+  - id: ver-terminate-report-claims-only-acknowledgement
+    tier: T0
+    command: cd clients/cli && GOWORK=off go test ./internal/lifecycle/ -run TestTerminateReportAssertsNoUnreadLifecycleState
+  - id: ver-terminate-is-the-only-emitter
+    tier: T2
+    command: cd clients/cli && GOWORK=off go test ./internal/ -run TestTerminateRequestHasExactlyOneEmissionSite
+- id: contract-session-terminal-state-retention
+  dimension: contract-evolution
+  owner: comp-execution-plane-lifecycle
+  requirement_refs: [fr-026, fr-015, fr-014]
+  unit_refs: [unit-terminal-state-retention-prerequisite]
+  adr_refs: [adr-cli-session-terminal-state-retention-prerequisite]
+  partition:
+    outcomes: [determinate, unknown, inconclusive]
+    default_policy: A session that ends by explicit termination, by clean or signalled self-exit, or by frame vanish is determinate and is retained with a terminal lifecycle state and published on the lifecycle socket; a session identifier that was never created is unknown and stays not-found; the retention window and its reclamation are bounded by the same durable-snapshot owner, and no client keeps a private record to compensate.
+  verification:
+  - id: ver-explicit-terminate-leaves-a-terminal-row
+    tier: T1
+    command: cd services && GOWORK=off go test ./host/state/ -run TestStopSessionRetainsATerminalRow
+  - id: ver-self-exit-paths-leave-a-terminal-row
+    tier: T1
+    command: cd services && GOWORK=off go test ./host/state/ -run TestIntentionalExitAndFrameVanishRetainATerminalRow
+  - id: ver-terminal-transition-is-published-on-lifecycle
+    tier: T1
+    command: cd services && GOWORK=off go test ./server/api/ -run TestLifecycleSocketPublishesTerminalTransition
+  - id: ver-ended-and-never-existed-are-distinguishable
+    tier: T2
+    command: cd services && GOWORK=off go test ./server/api/ -run TestEndedSessionIsDistinguishableFromUnknownIdentifier
+- id: contract-module-boundary
+  dimension: dependency-direction
+  owner: comp-enforcement
+  requirement_refs: [nfr-002, nfr-005]
+  unit_refs: [unit-module-skeleton]
+  adr_refs: [adr-cli-independent-go-module]
+  verification:
+  - id: ver-no-services-module-edge
+    tier: T2
+    command: cd clients/cli && GOWORK=off go list -deps ./... | grep -q 'takezoh/agent-grid/services' && exit 1 || exit 0
+  - id: ver-cli-registered-in-gates
+    tier: T2
+    command: cd services && GOWORK=off go test ./gorules/ -run TestCLIModuleRegisteredInBuildAndVerificationEntryPoints
+  discretion:
+  - id: discretion-flag-parsing-implementation
+    unit_ref: unit-module-skeleton
+    question: Which flag and subcommand parsing mechanism does the entry point use?
+    scope:
+      files: [clients/cli/internal/app/root.go, clients/cli/internal/app/flags.go]
+      component: comp-entry
+      visibility: private
+    constraints:
+    - The first argument is always a verb; a selector is never accepted positionally.
+    - Usage errors must terminate with exit code 2.
+    escalate_when:
+    - The chosen mechanism decides the usage exit code itself.
+    - The chosen mechanism treats a non-verb first argument as an implicit target.
+    - The chosen mechanism adds a runtime dependency that is not already accepted in the repository.
+    preserves:
+      contract_refs: [contract-exit-classification]
+      invariant_refs: [fr-024, fr-025]
+    verification_refs: [ver-exit-codes-match-the-fixed-assignment]
+    difficulty_inputs:
+      decision_reasoning: local_tradeoff
+      boundary_reach: private
+      context_scope: files
+      reversibility: bounded
+      verification_strength: discriminating
+      runtime_risk: normal
+      coupling: independent
+      grounding: evidenced
+- id: contract-external-dependency-registration
+  dimension: test-harness-admission
+  owner: comp-enforcement
+  requirement_refs: [nfr-005, fr-002, nfr-001]
+  unit_refs: [unit-fake-gateway]
+  verification:
+  - id: ver-dependency-triple-declared
+    tier: T2
+    command: ./scripts/check-harness-dependencies.sh
+  - id: ver-tty-seam-drives-all-exit-paths
+    tier: T1
+    command: cd clients/cli && GOWORK=off go test ./internal/attach/ -run TestFakeTTYDrivesEveryExitPath
+  discretion:
+  - id: discretion-fake-gateway-internals
+    unit_ref: unit-fake-gateway
+    question: Does the fake gateway bind a real HTTP listener or wire handlers in process, and how are frames driven?
+    scope:
+      files: [clients/cli/internal/gateway/fakegateway/fakegateway.go]
+      component: comp-fakegateway
+      visibility: private
+    constraints:
+    - The full admission sequence and every disconnect shape must be drivable deterministically.
+    - Frame shapes must match the real gateway, not a convenient variant.
+    escalate_when:
+    - The fake would need a frame shape the real gateway does not produce.
+    - A fidelity test fails and the temptation is to weaken the assertion instead of fixing the fake.
+    preserves:
+      contract_refs: [contract-external-dependency-registration, contract-attach-transport-topology]
+      invariant_refs: [nfr-001]
+    verification_refs: [ver-dependency-triple-declared]
+    difficulty_inputs:
+      decision_reasoning: local_tradeoff
+      boundary_reach: private
+      context_scope: component
+      reversibility: bounded
+      verification_strength: discriminating
+      runtime_risk: normal
+      coupling: coupled_within_unit
+      grounding: evidenced
+
+adrs:
+- id: adr-cli-independent-go-module
+  status: accepted
+  decision_input_refs: [candidate-cross-platform-terminal-runtime, candidate-existing-public-wire-contract-reuse]
+  status_provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs: ["consultation-20260814-cli-terminal-client-design#batch-accept"]
+    rationale: "実測と上流契約から導かれる design 内部の判断として一括で受理した。"
+    consultation_id: consultation-20260814-cli-terminal-client-design
+- id: adr-cli-attach-via-lifecycle-multiplexed-ws
+  status: accepted
+  decision_input_refs: [candidate-existing-public-wire-contract-reuse, esc-no-presence-field]
+  status_provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs: ["consultation-20260814-cli-terminal-client-design#batch-accept"]
+    rationale: "実測と上流契約から導かれる design 内部の判断として一括で受理した。critique が repository 実測で裏付けており、上流の確定判断を開き直していない。"
+    consultation_id: consultation-20260814-cli-terminal-client-design
+- id: adr-cli-raw-mode-critical-section
+  status: accepted
+  decision_input_refs: [candidate-cross-platform-terminal-runtime, handoff-input-transport-batching]
+  status_provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs: ["consultation-20260814-cli-terminal-client-design#batch-accept"]
+    rationale: "実測と上流契約から導かれる design 内部の判断として一括で受理した。"
+    consultation_id: consultation-20260814-cli-terminal-client-design
+- id: adr-cli-status-display-matrix-cli-pinning
+  status: accepted
+  decision_input_refs: [esc-status-vocabulary, esc-sessioninfo-fields]
+  status_provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs: ["consultation-20260814-cli-terminal-client-design#batch-accept"]
+    rationale: "実測と上流契約から導かれる design 内部の判断として一括で受理した。CLI consumer のみを pin する範囲も維持する。"
+    consultation_id: consultation-20260814-cli-terminal-client-design
+- id: adr-shared-go-client-config-module
+  status: proposed
+  decision_input_refs: [esc-fleet-identity, candidate-fleet-session-identity-reuse, open-shared-go-client-extraction]
+- id: adr-cli-selector-kinds-reduced-to-id-and-prefix
+  status: accepted
+  decision_input_refs: [dh-stable-name-field-unknown]
+  status_provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs: ["consultation-20260814-cli-terminal-client-design#selector-kinds"]
+    rationale: "session に名前を付ける field が実測で存在しないため、v1 の selector は full ID と ID prefix の 2 種に限る。session へ名前を持たせる前提 change は立てない。上流 UX の name-and-short-id-selector-uniqueness-scope (validation_required) は invalidation 側へ確定し、DP-SELECTOR-PRECEDENCE-ORDER の種別明示指定は残る 2 種に対して適用される。"
+    consultation_id: consultation-20260814-cli-terminal-client-design
+- id: adr-cli-failure-class-exit-codes
+  status: proposed
+  decision_input_refs: [handoff-exit-code-numeric-assignment, open-resource-exhausted-failure-class]
+- id: adr-cli-session-terminal-state-retention-prerequisite
+  status: accepted
+  decision_input_refs: [dh-lifecycle-contract-sufficient, open-terminate-observability, evidence-session-end-frame-shape]
+  status_provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs: ["consultation-20260814-cli-terminal-client-design#session-terminal-state-retention"]
+    rationale: "終了した session を terminal lifecycle state 付きで保持し lifecycle socket へ公開する server 側の前提 contract change を採る。これにより確定済み UX の DP-LIST-LIFECYCLE-SCOPE と UAC-029 後半・UAC-007 が 4 終了経路すべてで成立する。保持期間と terminal row の回収者は未確定であり、design 側で決めずに残す。"
+    consultation_id: consultation-20260814-cli-terminal-client-design
+- id: adr-server-display-name-naming-contract
+  status: proposed
+  decision_input_refs: [handoff-server-display-name-naming-contract]
+- id: adr-cli-sessioninfo-golden-vector-conformance
+  status: accepted
+  decision_input_refs: [esc-sessioninfo-fields, candidate-existing-public-wire-contract-reuse]
+  status_provenance:
+    source: user_consultation
+    confidence: confirmed
+    evidence_refs: ["consultation-20260814-cli-terminal-client-design#batch-accept"]
+    rationale: "実測と上流契約から導かれる design 内部の判断として一括で受理した。"
+    consultation_id: consultation-20260814-cli-terminal-client-design
+- id: adr-transport-close-reason-taxonomy
+  status: proposed
+  decision_input_refs: [esc-transport-close-untyped, open-resource-exhausted-failure-class, handoff-exit-code-numeric-assignment]
+
+units:
+- title: unit-phase0-contract-pin
+  chunk: Phase 0 public-contract pin-down
+  contract_refs: [contract-create-and-attach, contract-exit-classification, contract-attach-transport-topology, contract-wire-shape-conformance]
+  files:
+  - docs/changes/change-20260812-cli-terminal-client/implementation.md
+  - clients/cli/internal/gateway/testdata/
+  - protocol/fixtures/
+  acceptance:
+  - The session-config profile vocabulary that carries agent kind and working directory is recorded with a captured example, taken from the existing GET /api/session-config response.
+  - The frame or frames a lifecycle socket receives when an attached session ends server-side are recorded with a captured example, or their absence is recorded as a negative result.
+  - Which public path field the graphical row presents as the working directory is recorded from the shipping SPA, so the cwd column rests on an observation rather than on field existence.
+  - A canonical SessionInfo payload is captured as a checked-in golden vector that both the server serializer test and the CLI decoder test read.
+  - Each CLI command is mapped to the concrete public operation it uses, with the gaps that need a server change separated from client-only gaps.
+  objective: Replace the remaining unmeasured wire facts with captured fixtures before any attach code is written, as the source requirement makes the first task.
+  output_format: Captured JSON fixtures plus a command-to-operation mapping table in the change package.
+  tool_guidance: Trace the existing browser create flow and drive a real server with a fake agent; record frames rather than paraphrasing them, and record a negative result as a negative result.
+  task_boundaries: Do not write production CLI code and do not modify any server behaviour in this unit.
+  decision_closure_reason: Closes evidence-create-request-vocabulary, evidence-session-end-frame-shape and evidence-cwd-worktree-field, on which the create contract, the departure rule and the cwd column depend.
+- title: unit-shared-goclient-config
+  chunk: One Go loader for the canonical client configuration contract
+  contract_refs: [contract-config-and-fleet-identity, contract-client-config-parity]
+  files:
+  - clients/goclient/go.mod
+  - clients/goclient/clientconfig/
+  - clients/web-host/internal/clientconfig/
+  - clients/web-host/go.mod
+  acceptance:
+  - Exactly one Go package parses servers.json, both Go hosts import it, and a repository check fails when a second Go parser of that document appears.
+  - The package is importable from another module without an internal path, and the canonical URL and server identifier derivations are byte-identical to the code they replace.
+  - The configuration directory resolves to the same place the other client hosts use on each supported platform, including the Windows branch the current Go loader lacks, and no code path or test writes into a configuration directory.
+  - The web host keeps loading its fleet through this package, and every behaviour it inherits that differs from today is one the expected-outcome corpus declares rather than an incidental effect of the move.
+  objective: Give the Go language exactly one projection of the canonical client configuration contract, so neither Go host can drift from the contract or from the other.
+  output_format: A Go module holding the single loader package, updated web-host imports, and tests driven by the shared expected-outcome corpus.
+  tool_guidance: Move rather than copy; keep the canonical URL and server identifier derivation byte-identical, and add the missing platform branch as a declared behaviour change with its own corpus entry.
+  task_boundaries: Do not change the servers.json contract in this unit, do not add the naming constraint here, and do not treat the web host as the origin of the contract — it is one consumer of it, exactly like the CLI, Workspace and Windows Shell.
+  decision_closure_reason: One loader per language rather than a per-host reimplementation is closed by adr-shared-go-client-config-module.
+- title: unit-client-config-parity
+  chunk: Canonical client configuration contract and its three-language parity corpus
+  contract_refs: [contract-client-config-parity, contract-config-and-fleet-identity]
+  files:
+  - clients/config/README.md
+  - clients/config/servers.schema.json
+  - clients/config/fixtures/
+  - clients/goclient/clientconfig/
+  - clients/workspace/src/main/desktop-config.ts
+  - clients/windows-shell/AgentGrid.Shell.Core/Configuration/DesktopConfig.cs
+  depends_on: [unit-shared-goclient-config]
+  acceptance:
+  - Every fixture in the shared corpus carries its own expected outcome — the accept-or-reject decision, the admission state of each entry, the canonical URL and the derived server identifier — and the Go, TypeScript and C# loaders each assert against that record rather than against a bare throws-or-does-not-throw.
+  - "The corpus covers every rule the contract declares, including the four the README already promises while no fixture exercises them today — a duplicate URL, more than one default-execution entry, zero enabled entries, and an unparseable document."
+  - The three measured divergences are closed in the direction the contract declares and pinned by the corpus — unknown entry fields, credentials or query or fragment inside a URL, and the missing Windows configuration-directory branch.
+  - The README states that the contract is canonical for every client host and names its consumers, and the schema is either read by the loaders or explicitly declared documentation-only, so the document and the behaviour cannot disagree silently.
+  objective: Make clients/config the canonical client configuration contract for every host and make three-language agreement a mechanical property rather than a claim in a README.
+  output_format: An expected-outcome fixture corpus under the shared fixtures directory, a corpus reader in each of the three languages, and README and schema updates.
+  tool_guidance: Extend the existing shared-fixture tests in all three languages rather than adding a fourth mechanism, and record each expected outcome as data so that adding a rule means adding a fixture rather than editing three test bodies.
+  task_boundaries: Do not add the naming constraint or the per-entry admission states here — this unit only makes the contract as it stands mechanically comparable. Do not touch any host's own runtime settings, which are outside the client configuration contract.
+  decision_closure_reason: The scope of common ownership — the contract itself rather than one host's loader, and parity across all three languages — is closed by adr-shared-go-client-config-module.
+- title: unit-server-naming-contract
+  chunk: Server naming rule and per-entry configuration admission
+  contract_refs: [contract-server-naming-prerequisite, contract-config-entry-admission, contract-client-config-parity]
+  files:
+  - clients/config/servers.schema.json
+  - clients/config/README.md
+  - clients/config/fixtures/
+  - clients/goclient/clientconfig/
+  - clients/web-host/internal/webhost/host.go
+  - clients/workspace/src/main/desktop-config.ts
+  - clients/windows-shell/AgentGrid.Shell.Core/Configuration/DesktopConfig.cs
+  depends_on: [unit-client-config-parity]
+  acceptance:
+  - Display names are unique among enabled entries by exact code-point equality after trimming and are restricted to the declared CLI-safe character set, and each violation is enforced identically by the Go, TypeScript and C# loaders against the shared corpus.
+  - A configuration containing a violating entry lets the host start; that entry and every entry it collides with are admitted as configuration-invalid, are never connected to, and are never renamed, normalised, deduplicated, or dropped.
+  - Every error class a single entry or a collision group can be blamed for is per-entry, including the duplicate-URL check that is file-level today; only an unreadable entry list stops the host, and it is reported without naming an entry because none can be named.
+  - Each configuration-invalid entry carries its position in the entry list, its display name as written, and the rule it violates, and the web host no longer refuses to serve a fleet in which no entry is usable.
+  objective: Make an operator-configured display name a usable server qualifier while replacing whole-configuration rejection with per-entry admission, so one bad entry costs one server rather than the whole client.
+  output_format: Schema and README updates, three loader changes, new corpus fixtures for every per-entry and file-level class, and a migration note.
+  tool_guidance: Extend the existing duplicate-URL check into the per-entry admission path rather than adding a second validation pass, and keep the failure message shape consistent with the existing configuration errors.
+  task_boundaries: Do not remove the existing collision disambiguation in the graphical clients in this unit, and do not extend the credential-free host projection to carry the new state — the CLI reads the loader directly, and widening the projection for the SPA is a separate change.
+  decision_closure_reason: The constraint itself is a confirmed upstream constraint; its enforcement point, character set, migration shape, and the per-entry-versus-file-level partition are closed by adr-server-display-name-naming-contract.
+- title: unit-transport-close-taxonomy-prerequisite
+  chunk: Public transport close reason vocabulary
+  contract_refs: [contract-transport-close-taxonomy]
+  files:
+  - protocol/transport-close.schema.json
+  - protocol/README.md
+  - services/server/api/gateway.go
+  - services/server/api/mux.go
+  - services/server/api/auth.go
+  - services/server/api/protocol_version.go
+  - services/gorules/static_enforcement_test.go
+  acceptance:
+  - A closed reason vocabulary is published under protocol/ together with the control-frame shape that carries it — a shape no schema models today — and a repository gate fails when a server close site uses a reason outside it.
+  - Every server-initiated close of a client socket carries exactly one published reason, including the departures that send nothing at all today because they unwind into an abrupt close.
+  - A ticket or credential rejection and a protocol-version rejection carry the same vocabulary in their JSON error body, so a pre-upgrade rejection stops being indistinguishable from a network drop.
+  - A capacity refusal, a going-away shutdown, a backend loss and an unexplained drop are four distinguishable observations from the public contract alone, with no client-side guessing and without depending on a numeric close code.
+  objective: Give every client one typed answer to why a connection ended, replacing five ad-hoc reason strings that no schema models and no shipped client reads.
+  output_format: A protocol schema plus gateway, ticket and version-gate changes, with tests over each departure shape and a registration entry in the enumerating gate.
+  tool_guidance: Keep the two-step shape the accepted close ADR established — control frame first, then the close — and put the taxonomy in the reason slot rather than inventing numeric close codes, so one vocabulary covers both the close frame and the pre-upgrade error body.
+  task_boundaries: Do not change the browser or Workspace clients to consume the new value in this unit; they gain the capability and adopt it in their own change. Do not alter the exit-code assignment, which is fixed elsewhere.
+  decision_closure_reason: Whether transport failure carries a type at all, and where that type lives in the public contract, are closed by adr-transport-close-reason-taxonomy.
+- title: unit-module-skeleton
+  chunk: CLI module skeleton, verb dispatch, and gate registration
+  contract_refs: [contract-module-boundary, contract-exit-classification, contract-protocol-admission]
+  files:
+  - clients/cli/go.mod
+  - clients/cli/cmd/agent-grid/main.go
+  - clients/cli/internal/app/root.go
+  - clients/cli/internal/app/flags.go
+  - clients/cli/.golangci.yml
+  - Makefile
+  - test-harness/profiles.json
+  depends_on: [unit-phase0-contract-pin]
+  acceptance:
+  - The module builds with no dependency edge to the services module and a check fails if one appears.
+  - Build, test, vet, lint, and the pull-request verification profile all cover the new module.
+  - The first argument is always treated as a verb, and a session identifier passed positionally exits 2.
+  - Every failure class maps to its fixed exit code in exactly one place, and the mapping is asserted value by value.
+  - The compiled protocol version appears exactly once in a projection file that the repository manifest check enumerates.
+  objective: Establish the module boundary as a mechanical property and give every later unit one place where failure classes become exit codes.
+  output_format: A buildable Go module with entry point, plus edits to the repository build and verification entry points.
+  tool_guidance: Mirror the existing independent web host module and the existing dependency-check Makefile target rather than inventing a new pattern.
+  task_boundaries: Do not implement any command behaviour beyond dispatch and exit-code mapping.
+- title: unit-transport-admission
+  chunk: Auth bootstrap and protocol admission
+  contract_refs: [contract-protocol-admission, contract-attach-transport-topology, contract-exit-classification, contract-transport-close-taxonomy]
+  files:
+  - clients/cli/internal/gateway/client.go
+  - clients/cli/internal/gateway/auth.go
+  depends_on: [unit-shared-goclient-config, unit-module-skeleton]
+  acceptance:
+  - Every operational request carries the bearer credential and the compiled protocol version.
+  - A version-mismatch response prevents any further operational request or socket frame for that server.
+  - The socket is opened only through a freshly minted single-use ticket, and the bearer credential never appears in a URL.
+  - No failure path puts the credential, the minted ticket, or a URL carrying either into an error string, a log line, or a process argument.
+  objective: Make admission a fail-closed gate that later units cannot bypass and that cannot leak the credential on the path most likely to echo it.
+  output_format: A transport package exposing request and socket-dial seams that a fake can substitute.
+  tool_guidance: Follow the existing two-step mint-then-connect flow used by the other clients, and redact at the point where the transport error is turned into a reason rather than at each call site.
+  task_boundaries: Do not add any alternative authentication path for the socket upgrade.
+- title: unit-fleet-reachability
+  chunk: Fleet reachability observation
+  contract_refs: [contract-protocol-admission, contract-discovery-projection, contract-config-entry-admission]
+  files:
+  - clients/cli/internal/fleet/fleet.go
+  depends_on: [unit-transport-admission]
+  acceptance:
+  - Each usable configured entry resolves to one observation drawn from the existing closed vocabulary, with a reason drawn from the existing closed reason set.
+  - One failing server never suppresses the results of another.
+  - Reachability values never share a value space with session lifecycle state, and configuration invalidity is a third value that shares a space with neither.
+  - A configuration-invalid entry is carried through with the rule it violates and is never probed, so it can never acquire a reachability observation and can never be presented as unreachable.
+  objective: Give discovery and selector resolution a per-entry admission and reachability fact they can both branch on.
+  output_format: A package returning a per-entry admission and observation set plus the sessions of the healthy servers.
+  tool_guidance: Reuse the existing observation and reason vocabularies verbatim; add configuration invalidity as a new kind inside the same closed set rather than as a free-form string, following the precedent that disabled is already a non-reachability admission kind there.
+  task_boundaries: Do not add retry policy, background refresh, or health caching, and do not repair or normalise a configuration-invalid entry.
+- title: unit-wire-codec
+  chunk: Wire codec, identity ownership, and shape conformance
+  contract_refs: [contract-input-passthrough, contract-output-passthrough, contract-attach-transport-topology, contract-wire-shape-conformance, contract-identity-single-origin]
+  files:
+  - clients/cli/internal/gateway/wire.go
+  - clients/cli/internal/gateway/identity.go
+  - clients/cli/internal/gateway/wire_test.go
+  - services/host/state/view/view_golden_test.go
+  depends_on: [unit-transport-admission]
+  acceptance:
+  - Output payloads decode to exactly the original bytes, including sequences that are not valid text.
+  - Input frames never contain a partial multi-byte sequence, under fuzzing over arbitrary split points.
+  - Outbound frames carry the bare upstream session identifier, never a compound one, and exactly one package constructs a server-qualified identity while exactly one package serialises an outbound frame.
+  - The checked-in golden vector decodes in the CLI and is reproduced by the server's own serializer, so renaming a field the CLI reads fails a gate on the server side.
+  objective: Own every byte that crosses the socket in one place, and make a server-side rename of a field the CLI reads a failing test rather than a silent break.
+  output_format: A hand-written standard-library-only codec package with table and fuzz tests, plus a golden-vector test on the server serializer.
+  tool_guidance: Mirror the field names captured in the Phase 0 fixtures exactly; do not invent a convenience framing and do not add a generated SDK language.
+  task_boundaries: Do not add a code generator and do not depend on the services module for types.
+- title: unit-status-vocabulary
+  chunk: Shared status vocabulary
+  contract_refs: [contract-status-vocabulary]
+  files:
+  - clients/cli/internal/view/status.go
+  - clients/cli/internal/view/status_test.go
+  depends_on: [unit-module-skeleton]
+  acceptance:
+  - The in-module copy of the display matrix is asserted equal to the repository canonical file.
+  - Simultaneous conditions collapse to the same label the existing clients show.
+  - No state word appears that is absent from the matrix.
+  objective: Make the checked-in shared matrix the CLI's single source for labels and precedence, pinned by a test rather than by inspection.
+  output_format: A small vocabulary package plus a test that reads the canonical file by relative path.
+  tool_guidance: Do not copy the aggregate favicon precedence, which is a different and partly reversed order.
+  task_boundaries: Do not change the canonical file, do not add labels for conditions it does not define, and do not touch the TypeScript or C# copies in this unit.
+- title: unit-discovery-render
+  chunk: Discovery rendering and machine-readable output
+  contract_refs: [contract-discovery-projection, contract-config-entry-admission]
+  files:
+  - clients/cli/internal/view/table.go
+  - clients/cli/internal/view/json.go
+  depends_on: [unit-fleet-reachability, unit-status-vocabulary]
+  acceptance:
+  - Every row names its owning server, and rows survive when another server is unreachable.
+  - Machine-readable output carries server identity and session identity as separate fields with the same breadth as the default columns.
+  - An unreachable server, a configuration-invalid entry and a healthy server with no sessions are three distinguishable observations from the machine-readable output alone, and configuration invalidity shares a value space with neither reachability nor session lifecycle state.
+  - A configuration-invalid entry appears with its position in the entry list, its display name as written, and the rule it violates, and is never omitted from the output.
+  - The display name is the server-provided card title verbatim and is never truncated, and no session the server publishes is removed by the client.
+  objective: Deliver the first end-to-end useful command against a live fleet.
+  output_format: A rendering package plus the list command wiring.
+  tool_guidance: Take the display name from the card title, not from the driver name field and not from a path basename; take the working-directory column from the field the Phase 0 observation identified.
+  task_boundaries: Do not add sorting, filtering, or paging options beyond what the contract names. Do not settle the model column in either direction here — the upstream availability premise is measured false, the column set is a requirements-side decision returned as open-model-column-premise-falsified, and this unit renders whatever DP-LS-DEFAULT-COLUMNS resolves to rather than a set design fixed on its own authority.
+- title: unit-selector
+  chunk: Selector resolution
+  contract_refs: [contract-selector-resolution, contract-exit-classification, contract-server-naming-prerequisite]
+  files:
+  - clients/cli/internal/selector/selector.go
+  depends_on: [unit-discovery-render]
+  acceptance:
+  - A declared selector kind decides the resolution even when another kind would match a single session.
+  - A server qualifier given as a display name and as a stable identifier both narrow to the same single session.
+  - A server-qualifier value matching two usable entries exits with the ambiguous-selector code and selects neither; a value whose every match is configuration-invalid exits with the usage-error code naming each entry and its violated rule; and a stable identifier resolves to at most one usable entry.
+  - Zero matches with an unreachable server present is reported as a transport failure, not as not-found, and every failure path leaves every session untouched.
+  objective: Make target selection predictable enough that automation can branch on the outcome, including when a configured entry is unusable.
+  output_format: A resolution package returning a typed outcome rather than an identifier plus error.
+  tool_guidance: Restrict selector kinds to the full identifier and the identifier prefix; there is no stable name field to key on.
+  task_boundaries: Do not add interactive selection and do not auto-select from candidates.
+- title: unit-tty-adapter
+  chunk: Platform terminal adapter
+  contract_refs: [contract-terminal-mode-lifecycle, contract-geometry-propagation, contract-detach-boundary]
+  files:
+  - clients/cli/internal/tty/tty.go
+  - clients/cli/internal/tty/tty_unix.go
+  - clients/cli/internal/tty/tty_windows.go
+  - clients/cli/internal/tty/tty_fake.go
+  depends_on: [unit-module-skeleton]
+  acceptance:
+  - Raw entry, restore, size query, size-change events, input-queue discard, and terminal detection are all reachable only through one interface.
+  - Restore is idempotent and safe to call from a deferred path and from a signal path.
+  - A fake implementation can drive every one of those operations deterministically without a real terminal.
+  objective: Confine every terminal side effect behind one seam so the attach runtime is testable without a real terminal.
+  output_format: An interface with a Unix implementation, a Windows implementation stub pending the platform spike, and a fake.
+  tool_guidance: Use the terminal library already accepted in the repository rather than raw system calls where it suffices.
+  task_boundaries: Do not implement Windows-specific behaviour ahead of the platform spike results; leave it explicitly unimplemented rather than guessed.
+- title: unit-attach-runtime
+  chunk: Attach runtime
+  contract_refs: [contract-attach-transport-topology, contract-attach-lease-progress, contract-terminal-mode-lifecycle, contract-detach-boundary, contract-input-passthrough, contract-output-passthrough, contract-geometry-propagation, contract-exit-classification, contract-transport-close-taxonomy]
+  files:
+  - clients/cli/internal/attach/runtime.go
+  - clients/cli/internal/attach/input.go
+  - clients/cli/internal/attach/output.go
+  - clients/cli/internal/attach/pump.go
+  depends_on: [unit-selector, unit-tty-adapter, unit-wire-codec, unit-fake-gateway]
+  acceptance:
+  - The current screen appears before any later output, and output from another subscribed session never reaches standard output.
+  - Raw mode is entered only after the subscription reaches a terminal accepted outcome, and the terminal is restored on every exit path including suspend and signal.
+  - Bytes typed after the detach key reach neither the remote session nor the returning shell.
+  - The lease keeps being renewed while standard output is blocked, a capacity refusal exits with the transport code carrying the reason the server published rather than a client-authored sentence, and the session survives every departure.
+  - Every published close reason maps to the exit class the classification contract assigns it, and a departure that carries no reason at all is presented as an unattributed loss rather than being guessed into one of the named reasons.
+  objective: Deliver the interactive attach experience with its runtime discipline pinned by discriminating tests.
+  output_format: An attach package driven end to end by the fake gateway and the fake terminal.
+  tool_guidance: Split the buffer at the detach byte rather than filtering it, and discard the terminal input queue before restoring.
+  task_boundaries: Do not add automatic reconnection, do not add a status line during raw mode, and do not add any ownership or takeover concept.
+- title: unit-lifecycle-commands
+  chunk: Lifecycle commands
+  contract_refs: [contract-create-and-attach, contract-explicit-terminate, contract-identity-single-origin]
+  files:
+  - clients/cli/internal/lifecycle/create.go
+  - clients/cli/internal/lifecycle/terminate.go
+  depends_on: [unit-attach-runtime]
+  acceptance:
+  - The launch profile set is read from the target server at invocation time with its server-validated revision, is not cached across invocations, and an unresolvable agent argument or a stale revision fails before any request that could create a session.
+  - Creation failure, creation success with attach failure, and full success are three distinct observations, and the middle one reports the created identifier.
+  - A creation with --no-attach attempts no attach at all, exits zero, and reports an identifier that resolves to a running row on the named server, so it is neither reported as an attach failure nor confused with one.
+  - Creation without an explicit target server creates nothing and exits 2, even when exactly one server is configured.
+  - Termination reports success only on an acknowledgement that it was applied, asserts no lifecycle state it has not read back, and a rejected request leaves the target's observable state unchanged.
+  objective: Complete the command surface while keeping termination a single, deliberate, auditable emission that claims only what it observed.
+  output_format: A lifecycle package plus the create and terminate command wiring.
+  tool_guidance: Ignore the default-execution marker in the configuration; it exists and would silently satisfy a target inference.
+  task_boundaries: Do not expose a forced-termination variant, and do not keep a local record of terminated sessions to compensate for the retention gap.
+- title: unit-fake-gateway
+  chunk: Fake gateway and dependency registration
+  contract_refs: [contract-external-dependency-registration]
+  files:
+  - clients/cli/internal/gateway/fakegateway/fakegateway.go
+  - test-harness/dependencies.json
+  depends_on: [unit-wire-codec]
+  acceptance:
+  - The fake drives ticket minting, admission, the initial frame, subscription, output, capacity refusal, and each disconnect shape deterministically.
+  - The gateway boundary and the local terminal boundary are both declared in the dependency registry with a fake, a named invariant contract test, and a fidelity backstop.
+  - The registry check passes in the pull-request verification profile.
+  objective: Give every later test a deterministic counterparty and put both external boundaries under the repository's admission discipline.
+  output_format: A fake package plus registry entries.
+  tool_guidance: Shape the fake from the Phase 0 captured fixtures so it cannot drift into a convenient dialect.
+  task_boundaries: Do not weaken any assertion to make the fidelity backstop pass; correct the fake instead.
+- title: unit-terminal-state-retention-prerequisite
+  chunk: Execution-plane terminal-state retention prerequisite
+  contract_refs: [contract-session-terminal-state-retention]
+  files:
+  - services/host/state/reduce_session.go
+  - services/host/state/reduce_frame_evict.go
+  - services/host/state/reduce_tick.go
+  - services/host/state/view/status.go
+  - services/server/api/gateway.go
+  acceptance:
+  - A session ended by explicit termination remains observable with a terminal lifecycle state instead of disappearing from the session list.
+  - A session ended by a clean or signalled self-exit, and a session whose backend frame vanished, both remain observable with the same terminal lifecycle state.
+  - The transition to the terminal state is published on the lifecycle socket, so an attached client can attribute its departure to a session end rather than to a lost connection.
+  - An ended session and an identifier that never existed are distinguishable through the public contract, and the retention window and its reclamation have one named owner.
+  objective: Make the terminal lifecycle state the public protocol already declares actually reachable, so ended sessions are observable to every client instead of being deleted.
+  output_format: Reducer and publication changes in the execution plane plus tests over the four termination paths.
+  tool_guidance: Keep the frame and process teardown exactly as it is; change only what happens to the session record and to what is published.
+  task_boundaries: Do not move any part of the retention responsibility into a client, and do not invent a retention window or a reclamation schedule — name the owner and leave the value to it.
+  decision_closure_reason: The gap and the three source-requirement conditions are argued in adr-cli-session-terminal-state-retention-prerequisite, which the user consultation accepted; the retention window and reclamation policy are the one point the acceptance deliberately left open, carried as open-terminate-observability.
+- title: unit-platform-hardening-spikes
+  chunk: Platform hardening and spikes
+  contract_refs: [contract-terminal-mode-lifecycle, contract-geometry-propagation, contract-detach-boundary]
+  files:
+  - clients/cli/internal/tty/tty_windows.go
+  - docs/changes/change-20260812-cli-terminal-client/verification.md
+  depends_on: [unit-attach-runtime]
+  acceptance:
+  - Whether raw entry removes echo and line editing on the Windows console, and how interrupt and key sequences arrive there, is recorded from a real run.
+  - The Windows size-change observation mechanism is chosen from a recorded observation rather than assumed.
+  - Whether the default detach key collides with the remote agents' own key handling is recorded from a real run, and the outcome is reflected in the default.
+  objective: Replace the three remaining platform assumptions with observations and finish the Windows path on that basis.
+  output_format: Recorded observations in the change package plus the resulting Windows implementation.
+  tool_guidance: Run on a real Windows terminal and a real agent session; do not infer Windows console behaviour from the Unix implementation.
+  task_boundaries: Do not change any contract as a result without recording the observation that motivated it.
+  decision_closure_reason: Closes evidence-windows-console-behavior, evidence-windows-resize-source, and evidence-detach-key-chord-collision.
+
+acceptance:
+- id: ac-attach-current-screen
+  criteria: Attaching to a running session shows the content that was already on its screen and continues from there, and output from any other subscribed session never appears.
+  requirement_refs: [fr-007, fr-008, fr-009, nfr-004]
+- id: ac-input-roundtrip
+  criteria: A known input containing multi-byte characters produces the remote side's own response even when reads split it, and an interrupt reaches the remote operation without ending the CLI.
+  requirement_refs: [fr-005, fr-006]
+- id: ac-detach-restores-and-discards
+  criteria: Characters typed immediately after the detach key appear neither in the returning shell's input line nor on reattach, echo and line editing are restored, and the session is still running afterwards.
+  requirement_refs: [fr-010, fr-011, fr-002, fr-001]
+- id: ac-restore-on-every-exit
+  criteria: A pre-subscription failure, a catchable terminating signal, suspend and resume, end of input, and a server disconnect all leave the shell with working echo and line editing, and the pre-subscription failure leaves the terminal settings unchanged throughout; after the catchable terminating signal the session that was attached is still listed as running.
+  requirement_refs: [fr-002, fr-004, fr-001]
+- id: ac-lease-survives-backpressure
+  criteria: A stalled standard-output reader for longer than the lease lifetime does not lose the subscription, and output resumes when the reader resumes.
+  requirement_refs: [fr-013]
+- id: ac-non-tty-fail-fast
+  criteria: An attach with a non-terminal standard input exits non-zero without changing the invoking terminal, and the target session is unchanged.
+  requirement_refs: [fr-004, fr-024]
+- id: ac-disconnect-classes-distinct
+  criteria: Explicit detach, lost connection, and server-side session end are told apart from what remains on screen after returning to the shell. The third class rests on the accepted terminal-state retention publishing the transition; within the second class, the reason shown is the one the execution plane published rather than a client guess, so a capacity refusal, a going-away shutdown and an unexplained drop do not read alike.
+  requirement_refs: [fr-014, fr-024, fr-026, fr-032]
+- id: ac-resize-reaches-remote
+  criteria: Resizing during a full-screen redraw produces a redraw at the new dimensions, and no size value is silently dropped by the server.
+  requirement_refs: [fr-012]
+- id: ac-discovery-parity
+  criteria: Each row pairs a session with its owning server, the display name and state label match what the existing graphical clients show for the same session, the name is never truncated, and rows are not filtered by creator nor removed by the client.
+  requirement_refs: [fr-015, fr-017, fr-018, fr-019]
+- id: ac-ended-session-remains-observable
+  criteria: A session that ended by explicit termination, by clean or signalled self-exit, or by a vanished backend frame is still listed with a terminal state rather than disappearing, and an ended session is distinguishable from an identifier that never existed without any client-side memory.
+  requirement_refs: [fr-026, fr-015, fr-023]
+- id: ac-partial-outage
+  criteria: With one server unreachable or protocol-incompatible the list is not empty, and machine-readable output alone distinguishes an unreachable server from a server with no sessions.
+  requirement_refs: [fr-016, fr-019, nfr-001]
+- id: ac-selector-and-failures
+  criteria: Resolution follows the declared selector kind, ambiguity yields distinguishable candidates with a non-zero exit and no side effect, and the failure classes carry the fixed exit codes 2 through 6 reproducibly with an unreachable-only match classified as transport.
+  requirement_refs: [fr-020, fr-021, fr-024, fr-025]
+- id: ac-server-naming-and-qualifier-outcomes
+  criteria: A configuration with duplicate or ill-formed display names lets every host start while marking exactly the offending entries configuration-invalid, identically in all three loaders and with the entry named rather than repaired; a qualifier matching two usable entries exits as ambiguous instead of selecting one; and a qualifier whose every match is configuration-invalid exits as a usage error naming each entry and its violated rule.
+  requirement_refs: [fr-028, fr-029, fr-021]
+- id: ac-config-entry-admission
+  criteria: One bad entry costs one server rather than the whole client — the host starts, exactly the offending entry and its collision partners are unusable and unprobed, a duplicated URL behaves the same way as a duplicated display name, and only a document whose entry list cannot be read at all stops the host. A configuration-invalid entry is visible in both the table and the machine-readable output, in a vocabulary that shares no value with reachability and none with session lifecycle state.
+  requirement_refs: [fr-030, fr-031, fr-028]
+- id: ac-config-parity-across-languages
+  criteria: The same configuration document produces the same accept-or-reject decision, the same per-entry admission states, the same canonical URLs and the same derived server identifiers in Go, TypeScript and C#, proven against one shared corpus in which every fixture carries its expected outcome; and no client language holds a second loader of that document.
+  requirement_refs: [nfr-009, nfr-003, fr-021]
+- id: ac-transport-close-is-typed
+  criteria: A capacity refusal, a going-away shutdown, a backend loss, a rejected ticket, a protocol mismatch and an unexplained network drop are told apart from the public contract alone — each server-initiated departure carrying one reason from a published closed vocabulary, each pre-upgrade rejection carrying the same vocabulary in its error body, and only a departure that carries nothing being presented as unattributed. The CLI's exit class and printed reason follow that value and are never invented locally.
+  requirement_refs: [fr-032, fr-014, fr-024]
+- id: ac-create-outcomes-distinct
+  criteria: Creation failure, creation success with attach failure, and full success are three different observations; a creation with --no-attach is a fourth, attempting no attach and exiting zero while still reporting an identifier that appears as a running row on the named server; a missing target server creates nothing and ends as a usage error; an unresolvable agent argument creates no row; and the attach that follows creation lands on the new session's freshly started screen.
+  requirement_refs: [fr-022, fr-024]
+- id: ac-terminate-is-explicit-only
+  criteria: Only the explicitly terminated session ends, sessions that merely experienced detach, interrupt, terminal close, disconnect, or an uncatchable kill keep running, a rejected termination exits non-zero without changing the target, and the success report claims only the acknowledgement it received.
+  requirement_refs: [fr-001, fr-023]
+- id: ac-boundary-and-gates
+  criteria: The CLI module has no dependency edge to the services module, is covered by the repository's build, test, vet, lint, verification profile, and protocol-version projection checks, and neither its runtime nor its tests write into a user configuration directory.
+  requirement_refs: [nfr-002, nfr-003, nfr-005, nfr-001, fr-003]
+- id: ac-concurrent-attach
+  criteria: An existing graphical attach neither blocks nor gates the CLI attach and nothing in the CLI output indicates that other clients are attached; when the shared per-connection surface capacity is already exhausted the attach fails as a transport failure whose reason is the capacity code the execution plane published, which is a capacity limit of the execution plane rather than an ownership policy.
+  requirement_refs: [nfr-006, fr-007, fr-024, fr-032]
+- id: ac-credential-never-echoed
+  criteria: An authentication failure, a protocol mismatch, and a socket dial failure each produce a reason on standard error that contains neither the bearer credential, nor the minted ticket, nor a URL carrying either, and neither value appears in the process arguments.
+  requirement_refs: [fr-027, fr-003]
+- id: ac-wire-shape-and-identity-pinned
+  criteria: Renaming or moving a session payload field the CLI reads fails a repository gate on the server side, and a second package constructing a server-qualified identity or serialising an outbound frame fails a gate on the client side.
+  requirement_refs: [nfr-008, nfr-007, fr-018]
+
+dispositions:
+- decision_input_ref: candidate-cross-platform-terminal-runtime
+  disposition: adopted_as_module_and_platform_adapter_shape
+  adr_refs: [adr-cli-independent-go-module, adr-cli-raw-mode-critical-section]
+  contract_refs: [contract-module-boundary, contract-terminal-mode-lifecycle]
+- decision_input_ref: candidate-existing-public-wire-contract-reuse
+  disposition: adopted_and_narrowed_to_specific_public_routes
+  adr_refs: [adr-cli-attach-via-lifecycle-multiplexed-ws, adr-cli-sessioninfo-golden-vector-conformance]
+  contract_refs: [contract-attach-transport-topology, contract-create-and-attach, contract-explicit-terminate, contract-wire-shape-conformance]
+- decision_input_ref: candidate-fleet-session-identity-reuse
+  disposition: adopted_with_bare_upstream_id_on_the_wire_and_single_construction_owner
+  adr_refs: [adr-shared-go-client-config-module]
+  contract_refs: [contract-config-and-fleet-identity, contract-discovery-projection, contract-identity-single-origin]
+- decision_input_ref: dh-ctrl-bracket-no-collision
+  disposition: kept_provisional_routed_to_spike
+  contract_refs: [contract-detach-boundary]
+- decision_input_ref: dh-lifecycle-contract-sufficient
+  disposition: found_insufficient_on_four_termination_paths_prerequisite_contract_change_recorded
+  adr_refs: [adr-cli-session-terminal-state-retention-prerequisite]
+  contract_refs: [contract-explicit-terminate, contract-session-terminal-state-retention]
+- decision_input_ref: dh-stable-name-field-unknown
+  disposition: resolved_by_measurement_no_stable_name_field_exists
+  adr_refs: [adr-cli-selector-kinds-reduced-to-id-and-prefix]
+  contract_refs: [contract-selector-resolution]
+- decision_input_ref: dh-geometry-divergence
+  disposition: left_with_execution_plane_with_cli_overwrite_risk_recorded
+  contract_refs: [contract-geometry-propagation]
+- decision_input_ref: esc-no-presence-field
+  disposition: confirmed_by_measurement_and_adopted_as_display_prohibition
+  contract_refs: [contract-attach-transport-topology]
+- decision_input_ref: esc-fleet-identity
+  disposition: adopted_as_row_identity_discipline_grounded_in_the_canonical_client_config_contract
+  adr_refs: [adr-shared-go-client-config-module]
+  contract_refs: [contract-discovery-projection, contract-config-and-fleet-identity, contract-client-config-parity]
+- decision_input_ref: esc-status-vocabulary
+  disposition: adopted_and_pinned_for_the_cli_consumer_only
+  adr_refs: [adr-cli-status-display-matrix-cli-pinning]
+  contract_refs: [contract-status-vocabulary]
+- decision_input_ref: esc-sessioninfo-fields
+  disposition: adopted_as_column_bound_with_display_name_pinned_to_card_title_and_shape_gated_by_golden_vector
+  adr_refs: [adr-cli-sessioninfo-golden-vector-conformance]
+  contract_refs: [contract-discovery-projection, contract-wire-shape-conformance]
+- decision_input_ref: handoff-cli-binary-canonical-name
+  disposition: carried_unresolved_packaging_decision_with_recorded_name_collision_boundary_question
+- decision_input_ref: handoff-shared-pty-geometry-resolution
+  disposition: carried_unresolved_owned_by_execution_plane
+  contract_refs: [contract-geometry-propagation]
+- decision_input_ref: handoff-exit-code-numeric-assignment
+  disposition: closed_by_design_with_a_fixed_numeric_assignment
+  adr_refs: [adr-cli-failure-class-exit-codes]
+  contract_refs: [contract-exit-classification]
+- decision_input_ref: handoff-input-transport-batching
+  disposition: partially_taken_boundary_rule_contracted_granularity_delegated
+  contract_refs: [contract-input-passthrough]
+- decision_input_ref: handoff-ambiguous-candidate-breadth
+  disposition: carried_unresolved_escalated_to_user
+  contract_refs: [contract-selector-resolution]
+- decision_input_ref: handoff-server-display-name-naming-contract
+  disposition: closed_as_prerequisite_contract_change_with_enforcement_point_charset_migration_and_per_entry_admission
+  adr_refs: [adr-server-display-name-naming-contract]
+  contract_refs: [contract-server-naming-prerequisite, contract-config-entry-admission, contract-config-and-fleet-identity]
+- decision_input_ref: esc-config-entry-admission-granularity
+  disposition: closed_as_per_entry_admission_with_a_readability_only_file_level_residue
+  adr_refs: [adr-server-display-name-naming-contract]
+  contract_refs: [contract-config-entry-admission, contract-server-naming-prerequisite, contract-discovery-projection]
+- decision_input_ref: esc-transport-close-untyped
+  disposition: closed_as_a_prerequisite_public_contract_change_with_a_closed_published_reason_vocabulary
+  adr_refs: [adr-transport-close-reason-taxonomy]
+  contract_refs: [contract-transport-close-taxonomy, contract-exit-classification, contract-attach-transport-topology]
+- decision_input_ref: open-web-host-server-side-config
+  disposition: recorded_out_of_scope_the_hosts_own_runtime_settings_are_not_the_client_config_contract
+  contract_refs: [contract-client-config-parity]
+- decision_input_ref: evidence-windows-console-behavior
+  disposition: evidence_seeking_routed_to_spike
+  contract_refs: [contract-terminal-mode-lifecycle]
+- decision_input_ref: evidence-windows-resize-source
+  disposition: evidence_seeking_routed_to_spike
+  contract_refs: [contract-geometry-propagation]
+- decision_input_ref: evidence-detach-key-chord-collision
+  disposition: evidence_seeking_routed_to_spike
+  contract_refs: [contract-detach-boundary]
+- decision_input_ref: evidence-session-end-frame-shape
+  disposition: evidence_seeking_with_a_recorded_negative_branch_that_falls_to_the_retention_prerequisite
+  adr_refs: [adr-cli-session-terminal-state-retention-prerequisite]
+  contract_refs: [contract-exit-classification, contract-session-terminal-state-retention]
+- decision_input_ref: evidence-create-request-vocabulary
+  disposition: narrowed_to_the_parameter_map_profile_source_located_at_session_config
+  contract_refs: [contract-create-and-attach]
+- decision_input_ref: evidence-cwd-worktree-field
+  disposition: evidence_seeking_routed_to_phase0_column_choice_deferred_to_the_observation
+  contract_refs: [contract-discovery-projection]
+- decision_input_ref: open-terminate-observability
+  disposition: unresolved_escalated_to_user_with_a_proposed_prerequisite_adr
+  adr_refs: [adr-cli-session-terminal-state-retention-prerequisite]
+  contract_refs: [contract-session-terminal-state-retention, contract-explicit-terminate]
+- decision_input_ref: open-resource-exhausted-failure-class
+  disposition: interim_reason_string_replaced_by_the_published_close_reason_dedicated_code_declined_budget_ownership_left_open
+  adr_refs: [adr-cli-failure-class-exit-codes, adr-transport-close-reason-taxonomy]
+  contract_refs: [contract-attach-transport-topology, contract-exit-classification, contract-transport-close-taxonomy]
+- decision_input_ref: open-shared-go-client-extraction
+  disposition: superseded_common_ownership_is_the_client_config_contract_itself_one_loader_per_language_with_a_shared_expected_outcome_corpus
+  adr_refs: [adr-shared-go-client-config-module]
+  contract_refs: [contract-config-and-fleet-identity, contract-client-config-parity]
+- decision_input_ref: open-ambiguous-candidate-breadth
+  disposition: unresolved_escalated_to_user
+  contract_refs: [contract-selector-resolution]
+- decision_input_ref: open-config-contract-design-ownership
+  disposition: unresolved_promotion_candidate_recorded
+  adr_refs: [adr-server-display-name-naming-contract]
+  contract_refs: [contract-server-naming-prerequisite]
+- decision_input_ref: open-model-column-premise-falsified
+  disposition: returned_to_requirements_design_takes_no_column_decision
+  contract_refs: [contract-discovery-projection]
+- decision_input_ref: open-status-matrix-cross-language-drift
+  disposition: recorded_out_of_scope_ts_and_csharp_copies_remain_unpinned
+  adr_refs: [adr-cli-status-display-matrix-cli-pinning]
+  contract_refs: [contract-status-vocabulary]

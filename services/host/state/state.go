@@ -134,7 +134,25 @@ type Session struct {
 	// this session (nil until first successful generation). Persisted
 	// with the session snapshot; lifecycle is tied to the session.
 	ResumeCapsule *ResumeCapsule
+	// EndedAt marks a session whose frames have all been torn down —
+	// explicit termination, a clean or signalled self-exit, or a vanished
+	// backend frame. The record is retained instead of deleted so every
+	// client observes the terminal lifecycle state the protocol already
+	// declares, rather than a row silently disappearing
+	// (adr-20260814-session-terminal-state-retention). Nil while the
+	// session is live.
+	//
+	// Retention window: ended sessions are excluded from the durable
+	// snapshot, so a retained row lives until the process restarts and the
+	// snapshot writer is its single reclaimer. How long a terminal row
+	// *should* be shown is a product choice the design left open
+	// (open-terminate-observability); nothing here decides it.
+	EndedAt *time.Time
 }
+
+// Ended reports whether the session has reached its terminal state and is
+// retained only for observation. Ended sessions never regain frames.
+func (s Session) Ended() bool { return s.EndedAt != nil }
 
 type SessionFrame struct {
 	ID            FrameID

@@ -49,7 +49,7 @@ func reduceTick(s State, e EvTick) (State, []Effect) {
 // reduceFrameVanished evicts a session whose backend window has
 // disappeared (agent process exited) and broadcasts the new list.
 func reduceFrameVanished(s State, e EvFrameVanished) (State, []Effect) {
-	s, effs, ok := evictFrame(s, e.FrameID, false)
+	s, effs, ok := evictFrame(s, e.FrameID, false, retainEndedSession)
 	if !ok {
 		return s, nil
 	}
@@ -109,7 +109,7 @@ func reduceFrameCommandExited(s State, e EvFrameCommandExited) (State, []Effect)
 		return s, nil
 	}
 	if isIntentionalExit(e.ExitCode) {
-		next, effs, _ := evictFrame(s, e.FrameID, true)
+		next, effs, _ := evictFrame(s, e.FrameID, true, retainEndedSession)
 		return next, effs
 	}
 

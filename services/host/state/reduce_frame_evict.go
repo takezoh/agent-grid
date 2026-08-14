@@ -1,35 +1,79 @@
 package state
 
+import "time"
+
 // reduce_frame_evict.go holds helpers for removing frames from the state.
 // Kept separate from reduce_helpers.go for file-size compliance.
+
+// rootDisposition decides what happens to the session record when its root
+// frame goes away.
+//
+// The distinction is load-bearing: a session that ran and then ended is
+// retained so clients can observe its terminal lifecycle state
+// (adr-20260814-session-terminal-state-retention), while a session whose very
+// first spawn failed never became observable and must leave no row behind —
+// showing "stopped" for something that never started would invent a terminal
+// state the session never reached.
+type rootDisposition int
+
+const (
+	// retainEndedSession keeps the record with a terminal timestamp: explicit
+	// termination, a clean or signalled self-exit, a vanished backend frame.
+	retainEndedSession rootDisposition = iota
+	// dropUnstartedSession removes the record entirely: the session never came up.
+	dropUnstartedSession
+)
 
 // evictFrame removes a frame and its cleanup effects.
 //
 // When frameID is the root frame (index 0), all sibling frames are also
-// removed and the session is deleted — root death ends the session.
+// removed and the session either ends or disappears according to disposition —
+// root death ends the session either way.
 // When frameID is a child frame (index > 0), only that frame is removed;
-// siblings are unaffected.
+// siblings are unaffected and disposition does not apply.
 //
 // killWindow controls whether EffKillFrame is emitted per removed
 // frame. Pass true when the backend frame still exists (e.g. EvFrameCommandExited);
 // pass false when the frame has already vanished (e.g. EvFrameVanished).
 //
 // Effect ordering: cleanup → persist → broadcast.
-func evictFrame(s State, frameID FrameID, killWindow bool) (State, []Effect, bool) {
+func evictFrame(s State, frameID FrameID, killWindow bool, disposition rootDisposition) (State, []Effect, bool) {
 	sessID, sess, idx, ok := findFrame(s, frameID)
 	if !ok {
 		return s, nil, false
 	}
 	if idx == 0 {
-		return evictRootFrame(s, sessID, sess, killWindow)
+		return evictRootFrame(s, sessID, sess, killWindow, disposition)
 	}
 	return evictChildFrame(s, sessID, sess, idx, frameID, killWindow)
 }
 
-func evictRootFrame(s State, sessID SessionID, sess Session, killWindow bool) (State, []Effect, bool) {
+// endSession strips a session down to its retained, observable remains: no
+// frames, no head, no MRU, and a terminal timestamp. The record stays in the
+// session map so every client sees the terminal lifecycle state the protocol
+// already declares instead of a row vanishing
+// (adr-20260814-session-terminal-state-retention). Frame and process teardown
+// are unaffected — callers still emit frameTeardownEffects for what they
+// removed.
+func endSession(sess Session, now time.Time) Session {
+	ended := now
+	sess.Frames = nil
+	sess.HeadFrameID = ""
+	sess.MRUFrameIDs = nil
+	sess.EndedAt = &ended
+	return sess
+}
+
+func evictRootFrame(
+	s State, sessID SessionID, sess Session, killWindow bool, disposition rootDisposition,
+) (State, []Effect, bool) {
 	allRemoved := truncateFrames(sess, 0)
 	s.Sessions = cloneSessions(s.Sessions)
-	delete(s.Sessions, sessID)
+	if disposition == retainEndedSession {
+		s.Sessions[sessID] = endSession(sess, s.Now)
+	} else {
+		delete(s.Sessions, sessID)
+	}
 	// Reap approval/question domain for the whole session (FR-P0-11 / NFR-06).
 	var reapEffs []Effect
 	s, reapEffs = cancelApprovalsForSession(s, sessID)

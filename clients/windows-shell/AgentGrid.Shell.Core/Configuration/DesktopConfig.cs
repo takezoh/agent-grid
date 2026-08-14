@@ -12,13 +12,54 @@ public sealed record DesktopConfig(
     WorkspaceAppConfig Workspace,
     string ConfigDirectory);
 
+/// <summary>
+/// How an entry may be used. Admission is per entry: a malformed entry costs
+/// that entry and the entries it collides with, not the fleet
+/// (adr-20260814-server-display-name-naming-contract).
+/// </summary>
+public static class AdmissionStates
+{
+    public const string Usable = "usable";
+    public const string Disabled = "disabled";
+    public const string ConfigurationInvalid = "configuration_invalid";
+}
+
+/// <summary>
+/// Rule identifiers, shared with clients/config/servers.schema.json
+/// x-contract-rules and with the expected-outcome corpus.
+/// </summary>
+public static class ServerRules
+{
+    public const string DisplayNameRequired = "display-name-required";
+    public const string DisplayNameCharset = "display-name-charset";
+    public const string DisplayNameUnique = "display-name-unique";
+    public const string EntryFieldTypes = "entry-field-types";
+    public const string UnknownEntryField = "unknown-entry-field-rejected";
+    public const string UrlScheme = "url-http-or-https";
+    public const string UrlBareAuthority = "url-carries-no-credentials-query-or-fragment";
+    public const string DuplicateUrl = "duplicate-url-rejected";
+    public const string AuthVariant = "auth-variant-exact";
+    public const string AtMostOneDefault = "at-most-one-default-execution";
+    public const string DefaultMustBeEnabled = "default-execution-must-be-enabled";
+}
+
+/// <summary>Why an entry is unusable: the rule it broke and enough detail to find it.</summary>
+public sealed record ServerViolation(string Rule, string Detail);
+
 public sealed record ServerConfig(
     string Id,
+    int Index,
     string DisplayName,
     bool Enabled,
     bool DefaultExecution,
-    Uri Url,
-    ServerAuthConfig Auth);
+    Uri? Url,
+    ServerAuthConfig Auth,
+    string Admission,
+    ServerViolation? Violation = null)
+{
+    /// <summary>An entry a client may connect to. Invalid and disabled entries are not.</summary>
+    public bool IsUsable => Admission == AdmissionStates.Usable;
+}
 
 public enum ServerAuthMode
 {
@@ -97,7 +138,7 @@ public static class DesktopConfigLoader
         foreach (var (name, value) in defaults)
             CreateIfMissing(Path.Combine(configDirectory, name), value);
 
-        var servers = Read<ServersDocument>(configDirectory, "servers.json");
+        var servers = Read<ServersReadDocument>(configDirectory, "servers.json");
         var appearance = Read<AppearanceDocument>(configDirectory, "appearance.json");
         var shell = Read<ShellDocument>(configDirectory, "shell.json");
         var workspace = Read<WorkspaceDocument>(configDirectory, "workspace.json");
@@ -107,30 +148,12 @@ public static class DesktopConfigLoader
         ValidateVersion(shell.SchemaVersion, "shell.json");
         ValidateVersion(workspace.SchemaVersion, "workspace.json");
 
-        var explicitDefaults = servers.Servers
-            .Select((server, index) => (Server: server, Index: index))
-            .Where(item => item.Server.DefaultExecution == true)
-            .ToList();
-        if (explicitDefaults.Count > 1)
-            throw new DesktopConfigException(
-                "servers.json: at most one server can be the default execution server");
-        if (explicitDefaults.Any(item => !item.Server.Enabled))
-            throw new DesktopConfigException(
-                "servers.json: the default execution server must be enabled");
-        var fallbackDefaultIndex = explicitDefaults.Count == 0
-            ? servers.Servers.ToList().FindIndex(server => server.Enabled)
-            : -1;
-        var mappedServers = servers.Servers
-            .Select((server, index) => MapServer(
-                server,
-                server.DefaultExecution == true || index == fallbackDefaultIndex))
-            .ToList();
-        if (mappedServers.Count == 0)
-            throw new DesktopConfigException("servers.json: at least one server is required");
-        if (mappedServers.All(s => !s.Enabled))
-            throw new DesktopConfigException("servers.json: at least one server must be enabled");
-        if (mappedServers.Select(s => s.Id).Distinct(StringComparer.Ordinal).Count() != mappedServers.Count)
-            throw new DesktopConfigException("servers.json: server ids must be unique");
+        // An absent entry list names no entry, so it is the one remaining
+        // file-level stop besides unreadable bytes and a wrong schema version.
+        // An empty list is simply an empty fleet.
+        if (servers.Servers is null)
+            throw new DesktopConfigException("servers.json: servers must be an array");
+        var mappedServers = AdmitServers(servers.Servers);
 
         ValidateAppearance(appearance);
         ValidateShell(shell);
@@ -152,26 +175,252 @@ public static class DesktopConfigLoader
             configDirectory);
     }
 
-    private static ServerConfig MapServer(ServerDocument server, bool defaultExecution)
+    // Admission is per entry. Entry-local rules run first so that a relation
+    // between entries — a duplicate name, a duplicate URL, two default-execution
+    // markers — is only computed over entries that are otherwise sound. Nothing
+    // here renames, normalises, suffixes, disables or drops an entry to resolve
+    // a violation (adr-20260814-server-display-name-naming-contract).
+    private static List<ServerConfig> AdmitServers(JsonElement[] raw)
     {
-        if (string.IsNullOrWhiteSpace(server.DisplayName))
-            throw new DesktopConfigException("servers.json: every server needs display_name");
-        if (!Uri.TryCreate(server.Url, UriKind.Absolute, out var url) ||
-            url.Scheme is not ("http" or "https"))
-            throw new DesktopConfigException(
-                $"servers.json: server '{server.DisplayName}' has invalid url");
-        var auth = MapAuth(server.Auth, server.DisplayName);
-        var canonicalUrl = CanonicalServerUrl(url);
-        return new ServerConfig(
-            ServerIdentifier(canonicalUrl),
-            server.DisplayName,
-            server.Enabled,
-            defaultExecution,
-            new Uri(canonicalUrl),
-            auth);
+        var servers = raw.Select(AdmitEntry).ToList();
+        MarkCollisions(
+            servers,
+            server => string.IsNullOrEmpty(server.Id) ? null : server.Id,
+            ServerRules.DuplicateUrl,
+            "two entries resolve to the same canonical url");
+        MarkCollisions(
+            servers,
+            server => server.Enabled ? DisplayNameKey(server.DisplayName) : null,
+            ServerRules.DisplayNameUnique,
+            "two enabled entries share a display name");
+        MarkDefaultExecution(servers);
+        return servers;
     }
 
-    private static ServerAuthConfig MapAuth(AuthDocument auth, string displayName)
+    private static ServerConfig AdmitEntry(JsonElement raw, int index)
+    {
+        var blank = new ServerConfig(
+            "", index, "", false, false, null, ServerAuthConfig.None,
+            AdmissionStates.ConfigurationInvalid);
+
+        if (raw.ValueKind != JsonValueKind.Object)
+            return blank with
+            {
+                Violation = new ServerViolation(
+                    ServerRules.EntryFieldTypes, "entry must be an object"),
+            };
+        // Checked before decoding rather than read off a decoder message, so
+        // the two entry-scoped decode failures stay distinguishable: a field
+        // the contract does not define, and a value of the wrong type.
+        var unknown = UnknownEntryField(raw);
+        if (unknown is not null)
+            return blank with
+            {
+                DisplayName = SalvageDisplayName(raw),
+                Violation = new ServerViolation(
+                    ServerRules.UnknownEntryField, $"unsupported field '{unknown}'"),
+            };
+
+        ServerDocument? document;
+        try
+        {
+            document = raw.Deserialize<ServerDocument>(JsonOptions);
+        }
+        catch (JsonException error)
+        {
+            return blank with
+            {
+                DisplayName = SalvageDisplayName(raw),
+                Violation = new ServerViolation(ServerRules.EntryFieldTypes, error.Message),
+            };
+        }
+        if (document is null)
+            return blank with { Violation = new ServerViolation(ServerRules.EntryFieldTypes, "entry must be an object") };
+
+        var entry = blank with
+        {
+            DisplayName = document.DisplayName ?? "",
+            Enabled = document.Enabled,
+            DefaultExecution = document.DefaultExecution == true,
+        };
+
+        var nameViolation = CheckDisplayName(entry.DisplayName);
+        if (nameViolation is not null)
+            return entry with { Violation = nameViolation };
+
+        if (!Uri.TryCreate(document.Url, UriKind.Absolute, out var url) ||
+            url.Scheme is not ("http" or "https"))
+            return entry with
+            {
+                Violation = new ServerViolation(
+                    ServerRules.UrlScheme, "url must be an absolute HTTP(S) URL"),
+            };
+        // Rejected, not stripped. All three are things an operator wrote on
+        // purpose; discarding them silently leaves the operator believing the
+        // client is doing something it is not — most sharply for a credential,
+        // where the belief is that authentication is configured
+        // (adr-20260814-shared-go-client-config-module).
+        if (!string.IsNullOrEmpty(url.UserInfo) ||
+            !string.IsNullOrEmpty(url.Query) ||
+            !string.IsNullOrEmpty(url.Fragment))
+            return entry with
+            {
+                Violation = new ServerViolation(
+                    ServerRules.UrlBareAuthority,
+                    "url must not contain credentials, a query, or a fragment"),
+            };
+
+        ServerAuthConfig auth;
+        try
+        {
+            auth = MapAuth(document.Auth, entry.DisplayName);
+        }
+        catch (DesktopConfigException error)
+        {
+            return entry with
+            {
+                Violation = new ServerViolation(ServerRules.AuthVariant, error.Message),
+            };
+        }
+
+        var canonicalUrl = CanonicalServerUrl(url);
+        var admitted = entry with
+        {
+            Id = ServerIdentifier(canonicalUrl),
+            Url = new Uri(canonicalUrl),
+            Auth = auth,
+            Admission = document.Enabled ? AdmissionStates.Usable : AdmissionStates.Disabled,
+        };
+        if (admitted.DefaultExecution && !admitted.Enabled)
+            return admitted with
+            {
+                Admission = AdmissionStates.ConfigurationInvalid,
+                Violation = new ServerViolation(
+                    ServerRules.DefaultMustBeEnabled,
+                    "a default execution entry must be enabled"),
+            };
+        return admitted;
+    }
+
+    private static readonly string[] EntryFields =
+        ["id", "display_name", "enabled", "default_execution", "url", "auth"];
+
+    private static string? UnknownEntryField(JsonElement raw)
+    {
+        foreach (var property in raw.EnumerateObject())
+        {
+            if (!EntryFields.Contains(property.Name, StringComparer.Ordinal))
+                return property.Name;
+        }
+        return null;
+    }
+
+    private static string SalvageDisplayName(JsonElement raw)
+    {
+        if (raw.ValueKind == JsonValueKind.Object &&
+            raw.TryGetProperty("display_name", out var name) &&
+            name.ValueKind == JsonValueKind.String)
+            return name.GetString() ?? "";
+        return "";
+    }
+
+    // Uniqueness is exact code points after trimming: no case folding and no
+    // Unicode normalisation, because those would require Go, TypeScript and C#
+    // to agree on a fold — a new cross-language divergence in the very code
+    // path this contract exists to make consistent.
+    private static string DisplayNameKey(string name) => name.Trim();
+
+    private static ServerViolation? CheckDisplayName(string name)
+    {
+        var trimmed = DisplayNameKey(name);
+        if (trimmed.Length == 0)
+            return new ServerViolation(
+                ServerRules.DisplayNameRequired, "display_name must not be blank");
+        foreach (var character in trimmed)
+        {
+            if (character <= 0x1f || character == 0x7f)
+                return new ServerViolation(
+                    ServerRules.DisplayNameCharset,
+                    $"display_name contains control character U+{(int)character:X4}");
+        }
+        if (trimmed.StartsWith('-'))
+            return new ServerViolation(
+                ServerRules.DisplayNameCharset,
+                "display_name must not begin with '-', which a command line reads as a flag");
+        return null;
+    }
+
+    // No winner is chosen: a duplicate is a property of a pair, so blaming one
+    // member requires choosing which, and every choice rule silently redirects
+    // an operator's existing reference to a different machine.
+    private static void MarkCollisions(
+        List<ServerConfig> servers,
+        Func<ServerConfig, string?> key,
+        string rule,
+        string detail)
+    {
+        var groups = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+        for (var index = 0; index < servers.Count; index++)
+        {
+            if (servers[index].Violation is not null)
+                continue;
+            var value = key(servers[index]);
+            if (string.IsNullOrEmpty(value))
+                continue;
+            if (!groups.TryGetValue(value, out var members))
+            {
+                members = [];
+                groups[value] = members;
+            }
+            members.Add(index);
+        }
+        foreach (var members in groups.Values)
+        {
+            if (members.Count < 2)
+                continue;
+            foreach (var index in members)
+                servers[index] = servers[index] with
+                {
+                    Admission = AdmissionStates.ConfigurationInvalid,
+                    Violation = new ServerViolation(rule, detail),
+                };
+        }
+    }
+
+    private static void MarkDefaultExecution(List<ServerConfig> servers)
+    {
+        var marked = new List<int>();
+        for (var index = 0; index < servers.Count; index++)
+        {
+            if (servers[index].Violation is null && servers[index].DefaultExecution)
+                marked.Add(index);
+        }
+        if (marked.Count > 1)
+        {
+            foreach (var index in marked)
+                servers[index] = servers[index] with
+                {
+                    Admission = AdmissionStates.ConfigurationInvalid,
+                    Violation = new ServerViolation(
+                        ServerRules.AtMostOneDefault,
+                        "more than one entry is marked as the default execution server"),
+                };
+            // Every marker is now unusable, so the legacy fallback below applies.
+            marked.Clear();
+        }
+        if (marked.Count == 1)
+            return;
+        for (var index = 0; index < servers.Count; index++)
+        {
+            if (servers[index].IsUsable)
+            {
+                servers[index] = servers[index] with { DefaultExecution = true };
+                return;
+            }
+        }
+    }
+
+    private static ServerAuthConfig MapAuth(AuthDocument? auth, string displayName)
     {
         if (auth is null)
             throw AuthError(displayName);
@@ -192,16 +441,13 @@ public static class DesktopConfigLoader
         $"servers.json: server '{displayName}' auth must be {{\"mode\":\"none\"}} or " +
         "{\"mode\":\"bearer\",\"token\":\"...\"}");
 
+    // The folding every client loader must agree on: scheme and host case, a
+    // default port, and trailing path slashes. Credentials, a query and a
+    // fragment are not folded away here — MapServer rejects an entry carrying
+    // them before this is reached.
     public static string CanonicalServerUrl(Uri url)
     {
-        var builder = new UriBuilder(url)
-        {
-            UserName = "",
-            Password = "",
-            Query = "",
-            Fragment = "",
-        };
-        var canonical = builder.Uri.GetComponents(
+        var canonical = url.GetComponents(
             UriComponents.SchemeAndServer | UriComponents.Path,
             UriFormat.UriEscaped);
         return canonical.TrimEnd('/');
@@ -335,6 +581,13 @@ public static class DesktopConfigLoader
     private sealed record ServersDocument(
         [property: JsonPropertyName("schema_version")] int SchemaVersion,
         [property: JsonPropertyName("servers")] IReadOnlyList<ServerDocument> Servers);
+
+    // Reading keeps entries as raw elements so each is decoded on its own: an
+    // unrecognised field or a value of the wrong type must cost one entry, and
+    // a whole-document decode would make it cost the fleet.
+    private sealed record ServersReadDocument(
+        [property: JsonPropertyName("schema_version")] int SchemaVersion,
+        [property: JsonPropertyName("servers")] JsonElement[]? Servers);
 
     private sealed record ServerDocument(
         [property: JsonPropertyName("display_name")] string DisplayName,

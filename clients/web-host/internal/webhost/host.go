@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/takezoh/agent-grid/clients/web-host/internal/clientconfig"
+	"github.com/takezoh/agent-grid/clients/goclient/clientconfig"
 )
 
 const (
@@ -27,9 +27,12 @@ const (
 // configured client server. The immutable snapshot contains credentials; only
 // its credential-free projection is exposed to browser JavaScript.
 func Handler(snapshot clientconfig.Snapshot) (http.Handler, error) {
-	if len(snapshot.Servers) == 0 {
-		return nil, errors.New("webhost: empty client configuration")
-	}
+	// A fleet with nothing usable is a state the host must serve, not refuse.
+	// Under per-entry admission an entry can become configuration-invalid on
+	// its own, so "no usable server" is reachable from a configuration that
+	// loaded — and refusing here would mean the same end state stops the host
+	// on one route and not on another
+	// (adr-20260814-server-display-name-naming-contract).
 	distFS, err := DistFS()
 	if err != nil {
 		return nil, fmt.Errorf("webhost: embed sub-fs: %w", err)

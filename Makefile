@@ -7,6 +7,7 @@ WSL_SUPERVISOR   := dist/windows/agent-grid-wsl-supervisor.exe
 WEB              := $(BIN_DIR)/web-host
 SERVICES_DIR     := services
 WEB_HOST_DIR     := clients/web-host
+GOCLIENT_DIR     := clients/goclient
 INSTALL_DIR    := $(HOME)/.local/bin
 LIBEXEC_DIR    := $(HOME)/.local/lib/agent-grid
 SYSTEMD_USER_DIR := $(HOME)/.config/systemd/user
@@ -201,6 +202,7 @@ test-race:
 vet:
 	cd $(SERVICES_DIR) && GOWORK=off go vet ./...
 	cd $(WEB_HOST_DIR) && GOWORK=off go vet ./...
+	cd $(GOCLIENT_DIR) && GOWORK=off go vet ./...
 
 lint:
 	cd $(SERVICES_DIR) && GOWORK=off go tool golangci-lint run ./...

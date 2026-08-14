@@ -90,8 +90,12 @@ func TestReduceFrameCommandExited_IntentionalExitCodesEvict(t *testing.T) {
 			s.Sessions[id] = newExitSession(id)
 
 			next, effs := Reduce(s, EvFrameCommandExited{FrameID: FrameID(id), ExitCode: code})
-			if _, ok := next.Sessions[id]; ok {
-				t.Errorf("exit %d must evict the frame from state", code)
+			sess, ok := next.Sessions[id]
+			if !ok || !sess.Ended() {
+				t.Errorf("exit %d must leave a terminal row, not delete the session", code)
+			}
+			if len(sess.Frames) != 0 {
+				t.Errorf("exit %d must still evict the frame: frames = %d", code, len(sess.Frames))
 			}
 			if _, ok := findEff[EffKillFrame](effs); !ok {
 				t.Errorf("exit %d must request EffKillFrame to tear down the dead window", code)
@@ -190,8 +194,13 @@ func TestReduceFrameCommandExited_IntentionalExitEvictsEvenWhenDriverStopped(t *
 			s.Sessions[id] = sess
 
 			next, effs := Reduce(s, EvFrameCommandExited{FrameID: FrameID(id), ExitCode: code})
-			if _, ok := next.Sessions[id]; ok {
-				t.Errorf("intentional exit %d on hook-stopped frame must still evict from state", code)
+			sess, ok := next.Sessions[id]
+			if !ok || !sess.Ended() {
+				t.Errorf("intentional exit %d on hook-stopped frame must leave a terminal row", code)
+			}
+			if len(sess.Frames) != 0 {
+				t.Errorf("intentional exit %d must still evict the frame: frames = %d",
+					code, len(sess.Frames))
 			}
 			if _, ok := findEff[EffKillFrame](effs); !ok {
 				t.Errorf("intentional exit %d on hook-stopped frame must still request EffKillFrame", code)

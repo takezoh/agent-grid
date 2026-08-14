@@ -15,10 +15,13 @@ const (
 	ProtocolVersionHeader = "X-Agent-Grid-Protocol-Version"
 )
 
+// protocolVersionError is a pre-upgrade rejection: Code is drawn from the same
+// published transport-close vocabulary a post-upgrade departure carries, so
+// one vocabulary spans both sides of the WebSocket upgrade.
 type protocolVersionError struct {
-	Code            string `json:"code"`
-	ExpectedVersion string `json:"expectedVersion"`
-	ActualVersion   string `json:"actualVersion"`
+	Code            CloseReason `json:"code"`
+	ExpectedVersion string      `json:"expectedVersion"`
+	ActualVersion   string      `json:"actualVersion"`
 }
 
 func ProtocolVersionGate(next http.Handler) http.Handler {
@@ -43,7 +46,7 @@ func writeProtocolVersionError(w http.ResponseWriter, actual string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusUpgradeRequired)
 	_ = json.NewEncoder(w).Encode(protocolVersionError{
-		Code:            "incompatible_protocol",
+		Code:            CloseIncompatibleProtocol,
 		ExpectedVersion: ProtocolVersion,
 		ActualVersion:   actual,
 	})
@@ -66,13 +69,20 @@ func protocolAwareAPIHandler(
 	})
 }
 
-func noAuthWSProtocolVersion(r *http.Request) (string, bool) {
+// wsProtocolVersion reads the wire version a WebSocket upgrade declares, from
+// the query string (a browser cannot set headers) or from the header.
+//
+// supplied separates "declared nothing" from "declared something wrong". The
+// ticket-authenticated path admits the former, because the ticket was minted
+// over the version-gated REST API and a mismatched build cannot hold one; the
+// no-auth path has no such gate and requires a declaration.
+func wsProtocolVersion(r *http.Request) (actual string, supplied, ok bool) {
 	queryVersions := r.URL.Query()["protocolVersion"]
 	if len(queryVersions) > 0 {
-		actual := strings.Join(queryVersions, ",")
-		return actual, len(queryVersions) == 1 && actual == ProtocolVersion
+		actual = strings.Join(queryVersions, ",")
+		return actual, true, len(queryVersions) == 1 && actual == ProtocolVersion
 	}
 	headerVersions := r.Header.Values(ProtocolVersionHeader)
-	actual := strings.Join(headerVersions, ",")
-	return actual, len(headerVersions) == 1 && actual == ProtocolVersion
+	actual = strings.Join(headerVersions, ",")
+	return actual, len(headerVersions) > 0, len(headerVersions) == 1 && actual == ProtocolVersion
 }

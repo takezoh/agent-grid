@@ -92,7 +92,11 @@ describe("desktop config", () => {
     expect(config.servers.map((entry) => entry.default_execution)).toEqual([true, false]);
   });
 
-  it("rejects a disabled or duplicate default execution server", () => {
+  // An invalid default-execution marker is entry-scoped under per-entry
+  // admission (adr-20260814-server-display-name-naming-contract): it costs the
+  // entries it can be blamed on and leaves the host running. The assertion is
+  // restated against the state those entries must reach, not weakened.
+  it("invalidates only the entries an invalid default execution marker names", () => {
     const directory = tempDir();
     loadOrCreateDesktopConfig(directory);
     const file = path.join(directory, "servers.json");
@@ -105,13 +109,26 @@ describe("desktop config", () => {
         { ...two, default_execution: true },
       ],
     }));
-    expect(() => loadOrCreateDesktopConfig(directory)).toThrow(/exactly one enabled server/);
+    const bothMarked = loadOrCreateDesktopConfig(directory);
+    expect(bothMarked.servers.map((entry) => entry.admission)).toEqual([
+      "configuration_invalid",
+      "configuration_invalid",
+    ]);
+    expect(bothMarked.servers.map((entry) => entry.violation?.rule)).toEqual([
+      "at-most-one-default-execution",
+      "at-most-one-default-execution",
+    ]);
 
     fs.writeFileSync(file, JSON.stringify({
       schema_version: 2,
       servers: [{ ...one, enabled: false, default_execution: true }, two],
     }));
-    expect(() => loadOrCreateDesktopConfig(directory)).toThrow(/must be enabled/);
+    const disabledMarker = loadOrCreateDesktopConfig(directory);
+    expect(disabledMarker.servers.map((entry) => entry.admission)).toEqual([
+      "configuration_invalid",
+      "usable",
+    ]);
+    expect(disabledMarker.servers[0]?.violation?.rule).toBe("default-execution-must-be-enabled");
   });
 
   it("does not replace invalid user configuration", () => {
@@ -143,11 +160,15 @@ describe("desktop config", () => {
     expect(fs.readFileSync(file, "utf8")).toBe(legacy);
   });
 
+  // A malformed auth variant is an entry-scoped error under per-entry admission
+  // (adr-20260814-server-display-name-naming-contract), so it costs its own
+  // entry and leaves the host running. The assertion is not weakened — it is
+  // restated against the state the entry must now reach.
   it.each([
-    { auth: { mode: "bearer", token: " " }, message: /non-empty token/ },
-    { auth: { mode: "none", token: "leak" }, message: /cannot contain a token/ },
-    { auth: { mode: "unknown" }, message: /auth must be/ },
-  ])("rejects malformed auth variant %#", ({ auth, message }) => {
+    { auth: { mode: "bearer", token: " " }, detail: /non-empty token/ },
+    { auth: { mode: "none", token: "leak" }, detail: /cannot contain a token/ },
+    { auth: { mode: "unknown" }, detail: /auth must be/ },
+  ])("admits a malformed auth variant %# as configuration-invalid", ({ auth, detail }) => {
     const directory = tempDir();
     loadOrCreateDesktopConfig(directory);
     fs.writeFileSync(path.join(directory, "servers.json"), JSON.stringify({
@@ -160,7 +181,11 @@ describe("desktop config", () => {
       }],
     }));
 
-    expect(() => loadOrCreateDesktopConfig(directory)).toThrow(message);
+    const config = loadOrCreateDesktopConfig(directory);
+    const entry = config.servers[0]!;
+    expect(entry.admission).toBe("configuration_invalid");
+    expect(entry.violation?.rule).toBe("auth-variant-exact");
+    expect(entry.violation?.detail).toMatch(detail);
   });
 
   it("saves editable workspace settings without disturbing server config", () => {
@@ -330,8 +355,16 @@ describe("desktop config", () => {
     expect(saved.servers[0]).not.toHaveProperty("health");
   });
 
+  // A query and a fragment are no longer stripped on the way to an
+  // identifier — validation rejects an entry carrying them before this is
+  // reached (adr-20260814-shared-go-client-config-module). What remains here
+  // is the folding every loader must agree on: scheme and host case, a default
+  // port, and trailing path slashes.
   it("derives the cross-client identifier from the canonical URL", () => {
-    expect(serverIdentifier("HTTP://Example.TEST:80/api///?token=ignored#fragment")).toBe(
+    expect(serverIdentifier("HTTP://Example.TEST:80/api///")).toBe(
+      serverIdentifier("http://example.test/api"),
+    );
+    expect(serverIdentifier("http://example.test/api")).toBe(
       "srv_36edcc69555ffb4873eb2d2b461c03839096e08cbb4dd60ba5ecc53f8175a5d0",
     );
   });
@@ -350,18 +383,31 @@ describe("desktop config", () => {
     expect(() => loadOrCreateDesktopConfig(directory)).not.toThrow();
   });
 
-  it.each([
-    "servers-invalid-v1-token-path.json",
-    "servers-invalid-empty-bearer.json",
-  ])("rejects shared fixture %s", (fixture) => {
+  // The two shared invalid fixtures now separate along the admission partition:
+  // a v1 document names no entry and stops the host, while an empty bearer
+  // token names one and costs only that entry. The corpus in
+  // tests/config-corpus.test.ts covers the full partition.
+  it("stops the host on the shared v1 token_path fixture", () => {
     const directory = tempDir();
     loadOrCreateDesktopConfig(directory);
     fs.copyFileSync(
-      path.resolve("../config/fixtures", fixture),
+      path.resolve("../config/fixtures", "servers-invalid-v1-token-path.json"),
       path.join(directory, "servers.json"),
     );
 
     expect(() => loadOrCreateDesktopConfig(directory)).toThrow();
+  });
+
+  it("admits the shared empty-bearer fixture as configuration-invalid", () => {
+    const directory = tempDir();
+    loadOrCreateDesktopConfig(directory);
+    fs.copyFileSync(
+      path.resolve("../config/fixtures", "servers-invalid-empty-bearer.json"),
+      path.join(directory, "servers.json"),
+    );
+
+    const config = loadOrCreateDesktopConfig(directory);
+    expect(config.servers.map((server) => server.admission)).toContain("configuration_invalid");
   });
 
   it("ignores a legacy client-selected id and removes it on save", () => {

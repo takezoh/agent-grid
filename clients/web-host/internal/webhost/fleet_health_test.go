@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/takezoh/agent-grid/clients/web-host/internal/clientconfig"
+	"github.com/takezoh/agent-grid/clients/goclient/clientconfig"
 )
 
 func TestFleetHealthWireCanonicalFixture(t *testing.T) {

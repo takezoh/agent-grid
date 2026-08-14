@@ -458,10 +458,19 @@ func TestRegressionEvictedSessionStaysEvictedAfterFrameEvents(t *testing.T) {
 		}
 	}
 
-	// And it must NOT appear in any Save the runtime produced after eviction
-	// — sample by checking the in-memory state at shutdown.
-	if _, alive := r.state.Sessions["doomed"]; alive {
-		t.Errorf("state.Sessions still has 'doomed' after eviction + ghost events")
+	// The row itself is retained so clients can observe the terminal state
+	// (adr-20260814-session-terminal-state-retention), but ghost frame events
+	// must never resurrect it into a live session: it stays terminal and
+	// frameless, and it stays out of the durable snapshot (asserted above).
+	sess, alive := r.state.Sessions["doomed"]
+	if !alive {
+		t.Fatal("terminal row for 'doomed' must remain observable after eviction")
+	}
+	if !sess.Ended() {
+		t.Error("ghost frame events resurrected 'doomed' out of its terminal state")
+	}
+	if len(sess.Frames) != 0 {
+		t.Errorf("ghost frame events re-attached %d frame(s) to a terminal row", len(sess.Frames))
 	}
 }
 

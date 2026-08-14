@@ -76,6 +76,14 @@ func startGatewayWithAuthority(ctx context.Context, cancel context.CancelFunc, s
 		Addr:              df.addr,
 		Handler:           buildHTTPHandlerWithAuthority(daemon, dataDir, token, df.noAuth, authority),
 		ReadHeaderTimeout: 5 * time.Second,
+		// Rooting every request context in the daemon context is what lets a
+		// draining server tell its attached clients why they are losing the
+		// socket. srv.Shutdown neither closes nor waits for hijacked
+		// connections, so without this the WebSocket handlers never learn the
+		// process is going away and each client sees an abrupt 1006 with an
+		// empty reason — indistinguishable from a pulled cable
+		// (adr-20260814-transport-close-reason-taxonomy).
+		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
 
 	// Listener has to bind synchronously so a port conflict (or TLS cert error)

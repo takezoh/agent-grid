@@ -784,7 +784,15 @@ func (r *Runtime) reconcilePersist(
 		}
 	}
 	for id := range prev {
-		if _, kept := next[id]; !kept {
+		// A session counts as removed for durable purposes when it either left
+		// the map or reached its terminal state. Terminal rows are retained in
+		// memory so clients can observe `stopped`
+		// (adr-20260814-session-terminal-state-retention), but they can never be
+		// resumed, so their durable record and frame-messaging store are
+		// reclaimed exactly as before — otherwise a cold start would resurrect
+		// dead rows and the messaging store would leak.
+		nextSess, kept := next[id]
+		if !kept || (nextSess.Ended() && !prev[id].Ended()) {
 			removed = append(removed, string(id))
 			if deleteDurable {
 				if err := r.cfg.Persist.Delete(string(id)); err != nil {

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { ServerConfig } from "./desktop-config.js";
+import { isUsable, type ServerConfig } from "./desktop-config.js";
 import {
   PROTOCOL_VERSION,
   PROTOCOL_VERSION_HEADER,
@@ -127,7 +127,7 @@ export class FleetSessionRuntime {
     this.clock = options.clock ?? defaultClock;
     this.random = options.random ?? Math.random;
     this.hostInstanceId = options.hostInstanceId ?? randomUUID();
-    const enabled = servers.filter((server) => server.enabled);
+    const enabled = servers.filter(isUsable);
     this.snapshotValue = project(
       0,
       enabled.map((server) => ({
@@ -155,7 +155,7 @@ export class FleetSessionRuntime {
     if (this.baselineRunning) return;
     this.baselineRunning = true;
     for (const server of this.servers) {
-      if (!server.enabled) continue;
+      if (!isUsable(server)) continue;
       const epoch = this.workerEpochs.get(server.id) ?? 0;
       this.workerEpochs.set(server.id, epoch);
       this.workersStarted += 1;
@@ -198,7 +198,7 @@ export class FleetSessionRuntime {
       throw new Error("fleet runtime is not ready");
     }
     const server = this.servers.find((candidate) => candidate.id === serverId);
-    if (!server || !server.enabled) {
+    if (!server || !isUsable(server)) {
       throw new Error(`unknown or disabled server '${serverId}'`);
     }
 
@@ -257,7 +257,7 @@ export class FleetSessionRuntime {
   }
 
   enabledWorkerCount(): number {
-    return this.servers.filter((server) => server.enabled).length;
+    return this.servers.filter(isUsable).length;
   }
 
   startedWorkerCount(): number {

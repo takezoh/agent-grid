@@ -90,6 +90,20 @@ func TestWireFixtures(t *testing.T) {
 			path: filepath.Join(dir, "control-with-code.json"),
 			got:  controlFrame(9, "t | b"),
 		},
+		{
+			// A departure carries the published reason and, where one
+			// existed, the pre-taxonomy data payload alongside it — so a
+			// client that still matches `data` literals is not broken by a
+			// client that reads `reason`.
+			name: "control-departure",
+			path: filepath.Join(dir, "control-departure.json"),
+			got:  departureControlFrame(CloseBackendUnavailable, legacyDaemonGoneData),
+		},
+		{
+			name: "control-departure-bare",
+			path: filepath.Join(dir, "control-departure-bare.json"),
+			got:  departureControlFrame(CloseInvalidRequest, ""),
+		},
 	}
 
 	for _, fixture := range fixtures {

@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/takezoh/agent-grid/clients/web-host/internal/clientconfig"
+	"github.com/takezoh/agent-grid/clients/goclient/clientconfig"
 )
 
 // Closed protocol-version token: protocol-N only. Anything else is <invalid>/<missing>.

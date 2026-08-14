@@ -16,6 +16,7 @@
       {"id":"web-gate","group":"core","command":"cd clients/ui && npm ci && npx playwright install chromium && npm run test:web"},
       {"id":"wire-fixtures","group":"core","command":"cd services && go test ./server/api -run TestWireFixtures -count=1 -args -update && git diff --exit-code -- ../clients/ui/src/wire/testdata && test -z \"$(git status --porcelain -- ../clients/ui/src/wire/testdata)\""},
       {"id":"go-vet","group":"core","command":"cd services && go vet ./..."},
+      {"id":"goclient-vet","group":"core","command":"cd clients/goclient && GOWORK=off go vet ./..."},
       {"id":"web-host-vet","group":"core","command":"cd clients/web-host && GOWORK=off go vet ./..."},
       {"id":"e2e-vet","group":"core","command":"scripts/vet-go-e2e.sh"},
       {"id":"e2e-siblings","group":"core","command":"scripts/check-e2e-siblings.sh"},
@@ -25,6 +26,7 @@
       {"id":"trusted-tampering","group":"core","when":"pull-request","command":"scripts/run-trusted-harness-gate.sh \"$BASE_REF\""},
       {"id":"mutation","group":"core","command":"scripts/run-mutation-pilot.sh"},
       {"id":"go-test","group":"core","command":"cd services && go test ./..."},
+      {"id":"goclient-test","group":"core","command":"cd clients/goclient && GOWORK=off go test ./..."},
       {"id":"web-host-test","group":"core","command":"cd clients/web-host && GOWORK=off go test ./..."},
       {"id":"coverage","group":"core","command":"scripts/check-coverage.sh"},
       {"id":"build","group":"core","command":"make build-all"},
@@ -36,6 +38,7 @@
       {"id":"fuzz-state","group":"fuzz","command":"cd services && go test -run '^$' -fuzz '^FuzzReduce$' -fuzztime=30s ./host/state/"},
       {"id":"fuzz-web","group":"fuzz","command":"cd services && go test -run '^$' -fuzz '^FuzzApplyInboundProto$' -fuzztime=30s ./server/api/"},
       {"id":"fuzz-osc","group":"fuzz","command":"cd services && go test -run '^$' -fuzz '^FuzzParseOsc$' -fuzztime=30s ./host/runtime/"},
+      {"id":"client-config-parity","group":"schema","command":"scripts/check-client-config-parity.sh"},
       {"id":"schema-drift","group":"schema","command":"make codex-schema-check"},
       {"id":"compatibility","group":"compatibility","command":"scripts/check-protocol-compatibility.sh"}
     ]},

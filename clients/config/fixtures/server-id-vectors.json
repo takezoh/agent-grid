@@ -1,0 +1,32 @@
+{
+  "description": "Cross-language golden vectors for the derived server identifier. Every client host derives routing identity from the gateway URL alone, so a language that canonicalises differently gives one server two identities and splits a fleet in half. These vectors are the shared statement of the derivation; the Go, TypeScript and C# loaders each assert against them.",
+  "algorithm": "canonical = scheme://host[:port] + path with trailing slashes removed, credentials, query and fragment absent; serverId = \"srv_\" + lowercase hex SHA-256 of the canonical URL as UTF-8",
+  "note": "Inputs are restricted to URLs on which the three loaders already agree. Default-port normalisation and host case folding are recorded as divergences in the expected-outcome corpus rather than here, because Go preserves both today while TypeScript and C# fold them.",
+  "vectors": [
+    {
+      "raw": "http://127.0.0.1:8765",
+      "canonical": "http://127.0.0.1:8765",
+      "server_id": "srv_72b0e86b156f08eb458acaa497126a06506565a00cbc375b40c2c304f4266442"
+    },
+    {
+      "raw": "http://127.0.0.1:8765/",
+      "canonical": "http://127.0.0.1:8765",
+      "server_id": "srv_72b0e86b156f08eb458acaa497126a06506565a00cbc375b40c2c304f4266442"
+    },
+    {
+      "raw": "https://gateway.internal:8443/agent-grid",
+      "canonical": "https://gateway.internal:8443/agent-grid",
+      "server_id": "srv_25093ebfb5f7007cedf8ca3c0746bfd01541e16013d0f7d58efc56414ef9b184"
+    },
+    {
+      "raw": "https://gateway.internal:8443/agent-grid/",
+      "canonical": "https://gateway.internal:8443/agent-grid",
+      "server_id": "srv_25093ebfb5f7007cedf8ca3c0746bfd01541e16013d0f7d58efc56414ef9b184"
+    },
+    {
+      "raw": "http://[::1]:8765/x/",
+      "canonical": "http://[::1]:8765/x",
+      "server_id": "srv_f456a193e33cb7c4e9322856e0aba4fb95156c3ca84a634687837f912e4adfd0"
+    }
+  ]
+}

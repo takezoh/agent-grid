@@ -1,0 +1,329 @@
+{
+  "description": "Expected-outcome corpus for servers.json. Every case carries the outcome each loader must reach — whether the document stops the host at all, and the admission state, canonical URL, derived identifier and violated rule of every entry. Asserting against this record is what separates three loaders that agree from three loaders that each merely throw.",
+  "rules_source": "../servers.schema.json#x-contract-rules",
+  "decisions": {
+    "load": "The host starts. Every entry is admitted in one of the states below; a malformed entry costs that entry, not the fleet.",
+    "stop": "A file-level stop: no entry can be named, so the host does not start."
+  },
+  "admission_states": {
+    "usable": "Valid and enabled; this entry is connected to.",
+    "disabled": "Valid but not enabled; never connected to, and not an error.",
+    "configuration_invalid": "Broke a rule, or collides with an entry that did. Never probed, never connected to, and always reported."
+  },
+  "cases": [
+    {
+      "name": "bearer entry is admitted and canonicalised",
+      "rules": ["url-canonicalised", "server-id-derived-from-canonical-url", "auth-variant-exact", "legacy-default-execution-falls-back-to-first-enabled"],
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"Primary\",\"enabled\":true,\"url\":\"https://gw.internal:8443/agent-grid/\",\"auth\":{\"mode\":\"bearer\",\"token\":\"the-server-token\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "Primary", "admission": "usable", "enabled": true, "default_execution": true, "canonical_url": "https://gw.internal:8443/agent-grid", "server_id": "srv_8306fecd3934373570d54f7b770131dcdda3a1432e8c8ca1c567a32c613dfbf9"}
+        ]
+      }
+    },
+    {
+      "name": "a disabled sibling is valid and is never the execution target",
+      "rules": ["legacy-default-execution-falls-back-to-first-enabled"],
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"Spare\",\"enabled\":false,\"url\":\"http://127.0.0.1:9000\",\"auth\":{\"mode\":\"none\"}},{\"display_name\":\"Primary\",\"enabled\":true,\"url\":\"http://127.0.0.1:8765\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "Spare", "admission": "disabled", "enabled": false, "default_execution": false, "canonical_url": "http://127.0.0.1:9000", "server_id": "srv_67d8ea34d836dea3b3e8169cb1f45896da25cc2d456769adb7ecc68dbba21c27"},
+          {"index": 1, "display_name": "Primary", "admission": "usable", "enabled": true, "default_execution": true, "canonical_url": "http://127.0.0.1:8765", "server_id": "srv_72b0e86b156f08eb458acaa497126a06506565a00cbc375b40c2c304f4266442"}
+        ]
+      }
+    },
+    {
+      "name": "an explicit default execution marker is honoured over the first enabled entry",
+      "rules": ["at-most-one-default-execution"],
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"First\",\"enabled\":true,\"url\":\"http://127.0.0.1:8765\",\"auth\":{\"mode\":\"none\"}},{\"display_name\":\"Chosen\",\"enabled\":true,\"default_execution\":true,\"url\":\"http://127.0.0.1:9000\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "First", "admission": "usable", "enabled": true, "default_execution": false, "canonical_url": "http://127.0.0.1:8765", "server_id": "srv_72b0e86b156f08eb458acaa497126a06506565a00cbc375b40c2c304f4266442"},
+          {"index": 1, "display_name": "Chosen", "admission": "usable", "enabled": true, "default_execution": true, "canonical_url": "http://127.0.0.1:9000", "server_id": "srv_67d8ea34d836dea3b3e8169cb1f45896da25cc2d456769adb7ecc68dbba21c27"}
+        ]
+      }
+    },
+    {
+      "name": "host case and a default port fold into one identity",
+      "rules": ["url-canonicalised", "server-id-derived-from-canonical-url"],
+      "why": "Go preserved both while TypeScript and C# folded them, so one gateway written two equivalent ways produced two identities and a mixed fleet disagreed about which rows were the same row.",
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"Mixed case\",\"enabled\":true,\"url\":\"http://Gateway.LOCAL:80/\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "Mixed case", "admission": "usable", "enabled": true, "default_execution": true, "canonical_url": "http://gateway.local", "server_id": "srv_da11d971ee1acffe5c36b3683945eedf861ccd2fd0a9504edd7e893f44b793c2"}
+        ]
+      }
+    },
+    {
+      "name": "repeated trailing slashes and an https default port fold away",
+      "rules": ["url-canonicalised"],
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"Trailing\",\"enabled\":true,\"url\":\"https://gw.example:443/api///\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "Trailing", "admission": "usable", "enabled": true, "default_execution": true, "canonical_url": "https://gw.example/api", "server_id": "srv_4aac3dc07e28d681b9aebfbe906be97bc05e3bc3a4325f00bbe45d38d25dc883"}
+        ]
+      }
+    },
+    {
+      "name": "the deprecated id field is accepted and discarded",
+      "rules": ["unknown-entry-field-rejected", "server-id-derived-from-canonical-url"],
+      "why": "Identity is derived, never read. A file that names an id must not be able to claim one.",
+      "document": "{\"schema_version\":2,\"servers\":[{\"id\":\"srv_claimed-by-the-file\",\"display_name\":\"Legacy\",\"enabled\":true,\"url\":\"http://127.0.0.1:8765\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "Legacy", "admission": "usable", "enabled": true, "default_execution": true, "canonical_url": "http://127.0.0.1:8765", "server_id": "srv_72b0e86b156f08eb458acaa497126a06506565a00cbc375b40c2c304f4266442"}
+        ]
+      }
+    },
+    {
+      "name": "an empty entry list is an empty fleet, not a stop",
+      "rules": ["server-list-present"],
+      "why": "Once entries can individually become unusable, an empty usable fleet is already reachable and every host must survive it. Keeping a separate fatal path to the same observable would make one end state stop the host on one route and not on another.",
+      "document": "{\"schema_version\":2,\"servers\":[]}",
+      "expected": {"decision": "load", "servers": []}
+    },
+    {
+      "name": "a fleet with nothing enabled loads with nothing usable",
+      "rules": ["server-list-present"],
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"Off\",\"enabled\":false,\"url\":\"http://127.0.0.1:8765\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "Off", "admission": "disabled", "enabled": false, "default_execution": false, "canonical_url": "http://127.0.0.1:8765", "server_id": "srv_72b0e86b156f08eb458acaa497126a06506565a00cbc375b40c2c304f4266442"}
+        ]
+      }
+    },
+    {
+      "name": "an unparseable document stops the host",
+      "rules": ["document-parseable"],
+      "why": "Promised by the README and exercised by no fixture before this corpus.",
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"Truncated\"",
+      "expected": {"decision": "stop"}
+    },
+    {
+      "name": "an unsupported schema version stops the host",
+      "rules": ["schema-version-exact"],
+      "document": "{\"schema_version\":1,\"servers\":[{\"display_name\":\"Old\",\"enabled\":true,\"url\":\"http://127.0.0.1:8765\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {"decision": "stop"}
+    },
+    {
+      "name": "an absent entry list stops the host",
+      "rules": ["server-list-present"],
+      "why": "No entry can be named, which is the whole test for a file-level stop.",
+      "document": "{\"schema_version\":2}",
+      "expected": {"decision": "stop"}
+    },
+    {
+      "name": "a blank display name costs only its own entry",
+      "rules": ["display-name-required"],
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"   \",\"enabled\":true,\"url\":\"http://127.0.0.1:8765\",\"auth\":{\"mode\":\"none\"}},{\"display_name\":\"Fine\",\"enabled\":true,\"url\":\"http://127.0.0.1:9000\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "   ", "admission": "configuration_invalid", "rule": "display-name-required"},
+          {"index": 1, "display_name": "Fine", "admission": "usable", "enabled": true, "default_execution": true, "canonical_url": "http://127.0.0.1:9000", "server_id": "srv_67d8ea34d836dea3b3e8169cb1f45896da25cc2d456769adb7ecc68dbba21c27"}
+        ]
+      }
+    },
+    {
+      "name": "a display name beginning with a dash is invalid",
+      "rules": ["display-name-charset"],
+      "why": "A command line reads a leading dash as a flag, so such a name could never be passed as a server qualifier.",
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"-prod\",\"enabled\":true,\"url\":\"http://127.0.0.1:8765\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "-prod", "admission": "configuration_invalid", "rule": "display-name-charset"}
+        ]
+      }
+    },
+    {
+      "name": "a display name carrying a control character is invalid",
+      "rules": ["display-name-charset"],
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"pro\\u0007d\",\"enabled\":true,\"url\":\"http://127.0.0.1:8765\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "pro\u0007d", "admission": "configuration_invalid", "rule": "display-name-charset"}
+        ]
+      }
+    },
+    {
+      "name": "two enabled entries sharing a display name are both invalid",
+      "rules": ["display-name-unique"],
+      "why": "A duplicate is a property of a pair. Blaming one member requires choosing which, and every choice rule silently redirects an operator's existing reference to a different machine.",
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"prod\",\"enabled\":true,\"url\":\"http://127.0.0.1:8765\",\"auth\":{\"mode\":\"none\"}},{\"display_name\":\" prod \",\"enabled\":true,\"url\":\"http://127.0.0.1:9000\",\"auth\":{\"mode\":\"none\"}},{\"display_name\":\"other\",\"enabled\":true,\"url\":\"http://127.0.0.1:9100\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "prod", "admission": "configuration_invalid", "rule": "display-name-unique"},
+          {"index": 1, "display_name": " prod ", "admission": "configuration_invalid", "rule": "display-name-unique"},
+          {"index": 2, "display_name": "other", "admission": "usable", "enabled": true, "default_execution": true, "canonical_url": "http://127.0.0.1:9100", "server_id": "srv_8b88c129a1cbe237c187e3a24e2f1323babfbf5abb311e40388d70617dea5a42"}
+        ]
+      }
+    },
+    {
+      "name": "a disabled entry may reuse an enabled entry's display name",
+      "rules": ["display-name-unique"],
+      "why": "A disabled entry is never addressed, so it cannot make another name ambiguous.",
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"prod\",\"enabled\":true,\"url\":\"http://127.0.0.1:8765\",\"auth\":{\"mode\":\"none\"}},{\"display_name\":\"prod\",\"enabled\":false,\"url\":\"http://127.0.0.1:9000\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "prod", "admission": "usable", "enabled": true, "default_execution": true, "canonical_url": "http://127.0.0.1:8765", "server_id": "srv_72b0e86b156f08eb458acaa497126a06506565a00cbc375b40c2c304f4266442"},
+          {"index": 1, "display_name": "prod", "admission": "disabled", "enabled": false, "default_execution": false, "canonical_url": "http://127.0.0.1:9000", "server_id": "srv_67d8ea34d836dea3b3e8169cb1f45896da25cc2d456769adb7ecc68dbba21c27"}
+        ]
+      }
+    },
+    {
+      "name": "a non-http scheme costs only its own entry",
+      "rules": ["url-http-or-https"],
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"Socket\",\"enabled\":true,\"url\":\"ws://127.0.0.1:8765\",\"auth\":{\"mode\":\"none\"}},{\"display_name\":\"Fine\",\"enabled\":true,\"url\":\"http://127.0.0.1:9000\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "Socket", "admission": "configuration_invalid", "rule": "url-http-or-https"},
+          {"index": 1, "display_name": "Fine", "admission": "usable", "enabled": true, "default_execution": true, "canonical_url": "http://127.0.0.1:9000", "server_id": "srv_67d8ea34d836dea3b3e8169cb1f45896da25cc2d456769adb7ecc68dbba21c27"}
+        ]
+      }
+    },
+    {
+      "name": "a url carrying credentials is rejected, not stripped",
+      "rules": ["url-carries-no-credentials-query-or-fragment"],
+      "why": "Stripping leaves the operator believing an authentication is configured that the client never sends.",
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"Creds\",\"enabled\":true,\"url\":\"http://user:secret@127.0.0.1:8765\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "Creds", "admission": "configuration_invalid", "rule": "url-carries-no-credentials-query-or-fragment"}
+        ]
+      }
+    },
+    {
+      "name": "a url carrying a query is rejected, not stripped",
+      "rules": ["url-carries-no-credentials-query-or-fragment"],
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"Query\",\"enabled\":true,\"url\":\"http://127.0.0.1:8765/?token=ignored\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "Query", "admission": "configuration_invalid", "rule": "url-carries-no-credentials-query-or-fragment"}
+        ]
+      }
+    },
+    {
+      "name": "a url carrying a fragment is rejected, not stripped",
+      "rules": ["url-carries-no-credentials-query-or-fragment"],
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"Fragment\",\"enabled\":true,\"url\":\"http://127.0.0.1:8765/#section\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "Fragment", "admission": "configuration_invalid", "rule": "url-carries-no-credentials-query-or-fragment"}
+        ]
+      }
+    },
+    {
+      "name": "two entries resolving to the same canonical url are both invalid",
+      "rules": ["duplicate-url-rejected"],
+      "why": "Promised by the README, exercised by no fixture before this corpus, and file-level until this contract. The two spellings differ only in ways canonicalisation folds away.",
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"A\",\"enabled\":true,\"url\":\"http://127.0.0.1:8765\",\"auth\":{\"mode\":\"none\"}},{\"display_name\":\"B\",\"enabled\":true,\"url\":\"http://127.0.0.1:8765/\",\"auth\":{\"mode\":\"none\"}},{\"display_name\":\"C\",\"enabled\":true,\"url\":\"http://127.0.0.1:9000\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "A", "admission": "configuration_invalid", "rule": "duplicate-url-rejected"},
+          {"index": 1, "display_name": "B", "admission": "configuration_invalid", "rule": "duplicate-url-rejected"},
+          {"index": 2, "display_name": "C", "admission": "usable", "enabled": true, "default_execution": true, "canonical_url": "http://127.0.0.1:9000", "server_id": "srv_67d8ea34d836dea3b3e8169cb1f45896da25cc2d456769adb7ecc68dbba21c27"}
+        ]
+      }
+    },
+    {
+      "name": "auth none carrying a token costs only its own entry",
+      "rules": ["auth-variant-exact"],
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"Confused\",\"enabled\":true,\"url\":\"http://127.0.0.1:8765\",\"auth\":{\"mode\":\"none\",\"token\":\"unexpected\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "Confused", "admission": "configuration_invalid", "rule": "auth-variant-exact"}
+        ]
+      }
+    },
+    {
+      "name": "bearer auth with a blank token costs only its own entry",
+      "rules": ["auth-variant-exact"],
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"Blank\",\"enabled\":true,\"url\":\"http://127.0.0.1:8765\",\"auth\":{\"mode\":\"bearer\",\"token\":\"   \"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "Blank", "admission": "configuration_invalid", "rule": "auth-variant-exact"}
+        ]
+      }
+    },
+    {
+      "name": "an unsupported auth mode costs only its own entry",
+      "rules": ["auth-variant-exact"],
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"Path\",\"enabled\":true,\"url\":\"http://127.0.0.1:8765\",\"auth\":{\"mode\":\"token_path\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "Path", "admission": "configuration_invalid", "rule": "auth-variant-exact"}
+        ]
+      }
+    },
+    {
+      "name": "more than one default execution entry invalidates the marked group only",
+      "rules": ["at-most-one-default-execution"],
+      "why": "Promised by the README and exercised by no fixture before this corpus.",
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"A\",\"enabled\":true,\"default_execution\":true,\"url\":\"http://127.0.0.1:8765\",\"auth\":{\"mode\":\"none\"}},{\"display_name\":\"B\",\"enabled\":true,\"default_execution\":true,\"url\":\"http://127.0.0.1:9000\",\"auth\":{\"mode\":\"none\"}},{\"display_name\":\"C\",\"enabled\":true,\"url\":\"http://127.0.0.1:9100\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "A", "admission": "configuration_invalid", "rule": "at-most-one-default-execution"},
+          {"index": 1, "display_name": "B", "admission": "configuration_invalid", "rule": "at-most-one-default-execution"},
+          {"index": 2, "display_name": "C", "admission": "usable", "enabled": true, "default_execution": true, "canonical_url": "http://127.0.0.1:9100", "server_id": "srv_8b88c129a1cbe237c187e3a24e2f1323babfbf5abb311e40388d70617dea5a42"}
+        ]
+      }
+    },
+    {
+      "name": "a disabled default execution entry costs only its own entry",
+      "rules": ["default-execution-must-be-enabled"],
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"A\",\"enabled\":false,\"default_execution\":true,\"url\":\"http://127.0.0.1:8765\",\"auth\":{\"mode\":\"none\"}},{\"display_name\":\"B\",\"enabled\":true,\"url\":\"http://127.0.0.1:9000\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "A", "admission": "configuration_invalid", "rule": "default-execution-must-be-enabled"},
+          {"index": 1, "display_name": "B", "admission": "usable", "enabled": true, "default_execution": true, "canonical_url": "http://127.0.0.1:9000", "server_id": "srv_67d8ea34d836dea3b3e8169cb1f45896da25cc2d456769adb7ecc68dbba21c27"}
+        ]
+      }
+    },
+    {
+      "name": "an unrecognised entry field costs only its own entry",
+      "rules": ["unknown-entry-field-rejected"],
+      "why": "Go dropped it silently, so an operator's intent was neither carried out nor reported; the other two loaders stopped the whole host for it.",
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"Extra\",\"enabled\":true,\"url\":\"http://127.0.0.1:8765\",\"auth\":{\"mode\":\"none\"},\"health\":\"unknown\"},{\"display_name\":\"Fine\",\"enabled\":true,\"url\":\"http://127.0.0.1:9000\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "Extra", "admission": "configuration_invalid", "rule": "unknown-entry-field-rejected"},
+          {"index": 1, "display_name": "Fine", "admission": "usable", "enabled": true, "default_execution": true, "canonical_url": "http://127.0.0.1:9000", "server_id": "srv_67d8ea34d836dea3b3e8169cb1f45896da25cc2d456769adb7ecc68dbba21c27"}
+        ]
+      }
+    },
+    {
+      "name": "a field of the wrong type costs only its own entry",
+      "rules": ["entry-field-types"],
+      "document": "{\"schema_version\":2,\"servers\":[{\"display_name\":\"Typed\",\"enabled\":\"yes\",\"url\":\"http://127.0.0.1:8765\",\"auth\":{\"mode\":\"none\"}},{\"display_name\":\"Fine\",\"enabled\":true,\"url\":\"http://127.0.0.1:9000\",\"auth\":{\"mode\":\"none\"}}]}",
+      "expected": {
+        "decision": "load",
+        "servers": [
+          {"index": 0, "display_name": "Typed", "admission": "configuration_invalid", "rule": "entry-field-types"},
+          {"index": 1, "display_name": "Fine", "admission": "usable", "enabled": true, "default_execution": true, "canonical_url": "http://127.0.0.1:9000", "server_id": "srv_67d8ea34d836dea3b3e8169cb1f45896da25cc2d456769adb7ecc68dbba21c27"}
+        ]
+      }
+    }
+  ]
+}

@@ -318,7 +318,7 @@ func reduceStopSession(s State, connID ConnID, reqID string, p StopSessionParams
 	}
 	removed := truncateFrames(sess, 0)
 	s.Sessions = cloneSessions(s.Sessions)
-	delete(s.Sessions, sid)
+	s.Sessions[sid] = endSession(sess, s.Now)
 	effs := make([]Effect, 0, len(removed)*4+3)
 	effs = append(effs, EffBroadcastSessionsChanged{})
 	for _, frame := range removed {

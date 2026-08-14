@@ -9,6 +9,7 @@ openapi.yaml              # REST binding 宣言 (OpenAPI 3.1)。SoT は *.schema
 events.schema.json        # サーバー→クライアント イベント
 commands.schema.json      # クライアント→サーバー コマンド
 capabilities.schema.json  # capability 交渉
+transport-close.schema.json # 接続終了理由の閉じた語彙 + {"k":"c"} 離脱フレーム + upgrade 前 rejection body
 deep-links.schema.json    # agent-grid:// スキーム
 notifications.schema.json # 通知ペイロード
 simulator/                # fixtures + recordings + sim server (ADR simulator)
@@ -24,3 +25,8 @@ simulator/                # fixtures + recordings + sim server (ADR simulator)
 - 互換ゲート: `scripts/check-protocol-compatibility.sh` / `make protocol-compat`。
 
 Go IPC/HTTP 実体: `services/host/proto` と `services/server/api/wire.go` (スキーマに対して round-trip 検証)。
+
+`transport-close.schema.json` の語彙は閉じている。実装側の正本は `services/server/api/transport_close.go` で、
+両者の一致と「語彙外の理由を送る close 経路が無いこと」は
+`cd services && go test ./gorules/ -run TestTransportCloseReasonVocabularyIsRegisteredAndExhaustive` が守る
+(adr-20260814-transport-close-reason-taxonomy)。

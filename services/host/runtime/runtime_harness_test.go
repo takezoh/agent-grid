@@ -194,8 +194,13 @@ func TestRuntimeHarness_EnqueueDropsWhenEventQueueIsFull(t *testing.T) {
 	h.Quiesce(t)
 
 	snapshot := h.Runtime().TestPublishedState()
-	if len(snapshot.Sessions) != 0 {
-		t.Fatalf("sessions = %d, want 0 after stop-session and dropped enqueue", len(snapshot.Sessions))
+	// stop-session leaves a terminal row rather than deleting it
+	// (adr-20260814-session-terminal-state-retention); what must not survive is
+	// a *live* session, which is what the dropped enqueue could have produced.
+	for id, sess := range snapshot.Sessions {
+		if !sess.Ended() {
+			t.Fatalf("session %q is still live after stop-session and dropped enqueue", id)
+		}
 	}
 	if backend.SpawnCalls() != 1 {
 		t.Fatalf("SpawnFrame calls = %d, want 1 after dropped enqueue", backend.SpawnCalls())

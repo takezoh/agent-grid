@@ -1,6 +1,34 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Agent Grid desktop servers",
+  "title": "Agent Grid client servers",
+  "description": "The canonical client configuration contract, shared by every client host: web host, terminal CLI, Workspace and Windows Shell. No loader validates against this document — each language holds one hand-written loader, because wire and persistence types stay stdlib-only. What keeps the three honest is x-contract-rules below plus the expected-outcome corpus in fixtures/servers-corpus.json, which every loader asserts against.",
+  "x-admission": {
+    "description": "Admission is per entry. A malformed entry costs that entry and the entries it collides with, not the fleet. Only an unreadable entry list stops a host, because that is the one case where no entry can be named. A loader never renames, normalises, suffixes, disables or drops an entry to resolve a violation.",
+    "states": {
+      "usable": "Valid and enabled; this entry is connected to.",
+      "disabled": "Valid but not enabled; never connected to, and not an error.",
+      "configuration_invalid": "Broke a rule, or collides with an entry that did. Never probed, never connected to, and always reported with its position, its display name as written, and the rule it violates."
+    }
+  },
+  "x-contract-rules": [
+    {"id": "document-parseable", "scope": "file", "statement": "The document is JSON; an unparseable file stops the host."},
+    {"id": "schema-version-exact", "scope": "file", "statement": "schema_version equals 2 exactly; no version is migrated or rewritten."},
+    {"id": "server-list-present", "scope": "file", "statement": "servers is present and is an array. An empty array is an empty fleet, not an error."},
+    {"id": "display-name-required", "scope": "entry", "statement": "Every entry carries a display_name that is not blank after trimming."},
+    {"id": "display-name-charset", "scope": "entry", "statement": "A display name contains no ASCII control character and does not begin with '-', so it is usable as a command-line argument."},
+    {"id": "display-name-unique", "scope": "entry", "statement": "Among enabled entries, display names are unique by exact code-point equality after trimming. Every member of a collision is invalid; no winner is chosen."},
+    {"id": "entry-field-types", "scope": "entry", "statement": "display_name and url are strings; enabled and default_execution are booleans."},
+    {"id": "unknown-entry-field-rejected", "scope": "entry", "statement": "An unrecognised entry field is rejected; only the deprecated id field is accepted and discarded."},
+    {"id": "url-http-or-https", "scope": "entry", "statement": "A gateway URL is absolute with scheme http or https."},
+    {"id": "url-carries-no-credentials-query-or-fragment", "scope": "entry", "statement": "Credentials, a query or a fragment in a gateway URL are rejected, not stripped."},
+    {"id": "url-canonicalised", "scope": "derivation", "statement": "The canonical URL lower-cases scheme and host, drops a default port, and removes trailing path slashes."},
+    {"id": "server-id-derived-from-canonical-url", "scope": "derivation", "statement": "serverId is srv_ plus the lowercase SHA-256 hex digest of the canonical URL; it is never read from the file."},
+    {"id": "duplicate-url-rejected", "scope": "entry", "statement": "Two entries may not resolve to the same canonical URL. Every member of a collision is invalid; no winner is chosen."},
+    {"id": "auth-variant-exact", "scope": "entry", "statement": "auth is exactly {\"mode\":\"none\"} or {\"mode\":\"bearer\",\"token\":\"<non-blank>\"}."},
+    {"id": "at-most-one-default-execution", "scope": "entry", "statement": "At most one entry carries default_execution. When more do, every marked entry is invalid."},
+    {"id": "default-execution-must-be-enabled", "scope": "entry", "statement": "A default_execution entry is enabled."},
+    {"id": "legacy-default-execution-falls-back-to-first-enabled", "scope": "derivation", "statement": "A document with no default_execution marker uses its first usable entry, without being rewritten."}
+  ],
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "servers"],
@@ -8,7 +36,6 @@
     "schema_version": { "const": 2 },
     "servers": {
       "type": "array",
-      "minItems": 1,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -19,7 +46,13 @@
             "deprecated": true,
             "description": "Ignored read-only compatibility field; clients derive the identifier from url."
           },
-          "display_name": { "type": "string", "minLength": 1 },
+          "display_name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Addressable server name. Unique among enabled entries by exact code-point equality after trimming; no ASCII control character; must not begin with '-'.",
+            "pattern": "^\\s*[^-\\s\\u0000-\\u001f\\u007f]",
+            "not": { "pattern": "[\\u0000-\\u001f\\u007f]" }
+          },
           "enabled": { "type": "boolean" },
           "default_execution": {
             "type": "boolean",

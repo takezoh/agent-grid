@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/takezoh/agent-grid/clients/web-host/internal/clientconfig"
+	"github.com/takezoh/agent-grid/clients/goclient/clientconfig"
 	"github.com/takezoh/agent-grid/clients/web-host/internal/tlsserve"
 	"github.com/takezoh/agent-grid/clients/web-host/internal/webhost"
 )

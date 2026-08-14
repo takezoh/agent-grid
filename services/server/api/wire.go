@@ -41,16 +41,31 @@ func outputFrameFromSurface(e proto.EvtSurfaceOutput) []byte {
 }
 
 // controlMsg is a server→client control event distinct from output by
-// being a JSON object rather than the asciicast array.
+// being a JSON object rather than the asciicast array. Its published shape is
+// protocol/transport-close.schema.json.
+//
+// Reason is the typed departure cause. Data is the pre-taxonomy free-form
+// payload, kept because shipped clients match string literals against it; it
+// is not a vocabulary. Code is the legacy numeric slot — every production call
+// site passes 0 and omitempty drops it, so it never reaches the wire.
 type controlMsg struct {
-	K    string `json:"k"`
-	Code int    `json:"code,omitempty"`
-	Data string `json:"data,omitempty"`
+	K      string      `json:"k"`
+	Reason CloseReason `json:"reason,omitempty"`
+	Code   int         `json:"code,omitempty"`
+	Data   string      `json:"data,omitempty"`
 }
 
 // controlFrame encodes the fixed {"k":"c",...} control JSON text frame.
 func controlFrame(code int, data string) []byte {
 	b, _ := json.Marshal(controlMsg{K: "c", Code: code, Data: data})
+	return b
+}
+
+// departureControlFrame encodes the application-level half of the two-step
+// close: the same reason the close frame will carry, sent while the socket is
+// still writable.
+func departureControlFrame(reason CloseReason, legacy string) []byte {
+	b, _ := json.Marshal(controlMsg{K: "c", Reason: reason, Data: legacy})
 	return b
 }
 

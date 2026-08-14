@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"github.com/takezoh/agent-grid/clients/web-host/internal/clientconfig"
+	"github.com/takezoh/agent-grid/clients/goclient/clientconfig"
 	"github.com/takezoh/agent-grid/clients/web-host/internal/githubhost"
 )
 const leaseSentinel = "gho_SENTINEL_WEB_HOST_7f3a9c"

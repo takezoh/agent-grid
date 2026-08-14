@@ -42,8 +42,9 @@ describe("HostRepositoryProjection parity", () => {
 
 describe("Repository lease preflight / no-transfer", () => {
   const okServer: ServerConfig = {
-    id: "s", display_name: "s", enabled: true, url: "http://127.0.0.1:9",
-    auth: { mode: "bearer", token: "server-secret" },
+    id: "s", index: 0, display_name: "s", enabled: true, default_execution: true,
+    url: "http://127.0.0.1:9", auth: { mode: "bearer", token: "server-secret" },
+    admission: "usable",
   };
   const store = {
     load: () => ({ record: { access_token: SENTINEL, generation: 3 }, ok: true as const }),

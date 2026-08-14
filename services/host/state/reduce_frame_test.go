@@ -81,7 +81,7 @@ func TestEvictInactiveChildFramePrunesStaleMRU(t *testing.T) {
 		},
 	}
 
-	next, _, ok := evictFrame(s, "f2", false)
+	next, _, ok := evictFrame(s, "f2", false, retainEndedSession)
 	if !ok {
 		t.Fatal("evictFrame returned ok=false")
 	}
