@@ -62,7 +62,7 @@ transport differs.
 Agent Grid separates session supervision from autonomous orchestration:
 
 ```text
-Web / Windows Shell / Electron Workspace
+Web / Windows Shell / Electron Workspace / terminal
                  │
                  ▼
        server (HTTP/WS + PTY sessions)
@@ -76,6 +76,9 @@ The main deployables are:
 
 - **`server`** — single-process PTY session daemon and HTTP/WebSocket gateway
 - **`web-host`** — configured host for the shared browser UI
+- **`agent-grid`** — terminal client: list sessions, attach a local terminal to
+  one, detach without stopping it (`make install-cli`). Resize tracking and
+  input-queue discard are not implemented on Windows yet
 - **`orchestrator`** — issue polling, dispatch, reconciliation, and observability
 - **`claude-app-server`** — stdio JSON-RPC adapter that exposes Claude through
   the Codex app-server contract

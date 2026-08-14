@@ -142,10 +142,20 @@ Outstanding before `closing`:
 - `unit-platform-hardening-spikes` — the three platform observations need a real
   Windows console and a real agent session. The Windows size-change source and
   input-queue discard stay explicitly unimplemented until they exist.
-- `cli-gateway`'s fidelity backstop has never been observed passing. It was run
-  against a real `dist/bin/server`; the daemon could not create its unix socket
-  in the environment available, so the run proves nothing about the fake.
 - `open-ambiguous-candidate-breadth` is still with the user.
+- `TestE2E_GatewayScenarioWorkspaceFileWrite` and
+  `TestE2E_GatewayScenarioFakeCodexSurfaceAndSessionState` in
+  `services/server/api` fail deterministically on a host that permits unix
+  sockets. They fail identically at `bcf6d844`, before any CLI work, so they are
+  pre-existing rather than caused here — but they are red, and this change
+  should not close while claiming a green repository.
+
+Both fidelity backstops have now been observed passing.
+`cli-gateway` found three defects on its first real run — a wrong scheme in the
+harness, a production transport asymmetry now recorded as
+`design-clients-cli` INV-011, and three keys missing from the fake's hello
+frame. That is the backstop doing its job, and it is why "registered" and
+"observed passing" are tracked as separate claims.
 
 `handoff-cli-binary-canonical-name` is closed:
 `adr-20260814-cli-canonical-binary-name` fixes the installed name at
